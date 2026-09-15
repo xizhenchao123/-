@@ -22,6 +22,19 @@
   .up{color:var(--up)} .dn{color:var(--dn)} .ac{color:var(--ac)}
   .cols{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start}
   @media(max-width:900px){.cols{grid-template-columns:1fr}}
+  @media(max-width:480px){
+    .wrap{padding:10px}
+    h1{font-size:18px}
+    .cards{grid-template-columns:1fr 1fr;gap:8px}
+    .card{padding:10px 12px}
+    .card .v{font-size:17px}
+    .panel{padding:12px}
+    .panel h2{font-size:13px}
+    .btn{font-size:12px;padding:6px 10px}
+    header button{width:100%;text-align:center}
+    pre{font-size:11px}
+    .val{font-size:13px}
+  }
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
   .panel h2{font-size:15px;margin:0 0 10px;color:var(--mut);font-weight:600;border-bottom:1px solid var(--line);padding-bottom:8px}
   .row{display:flex;gap:24px;flex-wrap:wrap}

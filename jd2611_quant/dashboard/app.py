@@ -197,4 +197,4 @@ if __name__ == "__main__":
     except Exception as e:
         print("[startup] 加载失败:", e)
     threading.Thread(target=_background, daemon=True).start()
-    app.run(host="127.0.0.1", port=8501, debug=False)
+    app.run(host="0.0.0.0", port=8501, debug=False)
