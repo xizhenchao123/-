@@ -122,6 +122,7 @@ def _recompute():
         "eq_total_pct": round(bt.equity[-1] / C.INITIAL_CAPITAL - 1, 4),
         "levels": levels,
         "buy_notes": buy_notes,
+        "jd2611": _jd2611_analysis(),
         # 模拟盘
         "position": ({"dir": "多" if bt.dir == 1 else "空", "lots": bt.lots,
                       "entry": bt.entry_price, "stop": bt.stop_price,
@@ -152,9 +153,111 @@ def refresh_state(do_fetch=False):
                            capture_output=True)
         except Exception as e:
             print("fetch_history 失败:", e)
+        try:
+            _fetch_jd2611()
+        except Exception as e:
+            print("fetch JD2611 失败:", e)
     with STATE_LOCK:
         STATE = _recompute()
     return STATE
+
+
+def _fetch_jd2611():
+    """拉取/刷新 JD2611 个券日线到 data/jd2611_raw.csv（与主力连续相互独立）。"""
+    import akshare as ak
+    df = ak.futures_zh_daily_sina(symbol="JD2611")
+    df = df.rename(columns={c: c.lower() for c in df.columns})
+    out = os.path.join(PROJ, "data", "jd2611_raw.csv")
+    df.to_csv(out, index=False)
+
+
+def _jd2611_analysis():
+    """对 JD2611 个券做专项方向/走势分析（独立于主力连续）。"""
+    try:
+        import pandas as pd
+        from indicators import macd, rsi
+    except Exception:
+        return None
+    fp = os.path.join(PROJ, "data", "jd2611_raw.csv")
+    if not os.path.exists(fp):
+        return None
+    try:
+        df = pd.read_csv(fp)
+        df = df.sort_values("date").reset_index(drop=True)
+        df = df.dropna(subset=["close"]).reset_index(drop=True)
+        if len(df) < 30:
+            return None
+        c = df["close"].tolist()
+        ma20 = sma(c, 20)[-1]
+        ma60 = sma(c, 60)[-1]
+        hist, dea, dif = macd(c)
+        hist, dif, dea = hist[-1], dif[-1], dea[-1]
+        r6 = rsi(c, 6)[-1]
+        r14 = rsi(c, 14)[-1]
+        bm, bu, bl = boll([b for b in c], 20, 2)
+        last = df.iloc[-1]
+        close = float(last["close"])
+        prev = float(df.iloc[-2]["close"])
+        chg = (close - prev) / prev
+        # 手动 ATR14
+        tr = []
+        for i in range(len(df)):
+            h, l = df["high"].iloc[i], df["low"].iloc[i]
+            pc = df["close"].iloc[i - 1] if i > 0 else h
+            tr.append(max(h - l, abs(h - pc), abs(l - pc)))
+        atr14 = sum(tr[-14:]) / 14
+        hi20 = df["high"].tail(20).max()
+        lo20 = df["low"].tail(20).min()
+        hb = df["close"].tail(120).max()
+        lb = df["close"].tail(120).min()
+
+        # 方向判定（与主力逻辑对齐的双周期）
+        mid_bear = close < ma60
+        short_bull = ma20 and c[-1] and sma(c, 5)[-1] > ma20
+        if mid_bear and not (short_bull and hist > 0):
+            verdict, cls = "偏空", "dn"
+        elif not mid_bear and (short_bull or hist > 0):
+            verdict, cls = "偏多", "up"
+        else:
+            verdict, cls = "震荡观望", "mut"
+        quotes = {
+            "via_date": str(last["date"]),
+            "close": round(close, 0),
+            "prev_close": round(prev, 0),
+            "chg_pct": round(chg * 100, 2),
+            "n_bars": int(len(df)),
+            "ma5": round(sma(c, 5)[-1], 0),
+            "ma10": round(sma(c, 10)[-1], 0),
+            "ma20": round(ma20, 0),
+            "ma60": round(ma60, 0),
+            "atr": round(atr14, 0),
+            "dif": round(dif, 1), "dea": round(dea, 1), "hist": round(hist, 1),
+            "macd_bull": hist > 0,
+            "rsi6": round(r6, 1), "rsi14": round(r14, 1),
+            "boll_up": round(bu[-1], 0), "boll_mid": round(bm[-1], 0),
+            "boll_low": round(bl[-1], 0),
+            "hi20": round(hi20, 0), "lo20": round(lo20, 0),
+            "hi120": round(hb, 0), "lo120": round(lb, 0),
+            "verdict": verdict, "cls": cls,
+            "mid_bear": mid_bear, "short_bull": short_bull,
+            "pct_from_high": round((close / hb - 1) * 100, 1),
+        }
+        # 一句话依据
+        note = []
+        if mid_bear:
+            note.append("价格仍在中周期均线(MA60)下方，中期偏弱")
+        else:
+            note.append("价格站上中周期均线，中期转强")
+        if hist > 0:
+            note.append("MACD红柱，动能偏多")
+        else:
+            note.append("MACD绿柱，动能偏空")
+        note.append("短均线" + ("多头排列" if sma(c, 5)[-1] > ma20 else "空头排列"))
+        quotes["summary"] = "；".join(note)
+        return quotes
+    except Exception as e:
+        print("JD2611 分析失败:", e)
+        return None
 
 
 def _trend_verdict(strat, price):

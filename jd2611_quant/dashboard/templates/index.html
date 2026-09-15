@@ -147,6 +147,31 @@
   .lv-buy .n{font-weight:700;color:var(--ac);min-width:18px}
   .lv-buy .d{color:var(--txt)}
   @media(max-width:480px){.lv-val{font-size:16px}.lv-wrap{gap:12px}}
+
+  /* ===== JD2611 专项研判面板 ===== */
+  .jd{position:relative;overflow:hidden}
+  .jd .jd-head{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .jd .jd-name{font-size:16px;font-weight:800;color:#fff;letter-spacing:.5px}
+  .jd .jd-badge{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;
+    font-size:20px;color:#fff;background:linear-gradient(145deg,#43d897,#1d8958);
+    box-shadow:0 6px 16px rgba(0,0,0,.35)}
+  .jd .jd-verdict{font-size:24px;font-weight:900}
+  .jd .jd-cls-up .jd-verdict{background:linear-gradient(180deg,#ffc2c2,#ff6b6b);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .jd .jd-cls-dn .jd-verdict{background:linear-gradient(180deg,#b3f0d4,#3ad08e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .jd .jd-cls-mut .jd-verdict{background:linear-gradient(180deg,#e4e8f0,#b3bccf);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .jd .jd-sub{font-size:12px;color:var(--mut);margin-top:4px}
+  .jd .jd-price{margin:6px 0 4px}
+  .jd .jd-price .p{font-size:20px;font-weight:900;color:#fff}
+  .jd .jd-price .s{font-size:12px;color:var(--mut);margin-left:5px}
+  .jd .jd-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:9px;margin-bottom:12px}
+  .jd .jd-m{background:rgba(11,15,24,.5);border:1px solid var(--line);border-radius:10px;padding:8px 11px}
+  .jd .jd-m .tm{font-size:11px;color:var(--mut)}
+  .jd .jd-m .tv{font-size:16px;font-weight:800;margin-top:3px}
+  .jd .jd-m .ts{font-size:11px;color:var(--mut);margin-top:2px}
+  .jd .jd-summary{background:rgba(11,15,24,.42);border:1px solid var(--line);border-left:3px solid var(--ac);
+    border-radius:10px;padding:10px 13px;font-size:13px;line-height:1.55}
+  .jd .jd-note{font-size:11px;color:var(--mut);margin-top:10px}
+  @media(max-width:480px){.jd .jd-metrics{grid-template-columns:repeat(2,1fr)}.jd .jd-verdict{font-size:20px}}
 </style>
 </head>
 <body>
@@ -163,6 +188,9 @@
   </header>
 
   <div class="panel trendbox" id="trendBox" style="margin-bottom:16px"><!-- JS: 方向趋势判断 --></div>
+
+  <!-- JS: JD2611 专项研判 -->
+  <div class="panel" id="jd2611Panel" style="margin-bottom:16px;display:none"></div>
 
   <div class="cards" id="kpis"><!-- JS --></div>
 
@@ -246,6 +274,7 @@ function renderAll(st,ana,sched){
   ].join('');
   renderTrend(st.trend);
   renderLevels(st.levels, st.buy_notes);
+  renderJd2611(st.jd2611);
   renderChart(st.tail, st.levels);
   renderSim(st);
   renderParams(st.params);
@@ -268,6 +297,45 @@ function renderLevels(levels, notes){
     `<div class="item"><span class="n">${i+1}.</span><span class="d">${d}</span></div>`).join('');
   box.innerHTML=`<div class="lv-wrap">${lines}</div>
     <div class="lv-buy">${buys}</div>`;
+}
+
+function renderJd2611(jd){
+  const panel=$('jd2611Panel');
+  if(!jd){panel.style.display='none';return;}
+  panel.style.display='block';
+  const clsMap={up:'jd-cls-up',dn:'jd-cls-dn',mut:'jd-cls-mut'};
+  const badge=jd.verdict.includes('空')?'▼':jd.verdict.includes('多')?'▲':'─';
+  const chgCls=jd.chg_pct>0?'up':jd.chg_pct<0?'dn':'';
+  const maUp=jd.ma5>jd.ma20;
+  const macTxt=jd.macd_bull?'红柱':'绿柱';
+  const macCol=jd.macd_bull?'#ff8a8a':'#4be0a0';
+  const note=jd.summary
+    .replace('价格站上中周期均线','价格站上<span style="color:#ff8a8a"><b>中周期均线</b></span>')
+    .replace('价格仍在中周期均线(MA60)下方','价格位于<span style="color:#4be0a0"><b>中周期均线(MA60)</b></span>下方');
+  panel.className=`panel jd ${clsMap[jd.cls]||''}`;
+  panel.innerHTML=`
+    <div class="jd-head">
+      <div class="jd-badge">${badge}</div>
+      <div>
+        <div class="jd-name">JD2611 · 鸡蛋专项</div>
+        <div class="jd-verdict">${jd.verdict}</div>
+        <div class="jd-sub">研判基于个券JD2611 · 独立于主力连续 · ${jd.via_date}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div class="jd-price"><span class="p">${jd.close}</span><span class="s ${chgCls}">${jd.chg_pct>0?'+':''}${jd.chg_pct}%</span></div>
+        <div class="jd-sub">距120日高 ${jd.pct_from_high}%</div>
+      </div>
+    </div>
+    <div class="jd-metrics">
+      <div class="jd-m"><div class="tm">MA5</div><div class="tv">${jd.ma5}</div><div class="ts">${maUp?'多头':'空头'}排列</div></div>
+      <div class="jd-m"><div class="tm">MA20 / MA60</div><div class="tv">${jd.ma20} / ${jd.ma60}</div><div class="ts">${jd.mid_bear?'中期空头':'中期多头'}</div></div>
+      <div class="jd-m"><div class="tm">MACD柱</div><div class="tv" style="color:${macCol}">${jd.hist}</div><div class="ts" style="color:${macCol}">${macTxt}</div></div>
+      <div class="jd-m"><div class="tm">RSI6 / RSI14</div><div class="tv">${jd.rsi6} / ${jd.rsi14}</div><div class="ts">${jd.rsi6>70?'超买':jd.rsi6<30?'超卖':'中性'}</div></div>
+      <div class="jd-m"><div class="tm">布林带</div><div class="tv">${jd.boll_low}~${jd.boll_up}</div><div class="ts">中轨 ${jd.boll_mid}</div></div>
+      <div class="jd-m"><div class="tm">支撑 / 阻力</div><div class="tv">${jd.lo20} / ${jd.hi20}</div><div class="ts">近20日 · 强撑${jd.lo120}</div></div>
+    </div>
+    <div class="jd-summary" style="color:${jd.mid_bear?'':'#fff'}">${note}</div>
+    <div class="jd-note">仅基于个券JD2611真实日线（${jd.via_date}）的研判，非投资建议。</div>`;
 }
 
 function renderTrend(tr){
