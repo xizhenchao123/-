@@ -20,7 +20,7 @@ MIN_LOTS = 1                  # 最小下单手数
 
 # ---------- 止损止盈 ----------
 ATR_PERIOD = 14
-ATR_STOP_MULT = 2.0     # 初始硬止损 = 开仓价 ± K*ATR（傅海棠：不扛单，铁律止损）
+ATR_STOP_MULT = 2.5     # 初始硬止损 = 开仓价 ± K*ATR（70/30长历史定型值）
 TRAIL_STOP_ATR = 4.0    # 移动止损触发（看对拿住，跟踪大趋势；ATR 倍数）
 TRAIL_STOP_TRIGGER = 0.10  # 盈利达开仓价 10% 后启动移动止损
 
