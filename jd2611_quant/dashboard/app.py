@@ -33,7 +33,7 @@ os.chdir(PROJ)
 
 from flask import Flask, jsonify, request, render_template
 import config as C
-from indicators import sma
+from indicators import sma, boll
 from data import load_bars
 
 # 缓存的全局状态（加锁）
@@ -84,6 +84,31 @@ def _recompute():
     # 方向趋势判断（综合多信号）
     trend = _trend_verdict(strat, last["close"])
 
+    # ---- 支撑 / 阻力位（基于真实价格）----
+    rec = bars[-1]
+    low20 = min(b["low"] for b in bars[-20:])
+    high20 = max(b["high"] for b in bars[-20:])
+    low60 = min(b["low"] for b in bars[-60:])
+    ma20_now = ma20[-1]
+    _bm, _bu, _bl = boll([b["close"] for b in bars], C.BOLL_PERIOD, C.BOLL_STD)
+    boll_low = _bl[-1]
+    cost_buy = C.COST_REF - C.COST_OVERSHOOT   # 物极必反买区
+    levels = {
+        # 名称: [价位, 类型]
+        "压力": [round(high20, 0), "res"],
+        "布林上轨": [round(_bu[-1], 0), "res"],
+        "MA20": [round(ma20_now, 1), "mid"],
+        "布林下轨": [round(boll_low, 1), "sup"],
+        "支撑": [round(low20, 0), "sup"],
+        "物极买区": [round(cost_buy, 0), "ext"],
+    }
+    # 买入点提示
+    buy_notes = [
+        "激进左侧：3650~3680 支撑带（近20日低点+布林下轨），跌破3650止损",
+        "稳健右侧：站稳并收复 MA20(3787) 且共振分转正，才追多",
+        "极值买区：<3520 触发物极必反，超跌博弈",
+    ]
+
     state = {
         "date": last["date"],
         "close": last["close"],
@@ -95,6 +120,8 @@ def _recompute():
         "trade_count": len(bt.trades),
         "equity_final": round(bt.equity[-1], 0),
         "eq_total_pct": round(bt.equity[-1] / C.INITIAL_CAPITAL - 1, 4),
+        "levels": levels,
+        "buy_notes": buy_notes,
         # 模拟盘
         "position": ({"dir": "多" if bt.dir == 1 else "空", "lots": bt.lots,
                       "entry": bt.entry_price, "stop": bt.stop_price,

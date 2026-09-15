@@ -112,6 +112,21 @@
     .tb-inner{padding:14px 14px 14px 20px;gap:16px}
     .tb-metrics{min-width:0;grid-template-columns:repeat(2,1fr)}
   }
+/* 关键价位面板 */
+  .lv-wrap{display:flex;gap:22px;flex-wrap:wrap;align-items:center}
+  .lv-line{display:flex;gap:6px;align-items:baseline}
+  .lv-name{font-size:12px;color:var(--mut)}
+  .lv-val{font-size:20px;font-weight:800}
+  .lv-tag{font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;align-self:center}
+  .lv-tag.res{background:rgba(226,59,59,.14);color:#ff8a8a}
+  .lv-tag.sup{background:rgba(34,160,107,.14);color:#46d39a}
+  .lv-tag.mid{background:rgba(79,140,255,.15);color:var(--ac)}
+  .lv-tag.ext{background:rgba(190,140,60,.16);color:#e0a94a}
+  .lv-buy{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+  .lv-buy .item{font-size:13px;display:flex;gap:8px;align-items:baseline}
+  .lv-buy .n{font-weight:700;color:var(--ac);min-width:18px}
+  .lv-buy .d{color:var(--txt)}
+  @media(max-width:480px){.lv-val{font-size:16px}.lv-wrap{gap:12px}}
 </style>
 </head>
 <body>
@@ -146,6 +161,11 @@
         <div id="params"></div>
       </div>
     </div>
+  </div>
+
+  <div class="panel" id="levelsPanel" style="display:none">
+    <h2>关键价位 · 支撑 / 阻力 / 买入点</h2>
+    <div id="levelsBox"></div>
   </div>
 
   <div class="cols" style="grid-template-columns:1fr 1fr">
@@ -205,10 +225,29 @@ function renderAll(st,ana,sched){
     <div class="card"><div class="k">检验尺度</div><div class="v ac" style="font-size:16px">样本外正期望</div></div>`
   ].join('');
   renderTrend(st.trend);
-  renderChart(st.tail);
+  renderLevels(st.levels, st.buy_notes);
+  renderChart(st.tail, st.levels);
   renderSim(st);
   renderParams(st.params);
   renderAnalysis(ana);
+}
+
+function renderLevels(levels, notes){
+  const panel=$('levelsPanel'), box=$('levelsBox');
+  if(!levels){panel.style.display='none';return;}
+  panel.style.display='block';
+  const tagTxt={res:'压力',sup:'支撑',mid:'中线',ext:'极值'};
+  const order=[['布林上轨','res'],['压力','res'],['MA20','mid'],['布林下轨','sup'],['支撑','sup'],['物极买区','ext']];
+  const lines=order.map(([name,typ])=>{
+    if(levels[name]==null)return '';
+    const v=levels[name];
+    return `<div class="lv-line"><span class="lv-name">${name}</span>
+      <span class="lv-val">${v}</span><span class="lv-tag ${typ}">${tagTxt[typ]}</span></div>`;
+  }).join('');
+  const buys=(notes||[]).map((d,i)=>
+    `<div class="item"><span class="n">${i+1}.</span><span class="d">${d}</span></div>`).join('');
+  box.innerHTML=`<div class="lv-wrap">${lines}</div>
+    <div class="lv-buy">${buys}</div>`;
 }
 
 function renderTrend(tr){
@@ -314,7 +353,7 @@ function renderAnalysis(ana){
 }
 
 // ---- SVG 蜡烛图 ----
-function renderChart(tail){
+function renderChart(tail, levels){
   if(!tail||!tail.length){$('chart').innerHTML='<div class="mut">无数据</div>';return;}
   const W=1180,H=420,padL=8,padR=8,padT=18,padB=28;
   let lo=1e9,hi=-1e9;
@@ -348,6 +387,17 @@ function renderChart(tail){
     }
   });
   svg+=`<line x1="${padL}" y1="${y(tail[tail.length-2].c)}" x2="${W-padR}" y2="${y(tail[tail.length-2].c)}" stroke="#4f8cff" stroke-dasharray="4,4" stroke-width="1"/>`;
+  // 支撑 / 阻力水平线（仅在视图范围内）
+  const lvDefs=[['布林上轨','#ff8a8a'],['压力','#ff8a8a'],['MA20','#f2a33c'],
+                ['布林下轨','#46d39a'],['支撑','#46d39a'],['物极买区','#e0a94a']];
+  lvDefs.forEach(([name,color])=>{
+    const v=levels&&levels[name]; if(v==null)return;
+    if(v<lo||v>hi)return;
+    const yy=y(v);
+    svg+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="${color}" 
+      stroke-dasharray="1,4" stroke-width="1" opacity=".7"/>
+      <text x="${padL+4}" y="${yy-3}" fill="${color}" font-size="10">${name} ${v}</text>`;
+  });
   svg+='</svg>';
   $('chart').innerHTML=svg;
 }
