@@ -35,6 +35,7 @@ class Backtest:
         self.cur_atr = 0.0
         self.trades = []
         self.equity = [0.0] * self.n
+        self.equity[0] = initial
         self._atr = atr(bars)
 
     @property
