@@ -46,17 +46,18 @@ def main():
         print(f"最近平仓      : {t['entry_date']}→{t['exit_date']}  {t['direction']}单 "
               f"净{t['pnl']:,.0f} 离场=({t['reason']})")
 
-    # 仅当信号晚于最近离场且当前空仓 → 才视为待执行；否则视为已成交/冷却期信号
+    # 待执行信号：与回测端成交条件逐一对齐
+    #   回测仅在 sig=signals[n-1] 且 空仓 且 (n-1-last_exit)>=冷却期 时于下一 bar 开仓。
+    #   因此逆推：仅当 signals[-1]!=0 且当前空仓且冷却期已满足，才是真正"待执行"。
     actionable = None
-    if bt.lots == 0:
-        for i in range(len(bars) - 1, -1, -1):
-            if strat.signal[i] != 0 and bars[i]["date"] > last_exit:
-                actionable = i
-                break
+    if bt.lots == 0 and strat.signal[-1] != 0:
+        cool_ok = (len(bars) - 1 - bt.last_exit_idx) >= BACK_MOD.MIN_TRADE_INTERVAL
+        if cool_ok:
+            actionable = len(bars) - 1
     if actionable is not None:
         d = "多" if strat.signal[actionable] == 1 else "空"
         print(f"待执行信号    : {d}  于 {bars[actionable]['date']} 收盘触发，"
-              f"之后首个交易日开盘可执行（注意冷却期≥{BACK_MOD.MIN_TRADE_INTERVAL}个交易日）")
+              f"之后首个交易日开盘可执行")
     else:
         print("待执行信号    : 无（当前空仓，无新入场信号）")
     print("=" * 60)
