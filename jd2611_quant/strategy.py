@@ -13,11 +13,12 @@
   分值达到 SIGNAL_THRESHOLD 且通过趋势门控，才生成入场信号。
 """
 from config import (
-    MA_SHORT, MA_LONG, TREND_MA,
+    MA_SHORT, MA_LONG, TREND_MA, TREND_MA_MAJOR,
     MACD_SHORT, MACD_LONG, MACD_MID,
     RSI_PERIOD, BOLL_PERIOD, BOLL_STD,
     VOL_WINDOW, SIGNAL_THRESHOLD,
     COST_REF, COST_OVERSHOOT,
+    MIN_OI, ENTRY_REQUIRE_CROSS,
 )
 from indicators import sma, macd, rsi, boll, volume_signal
 
@@ -35,11 +36,13 @@ class Strategy:
         self.ma_s = sma(c, MA_SHORT)
         self.ma_l = sma(c, MA_LONG)
         self.ma_t = sma(c, TREND_MA)
+        self.ma_major = sma(c, TREND_MA_MAJOR)
         self.dif, self.dea, self.hist = macd(c, MACD_SHORT, MACD_LONG, MACD_MID)
         self.rsi6 = rsi(c, RSI_PERIOD)
         self.boll_m, self.boll_u, self.boll_l = boll(c, BOLL_PERIOD, BOLL_STD)
         self.volsig = volume_signal(self.bars, VOL_WINDOW)
         self.score = [None] * self.n
+        self.break_dir = [0] * self.n   # 结构突破方向：+1 均线金叉或MACD金叉；-1 死叉；0 无
         self.gate = [0] * self.n      # 趋势门控：+1 允许多，-1 允许多空，0 观望
         self.signal = [0] * self.n    # 入场方向：+1 / -1 / 0
         self.last_signal = 0
@@ -55,8 +58,12 @@ class Strategy:
             # --- 均线 ---
             cross_hi = ok_ma and self.ma_s[i - 1] <= self.ma_l[i - 1] and self.ma_s[i] > self.ma_l[i]
             cross_lo = ok_ma and self.ma_s[i - 1] >= self.ma_l[i - 1] and self.ma_s[i] < self.ma_l[i]
-            if cross_hi: s += 2
-            elif cross_lo: s -= 2
+            if cross_hi:
+                s += 2
+                self.break_dir[i] = 1
+            elif cross_lo:
+                s -= 2
+                self.break_dir[i] = -1
             elif self.ma_s[i] > self.ma_l[i]: s += 0.5
             elif self.ma_s[i] < self.ma_l[i]: s -= 0.5
             # --- MACD ---
@@ -65,8 +72,14 @@ class Strategy:
                 prev_ok = self.dif[i - 1] is not None and self.dea[i - 1] is not None
                 gc = prev_ok and self.dif[i - 1] <= self.dea[i - 1] and d > e
                 dc = prev_ok and self.dif[i - 1] >= self.dea[i - 1] and d < e
-                if gc: s += 2
-                elif dc: s -= 2
+                if gc:
+                    s += 2
+                    if self.break_dir[i] == 0:
+                        self.break_dir[i] = 1
+                elif dc:
+                    s -= 2
+                    if self.break_dir[i] == 0:
+                        self.break_dir[i] = -1
                 if d > 0: s += 0.5
                 else: s -= 0.5
             # --- RSI ---
@@ -87,32 +100,53 @@ class Strategy:
             self.score[i] = s
 
     def _apply_entries(self):
-        """趋势门控 + 物极必反 + 阈值，生成入场方向。"""
+        """双趋势门控 + 流动性过滤 + 结构突破主触发 + 阈值，生成入场方向。
+
+        傅海棠"顺应大势"落地为双重过滤：
+          ① 中周期门控（TREND_MA）+ ② 大趋势门控（TREND_MA_MAJOR，若可用），
+        价格位于两层同侧才做单，把夹在均线之间的震荡 whipsaw 全部滤掉。
+        另：上市初期/流动性不足（持仓量 < MIN_OI）不开新仓——那是噪声行情。
+        """
         for i in range(self.n):
             s = self.score[i]
             c = self.close[i]
             mt = self.ma_t[i]
-            # 物极必反：大幅跌破成本锚 + 超卖 → 多头额外权重
-            extreme_long = 0.0
-            r = self.rsi6[i]
-            if (r is not None and r < 30 and mt is not None and
-                    c < COST_REF - COST_OVERSHOOT):
-                extreme_long = 2.0
-
             if s is None or mt is None:
                 self.gate[i] = 0
                 continue
-
-            if c > mt:           # 中周期向上 → 只允许多
-                self.gate[i] = 1
-                if (s + extreme_long) >= SIGNAL_THRESHOLD:
-                    self.signal[i] = 1
-            elif c < mt:         # 中周期向下 → 只允许多空
-                self.gate[i] = -1
-                if s <= -SIGNAL_THRESHOLD:
-                    self.signal[i] = -1
-            else:
+            oi = self.bars[i]["open_interest"]
+            # 流动性过滤：持仓量过低（上市初期/不活跃）→ 观望
+            if oi < MIN_OI:
                 self.gate[i] = 0
+                continue
+
+            major = self.ma_major[i]
+            # 双门控：中周期 + 大趋势同侧
+            up = c > mt and (major is None or c > major)
+            dn = c < mt and (major is None or c < major)
+            if not up and not dn:
+                self.gate[i] = 0
+                continue
+
+            self.gate[i] = 1 if up else -1
+            brk = self.break_dir[i]
+            if ENTRY_REQUIRE_CROSS and brk == 0:
+                # 没有结构突破，不给入场
+                continue
+            if up:
+                # 多头须有向上突破（金叉方向一致）；"物极必反"超跌反抽例外
+                if brk >= 0:
+                    if s >= SIGNAL_THRESHOLD:
+                        self.signal[i] = 1
+                else:
+                    # 向下突破但价格已极低 + 超卖 → 物极必反多头
+                    r = self.rsi6[i]
+                    if (r is not None and r < 30 and c < COST_REF - COST_OVERSHOOT
+                            and s + 2 >= SIGNAL_THRESHOLD):
+                        self.signal[i] = 1
+            else:
+                if brk <= 0 and s <= -SIGNAL_THRESHOLD:
+                    self.signal[i] = -1
 
 
 def signals_of(strategy):

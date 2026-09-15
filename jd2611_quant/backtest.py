@@ -11,6 +11,7 @@ from config import (
     CONTRACT_MULTIPLIER, MARGIN_RATE, FEE_PER_LOT, SLIPPAGE_TICKS,
     INITIAL_CAPITAL, RISK_PER_TRADE, MIN_LOTS,
     ATR_STOP_MULT, TRAIL_STOP_ATR, TRAIL_STOP_TRIGGER,
+    MIN_TRADE_INTERVAL,
 )
 from indicators import atr
 
@@ -34,6 +35,7 @@ class Backtest:
         self.lowest = float("inf")
         self.cur_atr = 0.0
         self.trades = []
+        self.last_exit_idx = -10**9    # 平仓冷却起点
         self.equity = [0.0] * self.n
         self.equity[0] = initial
         self._atr = atr(bars)
@@ -104,7 +106,7 @@ class Backtest:
 
             # ---------- 开新仓：次日开盘，按资金倒推手数 ----------
             sig = self.signals[i - 1]
-            if sig != 0 and self.lots == 0:
+            if sig != 0 and self.lots == 0 and (i - self.last_exit_idx) >= MIN_TRADE_INTERVAL:
                 o = b["open"]
                 slip = SLIPPAGE_TICKS * self.mult * sig
                 fill = o + sign(sig) * slip
@@ -162,6 +164,7 @@ class Backtest:
         self.trades.append(data)
         self.lots = 0
         self.dir = 0
+        self.last_exit_idx = i
         self.stop_price = 0.0
         self.trail_active = False
         self.trail_stop = 0.0
