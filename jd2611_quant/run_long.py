@@ -29,10 +29,14 @@ def fixed_split(bars, ratio=0.70):
     n = len(bars)
     split = int(n * ratio)
     train, test = bars[:split], bars[split:]
+    test_start = test[0]["date"]
     tm, th, sm = pick_best(train)
     apply_params(tm, th, sm)
-    eq, trades = run_on(test)
-    total, mdd, pf, nt = metrics_from(eq, trades)
+    # 在全量 bars 上回测（保证测试段开头也有均线/MACD 完整 warmup），
+    # 再按入场日期 >= test_start 过滤出样本外成交 —— 与 walk_forward 口径一致。
+    eq, all_trades = run_on(bars)
+    trades = [t for t in all_trades if t["entry_date"] >= test_start]
+    total, mdd, pf, nt = metrics_from(eq[split:], trades, initial=eq[split])
     wins = sum(1 for t in trades if t["pnl"] > 0)
     bt = (test[-1]["close"] - test[0]["close"]) / test[0]["close"]
     print(f"\n[固定划分 70/30]  训练起点={train[0]['date']} 定型=({tm},{th},{sm})")
