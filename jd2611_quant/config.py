@@ -20,20 +20,20 @@ MIN_LOTS = 1                  # 最小下单手数
 
 # ---------- 止损止盈 ----------
 ATR_PERIOD = 14
-ATR_STOP_MULT = 2.5     # 初始硬止损 = 开仓价 ± K*ATR（傅海棠：不扛单，铁律止损）
+ATR_STOP_MULT = 2.0     # 初始硬止损 = 开仓价 ± K*ATR（傅海棠：不扛单，铁律止损）
 TRAIL_STOP_ATR = 4.0    # 移动止损触发（看对拿住，跟踪大趋势；ATR 倍数）
 TRAIL_STOP_TRIGGER = 0.10  # 盈利达开仓价 10% 后启动移动止损
 
 # ---------- 技术信号参数 ----------
 MA_SHORT = 5
 MA_LONG = 20
-TREND_MA = 30           # 中周期趋势均线，用于趋势门控（顺大势）
+TREND_MA = 15           # 中周期趋势均线，用于趋势门控（顺大势）
 MACD_SHORT, MACD_LONG, MACD_MID = 12, 26, 9
 RSI_PERIOD = 6
 BOLL_PERIOD = 20
 BOLL_STD = 2.0
 VOL_WINDOW = 5          # 量能对比窗口
-SIGNAL_THRESHOLD = 4    # 多信号共振开仓阈值（满分约 10）
+SIGNAL_THRESHOLD = 3    # 多信号共振开仓阈值（满分约 10）
 
 # ---------- 傅海棠思考点 ----------
 # 「物极必反」：鸡蛋养殖成本参考锚点。价格显著跌破成本区且超卖时，赋予多头额外权重。
