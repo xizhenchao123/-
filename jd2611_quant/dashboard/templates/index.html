@@ -51,17 +51,67 @@
   .tag.live{background:rgba(34,160,107,.15);color:#2fbf7f}
   .tag.warn{background:rgba(227,59,59,.15);color:var(--up)}
   .quote{font-size:30px;font-weight:700}
-  /* 方向趋势判断 */
-  .trendbox{position:relative;border:1px solid var(--line)}
-  .trendbox .verdict{font-size:34px;font-weight:800;line-height:1.1}
-  .trendbox .verdict.up{color:var(--up)}
-  .trendbox .verdict.dn{color:var(--dn)}
-  .trendbox .verdict.mut{color:var(--mut)}
-  .trendbox .trow{display:flex;gap:30px;flex-wrap:wrap;align-items:center}
-  .trendbox .tm{font-size:12px;color:var(--mut)}
-  .trendbox .tv{font-size:17px;font-weight:600;margin-top:2px}
-  .trendbox .tag.live-live{background:rgba(79,140,255,.15);color:var(--ac)}
-  @media(max-width:480px){.trendbox .verdict{font-size:26px}.trendbox .trow{gap:16px}}
+  /* ===== 方向趋势判断面板 =====
+     三态配色：up=红（看多）/ dn=绿（看空）/ mut=灰（观望），左侧色带 + 柔和渐变底 */
+  .trendbox{position:relative;overflow:hidden;border-radius:14px;
+    border:1px solid var(--line);padding:0;background:var(--panel)}
+  .trendbox::before{content:"";position:absolute;inset:0 auto 0 0;width:5px;z-index:2}
+  .trendbox.tb-up::before{background:linear-gradient(180deg,#ff8a8a,#e23b3b)}
+  .trendbox.tb-dn::before{background:linear-gradient(180deg,#46d39a,#22a06b)}
+  .trendbox.tb-mut::before{background:linear-gradient(180deg,#9aa5bd,#5c6a85)}
+  .trendbox.tb-up{background:
+    linear-gradient(115deg,rgba(226,59,59,.10) 0%,transparent 55%),var(--panel)}
+  .trendbox.tb-dn{background:
+    linear-gradient(115deg,rgba(34,160,107,.10) 0%,transparent 55%),var(--panel)}
+  .trendbox.tb-mut{background:
+    linear-gradient(115deg,rgba(139,150,173,.08) 0%,transparent 55%),var(--panel)}
+  .tb-inner{display:flex;gap:26px;flex-wrap:wrap;align-items:center;padding:18px 20px 18px 26px}
+  /* 结论区 */
+  .tb-head{display:flex;align-items:center;gap:14px;min-width:230px}
+  .tb-badge{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;
+    flex:none;font-size:26px;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  .tb-up .tb-badge{background:linear-gradient(145deg,#ff6b6b,#d11f1f)}
+  .tb-dn .tb-badge{background:linear-gradient(145deg,#3ad08e,#1e8a5c)}
+  .tb-mut .tb-badge{background:linear-gradient(145deg,#a7b1c9,#5c6a85)}
+  .tb-verdict{font-size:30px;font-weight:800;letter-spacing:.5px;line-height:1}
+  .tb-up .tb-verdict{color:var(--up)} .tb-dn .tb-verdict{color:var(--dn)}
+  .tb-mut .tb-verdict{color:#c3cadb}
+  .tb-sub{font-size:12px;color:var(--mut);margin-top:5px}
+  .tb-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+    padding:3px 9px;border-radius:999px;margin-top:7px}
+  .tb-chip .dot{width:6px;height:6px;border-radius:50%;animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .tb-up .tb-chip{background:rgba(226,59,59,.14);color:#ff8a8a}
+  .tb-up .tb-chip .dot{background:#ff8a8a}
+  .tb-dn .tb-chip{background:rgba(34,160,107,.14);color:#46d39a}
+  .tb-dn .tb-chip .dot{background:#46d39a}
+  .tb-mut .tb-chip{background:rgba(139,150,173,.14);color:#a7b1c9}
+  .tb-mut .tb-chip .dot{background:#a7b1c9}
+  /* 指标卡 */
+  .tb-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px;flex:1;min-width:300px}
+  .tb-metric{background:rgba(11,15,24,.45);border:1px solid var(--line);border-radius:10px;
+    padding:9px 11px}
+  .tb-metric .tm{font-size:11px;color:var(--mut)}
+  .tb-metric .tvv{font-size:16px;font-weight:700;margin-top:3px}
+  .tb-metric .tvt{font-size:11px;color:var(--mut);margin-top:2px}
+  /* 结构标记（多头/空头/观望） */
+  .tb-struct{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+    padding:2px 8px;border-radius:999px;margin-top:4px}
+  .tb-struct.bull{background:rgba(226,59,59,.12);color:#ff8a8a}
+  .tb-struct.bear{background:rgba(34,160,107,.12);color:#46d39a}
+  .tb-struct.flat{background:rgba(139,150,173,.12);color:#a7b1c9}
+  /* 一句话依据 */
+  .tb-summary{flex-basis:100%;display:flex;align-items:flex-start;gap:9px;
+    background:rgba(11,15,24,.35);border:1px dashed var(--line);border-radius:10px;padding:11px 13px}
+  .tb-summary .ic{flex:none;font-size:14px;line-height:1.4}
+  .tb-summary .txt{font-size:13px;line-height:1.55;color:var(--txt)}
+  .tb-summary .txt b{color:#fff}
+  @media(max-width:480px){
+    .trendbox .verdict,.tb-verdict{font-size:23px}
+    .tb-badge{width:46px;height:46px;font-size:21px;border-radius:13px}
+    .tb-inner{padding:14px 14px 14px 20px;gap:16px}
+    .tb-metrics{min-width:0;grid-template-columns:repeat(2,1fr)}
+  }
 </style>
 </head>
 <body>
@@ -162,21 +212,62 @@ function renderAll(st,ana,sched){
 }
 
 function renderTrend(tr){
-  if(!tr){$('trendBox').innerHTML='<div class="mut">趋势判断加载中…</div>';return;}
-  const sign = tr.label==='看多'?(tr.cls==='up'?'▲':'△'):tr.label==='看空'?(tr.cls==='dn'?'▼':'▽'):'▪';
-  const mac = tr.macd_bull?('红柱 '+Math.abs(tr.macd_hist)):('绿柱 '+Math.abs(tr.macd_hist));
-  const vs = tr.ma5!=null?`${tr.ma5} / ${tr.ma20}`:'--';
+  if(!tr){$('trendBox').innerHTML='<div class="mut" style="padding:14px">趋势判断加载中…</div>';return;}
+  const cls = tr.cls; // up/dn/mut
+  const badge = tr.label==='看多'?'▲':tr.label==='看空'?'▼':'─';
+  const isLive = (()=>{ // 北京时间 09:00-11:30 / 13:30-15:00 判盘中实时
+    const d=new Date();const bj=new Date(d.getTime()+8*3600e3);
+    const t=bj.getHours()*60+bj.getMinutes();
+    return (540<=t&&t<=615)||(630<=t&&t<=690)||(810<=t&&t<=900);
+  })();
+  const chip = isLive?'盘中实时 · 每10分钟刷新':'收盘已定 · 日盘09:00-15:00';
+  const scorePct = Math.max(0,Math.min(100,50+tr.score*6)); // ±8 量程映射 0-100
+  const macCol = tr.macd_bull?'#ff8a8a':'#46d39a';
+  const maTxt = tr.ma5!=null?`${tr.ma5} <span style="color:var(--mut)">/</span> ${tr.ma20}`:'--';
+  const summary = tr.summary
+    .replace('价在均线上方','价格站上<span style="color:#ff8a8a"><b>中周期均线</b></span>')
+    .replace('价在均线下方','价格跌破<span style="color:#46d39a"><b>中周期均线</b></span>');
+  $('trendBox').className=`panel trendbox tb-${cls}`;
   $('trendBox').innerHTML=`
-    <div class="trow">
-      <div>
-        <div class="tm">当前方向 · 趋势判断</div>
-        <div class="verdict ${tr.cls}">${sign} ${tr.verdict}</div>
+    <div class="tb-inner">
+      <div class="tb-head">
+        <div class="tb-badge">${badge}</div>
+        <div>
+          <div class="tb-verdict">${tr.verdict}</div>
+          <div class="tb-sub">${tr.label} · ${tr.gate}</div>
+          <div class="tb-chip"><span class="dot"></span>${chip}</div>
+        </div>
       </div>
-      <div><div class="tm">多信号共振分</div><div class="tv ${chgCls(tr.score)}">${tr.score}</div></div>
-      <div><div class="tm">结构门控</div><div class="tv">${tr.gate}</div></div>
-      <div><div class="tm">MA5 / MA20</div><div class="tv">${vs} <span class="tm" style="font-size:12px">(${tr.ma_bull?'多头排列':'空头排列'})</span></div></div>
-      <div><div class="tm">MACD / RSI6</div><div class="tv">${mac} / ${tr.rsi6}</div></div>
-      <div style="flex:1;min-width:220px"><div class="tm">一句话依据</div><div style="font-size:13px;margin-top:4px;line-height:1.5">${tr.summary}</div></div>
+      <div class="tb-metrics">
+        <div class="tb-metric">
+          <div class="tm">多信号共振分</div>
+          <div class="tvv ${chgCls(tr.score)}">${tr.score}</div>
+          <div class="tvt">量程约 -8 ~ +8</div>
+          <div style="height:4px;border-radius:2px;background:rgba(139,150,173,.2);margin-top:6px;overflow:hidden">
+            <div style="height:100%;width:${scorePct}%;background:${tr.score>0?'#e23b3b':'#22a06b'};border-radius:2px"></div>
+          </div>
+        </div>
+        <div class="tb-metric">
+          <div class="tm">MA5 / MA20</div>
+          <div class="tvv">${maTxt}</div>
+          <div class="tb-struct ${maTxt==='--'?'flat':tr.ma5>tr.ma20?'bull':'bear'}"
+            style="margin-top:4px">${maTxt==='--'?'':(tr.ma5>tr.ma20?'▲':'▼')} ${tr.ma_bull?'多头排列':'空头排列'}</div>
+        </div>
+        <div class="tb-metric">
+          <div class="tm">MACD柱</div>
+          <div class="tvv" style="color:${macCol}">${tr.macd_hist}</div>
+          <div class="tvt" style="color:${macCol}">${tr.macd_bull?'红柱':'绿柱'}</div>
+        </div>
+        <div class="tb-metric">
+          <div class="tm">RSI6</div>
+          <div class="tvv">${tr.rsi6}</div>
+          <div class="tvt">${tr.rsi6>70?'超买':tr.rsi6<30?'超卖':'中性'}</div>
+        </div>
+      </div>
+      <div class="tb-summary">
+        <span class="ic">💡</span>
+        <span class="txt">${summary}</span>
+      </div>
     </div>`;
 }
 
