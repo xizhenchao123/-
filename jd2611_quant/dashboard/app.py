@@ -17,7 +17,14 @@ import time
 import csv
 import subprocess
 import threading
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# 北京时间 (UTC+8)
+TZ_BJ = timezone(timedelta(hours=8))
+
+
+def _now_bj():
+    return datetime.now(TZ_BJ).strftime("%Y-%m-%d %H:%M:%S")
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PROJ = os.path.dirname(ROOT)   # 项目根（含 config.py / data / fetch_history.py）
@@ -119,16 +126,30 @@ def refresh_state(do_fetch=False):
     return STATE
 
 
-# ---- 后台自动更新线程：每天收盘后将新数据并入缓存 ----
+# ---- 后台自动更新线程：每天收盘后（北京时间 16:30）将新数据并入缓存，再自动重跑样本外检验 ----
 def _background():
     last_check = ""
     while True:
-        today = datetime.now().strftime("%Y-%m-%d")
-        if today != last_check and datetime.now().hour >= 16:
+        bj_now = datetime.now(TZ_BJ)
+        today = bj_now.strftime("%Y-%m-%d")
+        if today != last_check and bj_now.hour >= 16 and bj_now.minute >= 30:
             last_check = today
             try:
                 refresh_state(do_fetch=True)
-                print(f"[bg] {_now()} 已核对/更新今日数据")
+                print(f"[bg] {_now_bj()} 已核对/更新今日数据，开始重跑样本外检验…")
+                ANALYSIS["running"] = True
+                for name, cmd in [("run_long", [sys.executable, "run_long.py"]),
+                                  ("walk_forward", [sys.executable, "walk_forward.py"])]:
+                    try:
+                        r = subprocess.run(cmd, timeout=1200, capture_output=True, text=True)
+                        ANALYSIS[name] = (r.stdout or r.stderr)[-4000:]
+                    except Exception as e:
+                        ANALYSIS[name] = f"失败: {e}"
+                ANALYSIS["updated"] = _now_bj()
+                ANALYSIS["running"] = False
+                print(f"[bg] {_now_bj()} 样本外检验完成")
+                # 刷新行情缓存
+                refresh_state(do_fetch=False)
             except Exception as e:
                 print(f"[bg] 更新失败: {e}")
         time.sleep(600)
@@ -187,6 +208,29 @@ def api_rerun():
 @app.route("/api/analysis")
 def api_analysis():
     return jsonify(ANALYSIS)
+
+
+@app.route("/api/schedule")
+def api_schedule():
+    """返回定时任务状态（计算 next_run 等信息）。"""
+    bj_now = datetime.now(TZ_BJ)
+    # cron: 30 16 * * * → 每天 16:30 北京时间
+    target_h, target_m = 16, 30
+    today_run = bj_now.replace(hour=target_h, minute=target_m, second=0, microsecond=0)
+    if bj_now.hour < target_h or (bj_now.hour == target_h and bj_now.minute < target_m):
+        next_run = today_run
+    else:
+        # 明天
+        tomorrow = bj_now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        next_run = tomorrow.replace(hour=target_h, minute=target_m, second=0)
+    return jsonify({
+        "name": "JD2611鸡蛋量化每日回测",
+        "status": "Active",
+        "cron": "30 16 * * *",
+        "next_run": next_run.strftime("%Y-%m-%d %H:%M (北京时间)"),
+        "last_run": ANALYSIS.get("updated", None) or "尚未执行",
+        "description": "每日16:30自动拉取数据 → 全样本回测 → Walk-Forward → 刷新仪表盘",
+    })
 
 
 if __name__ == "__main__":

@@ -95,6 +95,11 @@
       <pre id="walkfwd">…</pre>
     </div>
   </div>
+
+  <div class="panel" style="margin-top:4px">
+    <h2>定时任务</h2>
+    <div id="sched" style="display:flex;gap:24px;flex-wrap:wrap"></div>
+  </div>
 </div>
 
 <script>
@@ -106,14 +111,28 @@ function fmtPct(v){return (v>0?'+':'')+v+'%'}
 
 async function loadState(){
   try{
-    const r=await fetch('/api/state'); const [st,ana]=await r.json();
-    renderAll(st,ana);
+    const [r1,r2]=await Promise.all([fetch('/api/state'), fetch('/api/schedule')]);
+    const [st,ana]=await r1.json();
+    let sched=null; try{sched=await r2.json();}catch(e){}
+    renderAll(st,ana,sched);
   }catch(e){$('headSub').textContent='状态获取失败: '+e.message; }
 }
 
-function renderAll(st,ana){
+function renderAll(st,ana,sched){
   held=st;
   $('headSub').innerHTML=`数据截至 <b>${st.date}</b> ${st.updated} · 主力连续 ${st.n_bars} 根`;
+  // 定时任务
+  if(sched){
+    const nxt=sched.next_run||'--';
+    const lst=sched.last_run||'尚未执行';
+    const sts=sched.status==='Active'?'<span class="tag live">运行中</span>':'<span class="tag warn">已暂停</span>';
+    $('sched').innerHTML=[
+      `<div><div class="lbl">状态</div><div class="val">${sts}</div></div>`,
+      `<div><div class="lbl">下次执行</div><div class="val">${nxt}</div></div>`,
+      `<div><div class="lbl">上次执行</div><div class="val" style="font-size:13px">${lst}</div></div>`,
+      `<div><div class="lbl">执行内容</div><div class="val" style="font-size:13px">fetch → 回测 → Walk-Forward → 刷新仪表盘</div></div>`
+    ].join('');
+  }
   // KPI
   $('kpis').innerHTML=[`
     <div class="card"><div class="k">最新收盘（元/500kg）</div>
