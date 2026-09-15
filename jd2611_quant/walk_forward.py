@@ -129,10 +129,13 @@ def main():
           f"{len(list(itertools.product(*GRID.values())))} 组）")
     print("=" * 72)
     rows = []
-    for name, path in [("JD2611", "data/jd2611_daily.csv"),
-                       ("JD2612", "data/jd2612_daily.csv")]:
+    for name, path, lb, oos in [
+        ("JD2611", "data/jd2611_daily.csv", 60, 30),
+        ("JD2612", "data/jd2612_daily.csv", 60, 30),
+        ("主力连续", "data/jd_main_hist.csv", 250, 125),
+    ]:
         bars = load_bars(path)
-        r = walk_forward(bars, name)
+        r = walk_forward(bars, name, lookback=lb, oos_len=oos)
         rows.append(r)
     print(f'{"合约":<8}{"样本外成交":>10}{"样本外净盈亏":>14}{"样本外胜率":>10}{"买入持有":>10}')
     print("-" * 72)
