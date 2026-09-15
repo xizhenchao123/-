@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JD 鸡蛋量化仪表盘</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171d2c; --line:#242c40; --txt:#e6ebf5; --mut:#8b96ad;
+    --ac:#4f8cff; --up:#e23b3b; --dn:#22a06b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt)}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+  h1{font-size:22px;margin:0}
+  .mut{color:var(--mut);font-size:13px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card .k{font-size:12px;color:var(--mut)}
+  .card .v{font-size:22px;font-weight:600;margin-top:4px}
+  .up{color:var(--up)} .dn{color:var(--dn)} .ac{color:var(--ac)}
+  .cols{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  .panel h2{font-size:15px;margin:0 0 10px;color:var(--mut);font-weight:600;border-bottom:1px solid var(--line);padding-bottom:8px}
+  .row{display:flex;gap:24px;flex-wrap:wrap}
+  .lbl{font-size:12px;color:var(--mut)} .val{font-size:15px;margin-top:2px}
+  .pos-on{color:var(--up);font-weight:700} .pos-flat{color:var(--dn)}
+  svg{width:100%;height:auto;display:block;background:var(--panel);border-radius:10px}
+  pre{max-height:280px;overflow:auto;font-size:12px;background:#0b0f18;padding:10px;border-radius:8px;white-space:pre-wrap;margin:0}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:500}
+  .btn{background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:14px}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin:2px 4px 0 0}
+  .tag.live{background:rgba(34,160,107,.15);color:#2fbf7f}
+  .tag.warn{background:rgba(227,59,59,.15);color:var(--up)}
+  .quote{font-size:30px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>JD 鸡蛋期货 · 量化仪表盘</h1>
+    <div style="text-align:right">
+      <div class="mut" id="headSub">加载中…</div>
+      <div style="margin-top:6px">
+        <button class="btn ghost" onclick="refresh(true)" style="margin-right:8px">立即刷新（拉数据）</button>
+        <button class="btn ghost" onclick="rerun()">重跑样本外检验</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="cards" id="kpis"><!-- JS --></div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>主力连续 · 行情（近220个交易日 + MA20 + 买卖点）</h2>
+      <div id="chart"></div>
+    </div>
+    <div>
+      <div class="panel">
+        <h2>模拟盘 · 读单</h2>
+        <div id="sim"></div>
+      </div>
+      <div class="panel">
+        <h2>策略参数</h2>
+        <div id="params"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols" style="grid-template-columns:1fr 1fr">
+    <div class="panel">
+      <h2>70 / 30 样本外检验</h2>
+      <pre id="runlong">…</pre>
+    </div>
+    <div class="panel">
+      <h2>滚动 Walk-Forward</h2>
+      <pre id="walkfwd">…</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let held=null;
+
+function chgCls(v){return v>0?'up':v<0?'dn':'mut'}
+function fmtPct(v){return (v>0?'+':'')+v+'%'}
+
+async function loadState(){
+  try{
+    const r=await fetch('/api/state'); const [st,ana]=await r.json();
+    renderAll(st,ana);
+  }catch(e){$('headSub').textContent='状态获取失败: '+e.message; }
+}
+
+function renderAll(st,ana){
+  held=st;
+  $('headSub').innerHTML=`数据截至 <b>${st.date}</b> ${st.updated} · 主力连续 ${st.n_bars} 根`;
+  // KPI
+  $('kpis').innerHTML=[`
+    <div class="card"><div class="k">最新收盘（元/500kg）</div>
+      <div class="v ${chgCls(st.chg_pct)}">${st.close}<span class="mut" style="font-size:14px"> ${fmtPct(st.chg_pct)}</span></div></div>
+    <div class="card"><div class="k">持仓量 / 成交量</div><div class="v" style="font-size:18px">${(+st.oi/10000).toFixed(0)}万 / ${(+st.vol/10000).toFixed(1)}万</div></div>
+    <div class="card"><div class="k">全样本交易 / 期末权益</div><div class="v" style="font-size:18px">${st.trade_count} 笔 / ${(st.equity_final/10000).toFixed(1)}万 <span class="mut">(${fmtPct(st.eq_total_pct*100)})</span></div></div>
+    <div class="card"><div class="k">检验尺度</div><div class="v ac" style="font-size:16px">样本外正期望</div></div>`
+  ].join('');
+  renderChart(st.tail);
+  renderSim(st);
+  renderParams(st.params);
+  renderAnalysis(ana);
+}
+
+function renderSim(st){
+  let html='';
+  if(st.position){
+    const p=st.position;
+    html=`<div class="pos-on">持仓 ${p.dir}单 ${p.lots} 手</div>
+      <div class="row" style="margin-top:8px">
+        <div><div class="lbl">开仓价</div><div class="val">${p.entry}</div></div>
+        <div><div class="lbl">当前止损</div><div class="val">${p.stop}</div></div>
+        <div><div class="lbl">移动止损</div><div class="val">${p.trail?'已启动':'-'}</div></div>
+      </div>`;
+  }else{
+    html=`<div class="pos-flat">● 当前空仓</div>`;
+  }
+  if(st.pending){
+    html+=`<div style="margin-top:10px"><span class="tag warn">待执行信号 · ${st.pending.dir === '多'?'做多':'做空'}</span>
+      <div class="mut" style="margin-top:4px">${st.pending.date} 收盘触发，次日开盘可执行</div></div>`;
+  }else{
+    html+=`<div style="margin-top:10px"><span class="tag live">无新入场信号</span></div>`;
+  }
+  if(st.last_trade){
+    const t=st.last_trade;
+    html+=`<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+      <div class="lbl">最近平仓</div>
+      <div class="val" style="font-size:13px">${t.entry_date}→${t.exit_date} ${t.direction}单 (${t.reason}) 净 <b class="${chgCls(t.pnl)}">${(+t.pnl).toLocaleString()}</b></div></div>`;
+  }
+  $('sim').innerHTML=html;
+}
+
+function renderParams(p){
+  const rows=[["趋势门控",p.TREND_MA,"大趋势门控",p.TREND_MA_MAJOR],
+              ["开仓阈值",p.SIGNAL_THRESHOLD,"硬止损 ATR",p.ATR_STOP_MULT],
+              ["移损触发",p.TRAIL_STOP_TRIGGER,"冷却期",p.MIN_TRADE_INTERVAL],
+              ["单笔风险",p.RISK_PER_TRADE,"成本锚",p.COST_REF]];
+  $('params').innerHTML='<table>'+rows.map(r=>
+    `<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td class="mut">${r[2]}</td><td><b>${r[3]}</b></td></tr>`).join('')+'</table>';
+}
+
+function renderAnalysis(ana){
+  $('runlong').textContent=ana.run_long||'（尚未运行，点“重跑样本外检验”）';
+  $('walkfwd').textContent=ana.walk_forward||'（尚未运行）';
+}
+
+// ---- SVG 蜡烛图 ----
+function renderChart(tail){
+  if(!tail||!tail.length){$('chart').innerHTML='<div class="mut">无数据</div>';return;}
+  const W=1180,H=420,padL=8,padR=8,padT=18,padB=28;
+  let lo=1e9,hi=-1e9;
+  tail.forEach(b=>{lo=Math.min(lo,b.l,b.o,b.c,(b.ma20??1e9));hi=Math.max(hi,b.h,b.o,b.c,(b.ma20??-1e9));});
+  const rng=hi-lo||1, y=v=>padT+(H-padT-padB)*(1-(v-lo)/rng);
+  const n=tail.length, cw=Math.max(1,(W-padL-padR)/n*0.7);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  for(let g=0;g<5;g++){ // grid
+    const gy=padT+(H-padT-padB)*g/4, gv=hi-rng*g/4;
+    svg+=`<line x1="${padL}" y1="${gy}" x2="${W-padR}" y2="${gy}" stroke="#1c2335" stroke-width="1"/>`
+         +`<text x="${W-padR}" y="${gy+3}" fill="#8b96ad" font-size="10" text-anchor="end">${gv.toFixed(0)}</text>`;
+  }
+  // 均线
+  let maPath=[],maOn=false;
+  tail.forEach((b,i)=>{if(b.ma20!=null){const x=padL+(i+.5)*((W-padL-padR)/n),yy=y(b.ma20);maOn?maPath+=`L${x},${yy}`:maPath=`M${x},${yy}`;maOn=true;}});
+  if(maPath)svg+=`<path d="${maPath}" fill="none" stroke="#f2a33c" stroke-width="1.5"/>`;
+
+  tail.forEach((b,i)=>{
+    const xc=padL+(i+.5)*((W-padL-padR)/n), xL=xc-cw/2, xR=xc+cw/2;
+    const up=b.c>=b.o, col=up?'#e23b3b':'#22a06b', yo=y(b.o), yc=y(b.c), yh=y(b.h), ylo=y(b.l);
+    if(up){ // 红涨绿跌（期货暗色盘）
+      svg+=`<line x1="${xc}" y1="${yh}" x2="${xc}" y2="${ylo}" stroke="${col}" stroke-width="1"/>`
+          +`<rect x="${xL}" y="${yc}" width="${cw}" height="${Math.max(0.5,yo-yc)}" fill="${col}"/>`;
+    }else{
+      svg+=`<line x1="${xc}" y1="${yh}" x2="${xc}" y2="${ylo}" stroke="${col}" stroke-width="1"/>`
+          +`<rect x="${xL}" y="${yo}" width="${cw}" height="${Math.max(0.5,yc-yo)}" fill="${col}"/>`;
+    }
+    if(b.mark){
+      const my=b.mark==='long'?y(b.l)+16:y(b.h)-16, col2=b.mark==='long'?'#e23b3b':'#22a06b';
+      svg+=`<path d="${b.mark==='long'?'M'+(xc-6)+','+(my+8)+'L'+(xc)+','+(my)+'L'+(xc+6)+','+(my+8)+'Z':'M'+(xc-6)+','+(my-8)+'L'+(xc)+','+(my)+'L'+(xc+6)+','+(my-8)+'Z'}" fill="${col2}"/>`;
+    }
+  });
+  svg+=`<line x1="${padL}" y1="${y(tail[tail.length-2].c)}" x2="${W-padR}" y2="${y(tail[tail.length-2].c)}" stroke="#4f8cff" stroke-dasharray="4,4" stroke-width="1"/>`;
+  svg+='</svg>';
+  $('chart').innerHTML=svg;
+}
+
+async function refresh(fetchData){
+  $('headSub').textContent='刷新中…';
+  const r=await fetch('/api/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fetch:!!fetchData})});
+  const j=await r.json();
+  await loadState();
+}
+async function rerun(){
+  $('walkfwd').textContent='检验运行中…'; $('runlong').textContent='检验运行中…';
+  await fetch('/api/rerun',{method:'POST'});
+  setTimeout(loadAnalysis, 800);
+  setTimeout(loadAnalysis, 3000);
+  setTimeout(loadAnalysis, 8000);
+}
+async function loadAnalysis(){
+  const r=await fetch('/api/analysis'); const ana=await r.json();
+  renderAnalysis(ana);
+}
+
+// 首次 + 每 60s 自动刷新
+loadState();
+setInterval(loadState, 60000);
+</script>
+</body>
+</html>
