@@ -214,6 +214,7 @@ def _trend_verdict(strat, price):
         "label": label,
         "cls": cls,
         "score": score_v,
+        "close": c,
         "gate": "多头结构" if gate == 1 else ("空头结构" if gate == -1 else "观望"),
         "ma5": _r(ma_s, 0), "ma20": _r(ma_l, 0),
         "ma_bull": ma_bull,
