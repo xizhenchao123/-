@@ -51,6 +51,17 @@
   .tag.live{background:rgba(34,160,107,.15);color:#2fbf7f}
   .tag.warn{background:rgba(227,59,59,.15);color:var(--up)}
   .quote{font-size:30px;font-weight:700}
+  /* 方向趋势判断 */
+  .trendbox{position:relative;border:1px solid var(--line)}
+  .trendbox .verdict{font-size:34px;font-weight:800;line-height:1.1}
+  .trendbox .verdict.up{color:var(--up)}
+  .trendbox .verdict.dn{color:var(--dn)}
+  .trendbox .verdict.mut{color:var(--mut)}
+  .trendbox .trow{display:flex;gap:30px;flex-wrap:wrap;align-items:center}
+  .trendbox .tm{font-size:12px;color:var(--mut)}
+  .trendbox .tv{font-size:17px;font-weight:600;margin-top:2px}
+  .trendbox .tag.live-live{background:rgba(79,140,255,.15);color:var(--ac)}
+  @media(max-width:480px){.trendbox .verdict{font-size:26px}.trendbox .trow{gap:16px}}
 </style>
 </head>
 <body>
@@ -65,6 +76,8 @@
       </div>
     </div>
   </header>
+
+  <div class="panel trendbox" id="trendBox" style="margin-bottom:16px"><!-- JS: 方向趋势判断 --></div>
 
   <div class="cards" id="kpis"><!-- JS --></div>
 
@@ -141,10 +154,30 @@ function renderAll(st,ana,sched){
     <div class="card"><div class="k">全样本交易 / 期末权益</div><div class="v" style="font-size:18px">${st.trade_count} 笔 / ${(st.equity_final/10000).toFixed(1)}万 <span class="mut">(${fmtPct(st.eq_total_pct*100)})</span></div></div>
     <div class="card"><div class="k">检验尺度</div><div class="v ac" style="font-size:16px">样本外正期望</div></div>`
   ].join('');
+  renderTrend(st.trend);
   renderChart(st.tail);
   renderSim(st);
   renderParams(st.params);
   renderAnalysis(ana);
+}
+
+function renderTrend(tr){
+  if(!tr){$('trendBox').innerHTML='<div class="mut">趋势判断加载中…</div>';return;}
+  const sign = tr.label==='看多'?(tr.cls==='up'?'▲':'△'):tr.label==='看空'?(tr.cls==='dn'?'▼':'▽'):'▪';
+  const mac = tr.macd_bull?('红柱 '+Math.abs(tr.macd_hist)):('绿柱 '+Math.abs(tr.macd_hist));
+  const vs = tr.ma5!=null?`${tr.ma5} / ${tr.ma20}`:'--';
+  $('trendBox').innerHTML=`
+    <div class="trow">
+      <div>
+        <div class="tm">当前方向 · 趋势判断</div>
+        <div class="verdict ${tr.cls}">${sign} ${tr.verdict}</div>
+      </div>
+      <div><div class="tm">多信号共振分</div><div class="tv ${chgCls(tr.score)}">${tr.score}</div></div>
+      <div><div class="tm">结构门控</div><div class="tv">${tr.gate}</div></div>
+      <div><div class="tm">MA5 / MA20</div><div class="tv">${vs} <span class="tm" style="font-size:12px">(${tr.ma_bull?'多头排列':'空头排列'})</span></div></div>
+      <div><div class="tm">MACD / RSI6</div><div class="tv">${mac} / ${tr.rsi6}</div></div>
+      <div style="flex:1;min-width:220px"><div class="tm">一句话依据</div><div style="font-size:13px;margin-top:4px;line-height:1.5">${tr.summary}</div></div>
+    </div>`;
 }
 
 function renderSim(st){

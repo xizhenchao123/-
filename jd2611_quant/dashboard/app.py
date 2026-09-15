@@ -81,6 +81,9 @@ def _recompute():
                     "ma20": None if ma20[i] is None else round(ma20[i], 1),
                     "mark": mark_set.get(b["date"], None)})
 
+    # 方向趋势判断（综合多信号）
+    trend = _trend_verdict(strat, last["close"])
+
     state = {
         "date": last["date"],
         "close": last["close"],
@@ -101,6 +104,7 @@ def _recompute():
         "last_trade": (bt.trades[-1] if bt.trades else None),
         # 尾部K线
         "tail": seq,
+        "trend": trend,
         "params": {
             "TREND_MA": C.TREND_MA, "TREND_MA_MAJOR": C.TREND_MA_MAJOR,
             "SIGNAL_THRESHOLD": C.SIGNAL_THRESHOLD,
@@ -108,7 +112,7 @@ def _recompute():
             "RISK_PER_TRADE": C.RISK_PER_TRADE, "MIN_TRADE_INTERVAL": C.MIN_TRADE_INTERVAL,
             "COST_REF": C.COST_REF,
         },
-        "updated": _now(),
+        "updated": _now_bj(),
     }
     return state
 
@@ -126,15 +130,107 @@ def refresh_state(do_fetch=False):
     return STATE
 
 
-# ---- 后台自动更新线程：每天收盘后（北京时间 16:30）将新数据并入缓存，再自动重跑样本外检验 ----
+def _trend_verdict(strat, price):
+    """综合多信号给出一句话方向趋势判断。
+
+    依据（全部来自策略层已算好的指标）：
+      · gate   趋势门控（+1 多头结构 / -1 空头结构 / 0 观望）
+      · score  多信号共振分（>0 偏多，<0 偏空）
+      · ma_s|ma_l  短期均线排列（多头/空头排列）
+      · hist   MACD 柱（红/绿）
+      · rsi6   强弱
+    """
+    i = -1
+    c, gate, score = price, strat.gate[i], strat.score[i]
+    ma_s, ma_l = strat.ma_s[i], strat.ma_l[i]
+    hist, rsi = strat.hist[i], strat.rsi6[i]
+    macd_bull = hist is not None and hist > 0
+    ma_bull = ma_s is not None and ma_l is not None and ma_s > ma_l
+
+    def _r(v, nd=1):
+        return None if v is None else round(v, nd)
+
+    score_v = _r(score)
+    lines = []
+    if gate == 1:
+        if (score_v is not None and score_v >= 5) or (ma_bull and macd_bull):
+            verdict, label, cls = "强多头", "看多", "up"
+            lines.append("价在均线上方(多头结构)，多信号分强，MACD红柱")
+        else:
+            verdict, label, cls = "偏多", "看多", "up"
+            lines.append("价在均线上方(多头结构)，但共振分/动能一般")
+    elif gate == -1:
+        if (score_v is not None and score_v <= -5) or (not ma_bull and not macd_bull):
+            verdict, label, cls = "强空头", "看空", "dn"
+            lines.append("价在均线下方(空头结构)，多信号分偏空，MACD绿柱")
+        else:
+            verdict, label, cls = "偏空", "看空", "dn"
+            lines.append("价在均线下方(空头结构)，但下跌动能有限")
+    else:
+        if score_v is not None and score_v > 1.5:
+            verdict, label, cls = "震荡偏多", "观望", "up"
+        elif score_v is not None and score_v < -1.5:
+            verdict, label, cls = "震荡偏空", "观望", "dn"
+        else:
+            verdict, label, cls = "震荡观望", "观望", "mut"
+        lines.append("价格夹在均线间(无趋势门控)，建议观望")
+    if macd_bull:
+        lines.append("MACD红柱扩大")
+    else:
+        lines.append("MACD绿柱")
+    if ma_bull:
+        lines.append("短均线在长均线上方(多头排列)")
+    else:
+        lines.append("短均线在长均线下方(空头排列)")
+    return {
+        "verdict": verdict,
+        "label": label,
+        "cls": cls,
+        "score": score_v,
+        "gate": "多头结构" if gate == 1 else ("空头结构" if gate == -1 else "观望"),
+        "ma5": _r(ma_s, 0), "ma20": _r(ma_l, 0),
+        "ma_bull": ma_bull,
+        "macd_bull": macd_bull,
+        "macd_hist": _r(hist),
+        "rsi6": _r(rsi),
+        "summary": "；".join(lines),
+    }
+
+
+# ---- 后台自动更新线程 ----
+# 盘中实时：鸡蛋仅日盘（无夜盘）。北京时间 09:00-11:30 / 13:30-15:00 内每 10 分钟
+#           拉一次最新数据并刷新缓存，供开盘时即时看趋势。
+# 收盘后  ：每日 16:30 后做一次完整 fetch + 全样本回测 + Walk-Forward（保留原逻辑）。
+def _in_session(t):
+    """t=北京时间分钟数，是否处于鸡蛋日盘交易时段。"""
+    morning = (540 <= t <= 615) or (630 <= t <= 690)   # 09:00-10:15, 10:30-11:30
+    afternoon = 810 <= t <= 900                          # 13:30-15:00
+    return morning or afternoon
+
+
 def _background():
-    last_check = ""
+    last_close = ""
+    last_live_min = -999   # 上次盘中实时刷新时刻（分钟）
+    last_live_day = ""
     while True:
         bj_now = datetime.now(TZ_BJ)
         today = bj_now.strftime("%Y-%m-%d")
-        if today != last_check and bj_now.hour >= 16 and bj_now.minute >= 30:
-            last_check = today
-            try:
+        t = bj_now.hour * 60 + bj_now.minute
+
+        # 跨天重置盘中计时
+        if today != last_live_day:
+            last_live_day = today
+            last_live_min = -999
+
+        try:
+            # 1) 盘中实时刷新：交易时段内每 10 分钟拉最新价 + 重算趋势
+            if _in_session(t) and (t - last_live_min) >= 10:
+                last_live_min = t
+                refresh_state(do_fetch=True)
+                print(f"[bg-live] {_now_bj()} 盘中实时刷新(价 {STATE.get('close')})")
+            # 2) 收盘后：每日 16:30 后完整重跑一次
+            elif today != last_close and bj_now.hour >= 16 and bj_now.minute >= 30:
+                last_close = today
                 refresh_state(do_fetch=True)
                 print(f"[bg] {_now_bj()} 已核对/更新今日数据，开始重跑样本外检验…")
                 ANALYSIS["running"] = True
@@ -150,9 +246,9 @@ def _background():
                 print(f"[bg] {_now_bj()} 样本外检验完成")
                 # 刷新行情缓存
                 refresh_state(do_fetch=False)
-            except Exception as e:
-                print(f"[bg] 更新失败: {e}")
-        time.sleep(600)
+        except Exception as e:
+            print(f"[bg] 更新失败: {e}")
+        time.sleep(300)   # 每 5 分钟检查一次（盘中每 10 分钟拉一次）
 
 
 @app.route("/")
