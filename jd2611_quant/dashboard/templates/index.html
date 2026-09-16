@@ -25,15 +25,52 @@
   @media(max-width:480px){
     .wrap{padding:10px}
     h1{font-size:18px}
+    /* 头部：标题与操作按钮对齐 */
+    header{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+    header h1{font-size:16px;line-height:1.3;flex:1 1 auto;min-width:0}
+    header>div{text-align:right;flex:none}
+    header>div>div{display:flex;gap:8px;margin-top:6px}
+    header button{width:auto;padding:8px 12px;white-space:nowrap}
+    /* KPI 卡片 */
     .cards{grid-template-columns:1fr 1fr;gap:8px}
     .card{padding:10px 12px}
     .card .v{font-size:17px}
-    .panel{padding:12px}
+    /* 面板通用 */
+    .panel{padding:12px;border-radius:10px}
     .panel h2{font-size:13px}
-    .btn{font-size:12px;padding:6px 10px}
-    header button{width:100%;text-align:center}
+    .cols{gap:10px}
+    .btn{font-size:12px;padding:8px 12px}
     pre{font-size:11px}
     .val{font-size:13px}
+    table{font-size:12px}
+    th,td{padding:5px 6px}
+    /* 趋势面板：头部自适应、指标两列对齐 */
+    .tb-head{min-width:0;width:100%}
+    .tb-inner{padding:15px 14px}
+    .tb-verdict{font-size:24px}
+    .tb-badge{width:48px;height:48px;font-size:22px;border-radius:13px}
+    .tb-price .p{font-size:16px}
+    .tb-metrics{min-width:0;grid-template-columns:repeat(2,1fr);gap:8px}
+    .tb-metric{padding:9px 11px}
+    .tb-summary{padding:10px 12px}
+    /* JD2611 专项：价格区单独换行靠左 */
+    .jd .jd-head{gap:12px;align-items:center}
+    .jd .jd-qs{margin-left:0;text-align:left;width:100%}
+    .jd .jd-verdict{font-size:20px}
+    .jd .jd-metrics{gap:8px}
+    .jd .jd-m{padding:8px 10px}
+    /* 模拟盘指标：两列卡片对齐 */
+    .sim-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .sim-metrics>div{background:rgba(11,15,24,.5);border:1px solid var(--line);border-radius:10px;padding:8px 11px;margin:0}
+    .sim-metrics>div .lbl{font-size:11px}
+    .sim-metrics>div .val{font-size:15px;font-weight:700;margin-top:3px}
+    /* 策略参数：标签与值对齐 */
+    .param-row{display:grid;grid-template-columns:auto 1fr;gap:4px;align-items:center}
+    .param-row .lbl{min-width:0}
+    /* 关键价位 */
+    .lv-wrap{gap:12px}
+    .lv-grp{min-width:0;flex:1 1 45%}
+    .lv-val{font-size:15px}
   }
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
   .panel h2{font-size:15px;margin:0 0 10px;color:var(--mut);font-weight:600;border-bottom:1px solid var(--line);padding-bottom:8px}
@@ -134,6 +171,7 @@
   .jd .jd-cls-mut .jd-verdict{background:linear-gradient(180deg,#e4e8f0,#b3bccf);-webkit-background-clip:text;background-clip:text;color:transparent}
   .jd .jd-sub{font-size:12px;color:var(--mut);margin-top:4px}
   .jd .jd-price{margin:6px 0 4px}
+  .jd .jd-qs{margin-left:auto;text-align:right}
   .jd .jd-price .p{font-size:20px;font-weight:900;color:#fff}
   .jd .jd-price .s{font-size:12px;color:var(--mut);margin-left:5px}
   .jd .jd-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:9px;margin-bottom:12px}
@@ -276,7 +314,7 @@ function renderJd2611(jd){
         <div class="jd-verdict">${jd.verdict}</div>
         <div class="jd-sub">研判基于个券JD2611 · 独立于主力连续 · ${jd.via_date}</div>
       </div>
-      <div style="margin-left:auto;text-align:right">
+      <div class="jd-qs">
         <div class="jd-price"><span class="p">${jd.close}</span><span class="s ${chgCls}">${jd.chg_pct>0?'+':''}${jd.chg_pct}%</span></div>
         <div class="jd-sub">距120日高 ${jd.pct_from_high}%</div>
       </div>
@@ -381,7 +419,7 @@ function renderSim(st){
   let html='';
   if(pos){
     html+=`<div style="margin-bottom:12px"><span class="tag live">持仓中</span></div>`;
-    html+=`<div class="row"><div><div class="lbl">方向</div><div class="val pos-on">${pos.dir}</div></div>`;
+    html+=`<div class="sim-metrics"><div><div class="lbl">方向</div><div class="val pos-on">${pos.dir}</div></div>`;
     html+=`<div><div class="lbl">手数</div><div class="val">${pos.lots}手</div></div>`;
     html+=`<div><div class="lbl">开仓价</div><div class="val">${pos.entry}</div></div>`;
     html+=`<div><div class="lbl">止损</div><div class="val">${pos.stop}${pos.trail?' <span class="mut">移动中</span>':''}</div></div></div>`;
@@ -408,7 +446,7 @@ function renderSim(st){
 
 function renderParams(p){
   $('params').innerHTML=Object.entries(p||{}).map(([k,v])=>
-    `<div class="row" style="margin-bottom:3px"><span class="lbl" style="min-width:130px">${k}</span><span class="val">${v}</span></div>`
+    `<div class="param-row" style="margin-bottom:5px"><span class="lbl" style="min-width:130px">${k}</span><span class="val">${v}</span></div>`
   ).join('');
 }
 
