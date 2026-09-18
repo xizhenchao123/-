@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JD 鸡蛋量化仪表盘</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171d2c; --line:#242c40; --txt:#e6ebf5; --mut:#8b96ad;
+    --ac:#4f8cff; --up:#e23b3b; --dn:#22a06b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt)}
+  .wrap{max-width:1260px;margin:0 auto;padding:18px}
+  header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+  h1{font-size:22px;margin:0}
+  .mut{color:var(--mut);font-size:13px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card .k{font-size:12px;color:var(--mut)}
+  .card .v{font-size:22px;font-weight:600;margin-top:4px}
+  .up{color:var(--up)} .dn{color:var(--dn)} .ac{color:var(--ac)}
+  .cols{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+  @media(max-width:480px){
+    .wrap{padding:10px}
+    h1{font-size:18px}
+    /* 头部：标题与操作按钮对齐 */
+    header{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+    header h1{font-size:16px;line-height:1.3;flex:1 1 auto;min-width:0}
+    header>div{text-align:right;flex:none}
+    header>div>div{display:flex;gap:8px;margin-top:6px}
+    header button{width:auto;padding:8px 12px;white-space:nowrap}
+    /* KPI 卡片 */
+    .cards{grid-template-columns:1fr 1fr;gap:8px}
+    .card{padding:10px 12px}
+    .card .v{font-size:17px}
+    /* 面板通用 */
+    .panel{padding:12px;border-radius:10px}
+    .panel h2{font-size:13px}
+    .cols{gap:10px}
+    .btn{font-size:12px;padding:8px 12px}
+    pre{font-size:11px}
+    .val{font-size:13px}
+    table{font-size:12px}
+    th,td{padding:5px 6px}
+    /* 趋势面板：头部自适应、指标两列对齐 */
+    .tb-head{min-width:0;width:100%}
+    .tb-inner{padding:15px 14px}
+    .tb-verdict{font-size:24px}
+    .tb-badge{width:48px;height:48px;font-size:22px;border-radius:13px}
+    .tb-price .p{font-size:16px}
+    .tb-metrics{min-width:0;grid-template-columns:repeat(2,1fr);gap:8px}
+    .tb-metric{padding:9px 11px}
+    .tb-summary{padding:10px 12px}
+    /* JD2611 专项：价格区单独换行靠左 */
+    .jd .jd-head{gap:12px;align-items:center}
+    .jd .jd-qs{margin-left:0;text-align:left;width:100%}
+    .jd .jd-verdict{font-size:20px}
+    .jd .jd-metrics{gap:8px}
+    .jd .jd-m{padding:8px 10px}
+    /* 模拟盘指标：两列卡片对齐 */
+    .sim-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .sim-metrics>div{background:rgba(11,15,24,.5);border:1px solid var(--line);border-radius:10px;padding:8px 11px;margin:0}
+    .sim-metrics>div .lbl{font-size:11px}
+    .sim-metrics>div .val{font-size:15px;font-weight:700;margin-top:3px}
+    /* 策略参数：标签与值对齐 */
+    .param-row{display:grid;grid-template-columns:auto 1fr;gap:4px;align-items:center}
+    .param-row .lbl{min-width:0}
+    /* 关键价位 */
+    .lv-wrap{gap:12px}
+    .lv-grp{min-width:0;flex:1 1 45%}
+    .lv-val{font-size:15px}
+  }
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  .panel h2{font-size:15px;margin:0 0 10px;color:var(--mut);font-weight:600;border-bottom:1px solid var(--line);padding-bottom:8px}
+  .row{display:flex;gap:24px;flex-wrap:wrap}
+  .lbl{font-size:12px;color:var(--mut)} .val{font-size:15px;margin-top:2px}
+  .pos-on{color:var(--up);font-weight:700} .pos-flat{color:var(--dn)}
+  svg{width:100%;height:auto;display:block;background:var(--panel);border-radius:10px}
+  pre{max-height:280px;overflow:auto;font-size:12px;background:#0b0f18;padding:10px;border-radius:8px;white-space:pre-wrap;margin:0}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:500}
+  .btn{background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:14px}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin:2px 4px 0 0}
+  .tag.live{background:rgba(34,160,107,.15);color:#2fbf7f}
+  .tag.warn{background:rgba(227,59,59,.15);color:var(--up)}
+  .quote{font-size:30px;font-weight:700}
+
+  /* ===== 方向趋势判断面板 ===== */
+  .trendbox{position:relative;overflow:hidden;border-radius:14px;
+    border:1px solid var(--line);padding:0;background:var(--panel)}
+  .trendbox::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;z-index:3}
+  .trendbox::after{content:"";position:absolute;inset:0 auto 0 0;width:4px;z-index:3}
+  .tb-up::before{background:linear-gradient(90deg,transparent,#ff6b6b,transparent)}
+  .tb-dn::before{background:linear-gradient(90deg,transparent,#3ad08e,transparent)}
+  .tb-mut::before{background:linear-gradient(90deg,transparent,#9aa5bd,transparent)}
+  .tb-up::after{background:linear-gradient(180deg,#ff6b6b,#e23b3b)}
+  .tb-dn::after{background:linear-gradient(180deg,#3ad08e,#22a06b)}
+  .tb-mut::after{background:linear-gradient(180deg,#9aa5bd,#5c6a85)}
+  .trendbox.tb-up{background:radial-gradient(120% 120% at 0% 0%,rgba(226,59,59,.14) 0%,transparent 50%),var(--panel)}
+  .trendbox.tb-dn{background:radial-gradient(120% 120% at 0% 0%,rgba(34,160,107,.14) 0%,transparent 50%),var(--panel)}
+  .trendbox.tb-mut{background:radial-gradient(120% 120% at 0% 0%,rgba(139,150,173,.10) 0%,transparent 50%),var(--panel)}
+  .tb-inner{display:flex;gap:26px;flex-wrap:wrap;align-items:center;padding:20px 22px 20px 28px;animation:tbIn .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes tbIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .tb-head{display:flex;align-items:center;gap:16px;min-width:258px}
+  .tb-badge{position:relative;width:58px;height:58px;border-radius:16px;display:grid;place-items:center;
+    flex:none;font-size:26px;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.4)}
+  .tb-up .tb-badge{background:linear-gradient(145deg,#ff7a7a,#c81e1e)}
+  .tb-dn .tb-badge{background:linear-gradient(145deg,#43d897,#1d8958)}
+  .tb-mut .tb-badge{background:linear-gradient(145deg,#b3bccf,#5a6780)}
+  .tb-badge::after{content:"";position:absolute;left:8px;top:6px;width:14px;height:8px;border-radius:50%;background:rgba(255,255,255,.5);filter:blur(3px)}
+  .tb-badge span{position:relative;z-index:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
+  .tb-verdict{font-size:32px;font-weight:900;letter-spacing:1px;line-height:1}
+  .tb-up .tb-verdict{background:linear-gradient(180deg,#ffc2c2,#ff6b6b);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tb-dn .tb-verdict{background:linear-gradient(180deg,#b3f0d4,#3ad08e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tb-mut .tb-verdict{background:linear-gradient(180deg,#e4e8f0,#b3bccf);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tb-price{margin-top:4px;display:flex;align-items:baseline;gap:6px}
+  .tb-price .p{font-size:19px;font-weight:800;color:#fff}
+  .tb-price .s{font-size:11px;color:var(--mut)}
+  .tb-sub{font-size:12px;color:var(--mut);margin-top:5px}
+  .tb-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+    padding:3px 10px;border-radius:999px;margin-top:8px;border:1px solid}
+  .tb-chip .dot{width:6px;height:6px;border-radius:50%;animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .tb-up .tb-chip{border-color:rgba(226,59,59,.3);background:rgba(226,59,59,.13);color:#ff8a8a}
+  .tb-up .tb-chip .dot{background:#ff8a8a;box-shadow:0 0 6px #ff8a8a}
+  .tb-dn .tb-chip{border-color:rgba(34,160,107,.3);background:rgba(34,160,107,.13);color:#4be0a0}
+  .tb-dn .tb-chip .dot{background:#4be0a0;box-shadow:0 0 6px #4be0a0}
+  .tb-mut .tb-chip{border-color:rgba(139,150,173,.3);background:rgba(139,150,173,.13);color:#a7b1c9}
+  .tb-mut .tb-chip .dot{background:#a7b1c9}
+  .tb-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:10px;flex:1;min-width:320px}
+  .tb-metric{background:rgba(11,15,24,.5);border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;transition:transform .15s,border-color .15s,box-shadow .15s}
+  .tb-metric:hover{transform:translateY(-2px);border-color:#3a4a6b;box-shadow:0 6px 16px rgba(0,0,0,.25)}
+  .tb-metric .tm{font-size:11px;color:var(--mut);display:flex;align-items:center;gap:5px}
+  .tb-metric .tvv{font-size:17px;font-weight:800;margin-top:4px;letter-spacing:.3px}
+  .tb-metric .tvt{font-size:11px;color:var(--mut);margin-top:3px}
+  .tb-struct{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+    padding:2px 8px;border-radius:999px;margin-top:4px}
+  .tb-struct.bull{background:rgba(226,59,59,.13);color:#ff8a8a}
+  .tb-struct.bear{background:rgba(34,160,107,.13);color:#4be0a0}
+  .tb-struct.flat{background:rgba(139,150,173,.13);color:#a7b1c9}
+  .tb-summary{flex-basis:100%;display:flex;align-items:center;gap:11px;
+    background:rgba(11,15,24,.42);border:1px solid var(--line);border-left:3px solid var(--ac);
+    border-radius:10px;padding:11px 14px}
+  .tb-summary .ic{flex:none;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;
+    font-size:14px;background:rgba(79,140,255,.14);color:var(--ac)}
+  .tb-summary .txt{font-size:13px;line-height:1.55;color:var(--txt)}
+  .tb-summary .txt b{color:#fff}
+  @media(max-width:480px){
+    .tb-verdict{font-size:24px}
+    .tb-badge{width:48px;height:48px;font-size:22px;border-radius:13px}
+    .tb-price .p{font-size:16px}
+    .tb-inner{padding:15px 14px 15px 20px;gap:16px}
+    .tb-metrics{min-width:0;grid-template-columns:repeat(2,1fr)}
+  }
+
+  /* ===== JD2611 专项 ===== */
+  .jd{position:relative;overflow:hidden}
+  .jd .jd-head{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .jd .jd-name{font-size:16px;font-weight:800;color:#fff;letter-spacing:.5px}
+  .jd .jd-badge{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;
+    font-size:20px;color:#fff;background:linear-gradient(145deg,#43d897,#1d8958);
+    box-shadow:0 6px 16px rgba(0,0,0,.35)}
+  .jd .jd-verdict{font-size:24px;font-weight:900}
+  .jd .jd-cls-up .jd-verdict{background:linear-gradient(180deg,#ffc2c2,#ff6b6b);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .jd .jd-cls-dn .jd-verdict{background:linear-gradient(180deg,#b3f0d4,#3ad08e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .jd .jd-cls-mut .jd-verdict{background:linear-gradient(180deg,#e4e8f0,#b3bccf);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .jd .jd-sub{font-size:12px;color:var(--mut);margin-top:4px}
+  .jd .jd-price{margin:6px 0 4px}
+  .jd .jd-qs{margin-left:auto;text-align:right}
+  .jd .jd-price .p{font-size:20px;font-weight:900;color:#fff}
+  .jd .jd-price .s{font-size:12px;color:var(--mut);margin-left:5px}
+  .jd .jd-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:9px;margin-bottom:12px}
+  .jd .jd-m{background:rgba(11,15,24,.5);border:1px solid var(--line);border-radius:10px;padding:8px 11px}
+  .jd .jd-m .tm{font-size:11px;color:var(--mut)}
+  .jd .jd-m .tv{font-size:16px;font-weight:800;margin-top:3px}
+  .jd .jd-m .ts{font-size:11px;color:var(--mut);margin-top:2px}
+  .jd .jd-summary{background:rgba(11,15,24,.42);border:1px solid var(--line);border-left:3px solid var(--ac);
+    border-radius:10px;padding:10px 13px;font-size:13px;line-height:1.55}
+  .jd .jd-note{font-size:11px;color:var(--mut);margin-top:10px}
+  @media(max-width:480px){.jd .jd-metrics{grid-template-columns:repeat(2,1fr)}.jd .jd-verdict{font-size:20px}}
+
+  /* ===== 关键价位 ===== */
+  .lv-wrap{display:flex;flex-wrap:wrap;gap:16px}
+  .lv-grp{flex:1;min-width:140px}
+  .lv-grp h3{font-size:12px;color:var(--mut);margin:0 0 8px;font-weight:600}
+  .lv-item{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(36,44,64,.5)}
+  .lv-item:last-child{border:0}
+  .lv-lbl{font-size:12px;color:var(--mut)} .lv-val{font-size:13px;font-weight:700}
+  .lv-buy{margin-top:10px;padding:10px;background:rgba(79,140,255,.07);border-radius:8px;border:1px solid rgba(79,140,255,.2)}
+  .lv-buy div{font-size:12px;padding:3px 0;color:var(--txt)}
+  .lv-buy .lbl{color:var(--ac);font-weight:700}
+  @media(max-width:480px){.lv-val{font-size:16px}.lv-wrap{gap:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>JD 鸡蛋期货 · 量化仪表盘</h1>
+    <div style="text-align:right">
+      <div class="mut" id="headSub">加载中…</div>
+      <div style="margin-top:6px">
+        <button class="btn ghost" onclick="refresh(true)" style="margin-right:8px">立即刷新</button>
+        <button class="btn ghost" onclick="rerun()">重跑检验</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 趋势面板 -->
+  <div class="panel trendbox" id="trendBox" style="margin-bottom:16px"></div>
+
+  <!-- JD2611 专项 -->
+  <div class="panel" id="jd2611Panel" style="margin-bottom:16px;display:none"></div>
+
+  <!-- KPI -->
+  <div class="cards" id="kpis"></div>
+
+  <!-- 双列：K线 + 模拟盘/参数 -->
+  <div class="cols">
+    <div class="panel">
+      <h2>主力连续 · 行情（近220个交易日 + MA20 + 买卖点）</h2>
+      <div id="chart"></div>
+    </div>
+    <div>
+      <div class="panel">
+        <h2>模拟盘 · 读单</h2>
+        <div id="sim"></div>
+      </div>
+      <div class="panel">
+        <h2>策略参数</h2>
+        <div id="params"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 关键价位 -->
+  <div class="panel">
+    <h2>关键价位 · 支撑 / 阻力 / 买入点</h2>
+    <div id="levels"></div>
+  </div>
+
+  <!-- 回测输出 -->
+  <div class="panel">
+    <h2>样本外检验</h2>
+    <div id="analysis"></div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+
+function renderTrend(tr){
+  const clsMap={up:'tb-up',dn:'tb-dn',mut:'tb-mut'};
+  const cls=clsMap[tr.cls]||'tb-mut';
+  const badge=tr.cls=='up'?'▲':tr.cls=='dn'?'▼':'─';
+  const chip=tr.cls=='up'?'实时盘中 · 每10分钟刷新':
+             tr.cls=='dn'?'实时盘中 · 每10分钟刷新':'数据仅更新至收盘';
+  $('trendBox').className=`panel trendbox tb-${cls}`;
+  $('trendBox').innerHTML=`
+    <div class="tb-inner">
+      <div class="tb-head">
+        <div class="tb-badge"><span>${badge}</span></div>
+        <div>
+          <div class="tb-verdict">${tr.verdict}</div>
+          <div class="tb-price"><span class="p">${tr.close}</span><span class="s">元/500kg · 主力连续</span></div>
+          <div class="tb-sub">${tr.label} · ${tr.gate}</div>
+          <div class="tb-chip"><span class="dot"></span>${chip}</div>
+        </div>
+      </div>
+      <div class="tb-metrics">
+        <div class="tb-metric"><div class="tm">共振分</div>
+          <div class="tvv" style="color:${tr.score>0?'var(--up)':tr.score<0?'var(--dn)':'var(--mut)'}">${tr.score}</div>
+          <div class="tvt" style="background:${tr.score>0?'rgba(226,59,59,.15)':tr.score<0?'rgba(34,160,107,.15)':'rgba(139,150,173,.15)'};border-radius:999px;padding:2px 6px;display:inline-block;color:${tr.score>0?'var(--up)':tr.score<0?'var(--dn)':'var(--mut)'}">${tr.score>=3?'强':tr.score>=1?'偏':''}${tr.score>0?'多':tr.score<0?'空':'中性'}</div></div>
+        <div class="tb-metric"><div class="tm">结构门控</div>
+          <div class="tvv" style="color:${!tr.mid_bear?'var(--up)':'var(--dn)'}">${!tr.mid_bear?'▲多':'▼空'}</div>
+          <div class="tb-struct ${!tr.mid_bear?'bull':'bear'}">${!tr.mid_bear?'多头结构':'空头结构'}</div></div>
+        <div class="tb-metric"><div class="tm">MA5 / MA20</div>
+          <div class="tvv" style="color:${tr.short_bull?'var(--up)':'var(--dn)'}">${Math.round(tr.close)} / ${tr.ma20}</div>
+          <div class="tvt">${tr.short_bull?'多头排列':'空头排列'}</div></div>
+        <div class="tb-metric"><div class="tm">MACD柱 / RSI6</div>
+          <div class="tvv" style="color:${tr.macd_hist>0?'var(--up)':'var(--dn)'}">${tr.macd_hist} / ${tr.rsi6}</div>
+          <div class="tvt">${tr.macd_hist>0?'红柱':'绿柱'} · ${tr.rsi6>70?'超买':tr.rsi6<30?'超卖':'中性'}</div></div>
+      </div>
+      <div class="tb-summary">
+        <div class="ic">i</div>
+        <div class="txt">${tr.summary}</div>
+      </div>
+    </div>`;
+}
+
+function renderJd2611(jd){
+  const panel=$('jd2611Panel');
+  if(!jd){panel.style.display='none';return;}
+  panel.style.display='block';
+  const clsMap={up:'jd-cls-up',dn:'jd-cls-dn',mut:'jd-cls-mut'};
+  const badge=jd.verdict.includes('空')?'▼':jd.verdict.includes('多')?'▲':'─';
+  const chgCls=jd.chg_pct>0?'up':jd.chg_pct<0?'dn':'';
+  const maUp=jd.ma5>jd.ma20;
+  const macTxt=jd.macd_bull?'红柱':'绿柱';
+  const macCol=jd.macd_bull?'#ff8a8a':'#4be0a0';
+  const note=jd.summary
+    .replace('价格站上中周期均线','价格站上<span style="color:#ff8a8a"><b>中周期均线</b></span>')
+    .replace('价格位于中周期均线(MA60)下方','价格位于<span style="color:#4be0a0"><b>中周期均线(MA60)</b></span>下方');
+  panel.className=`panel jd ${clsMap[jd.cls]||''}`;
+  panel.innerHTML=`
+    <div class="jd-head">
+      <div class="jd-badge">${badge}</div>
+      <div>
+        <div class="jd-name">JD2611 · 鸡蛋专项</div>
+        <div class="jd-verdict">${jd.verdict}</div>
+        <div class="jd-sub">研判基于个券JD2611 · 独立于主力连续 · ${jd.via_date}</div>
+      </div>
+      <div class="jd-qs">
+        <div class="jd-price"><span class="p">${jd.close}</span><span class="s ${chgCls}">${jd.chg_pct>0?'+':''}${jd.chg_pct}%</span></div>
+        <div class="jd-sub">距120日高 ${jd.pct_from_high}%</div>
+      </div>
+    </div>
+    <div class="jd-metrics">
+      <div class="jd-m"><div class="tm">MA5</div><div class="tv">${jd.ma5}</div><div class="ts">${maUp?'多头':'空头'}排列</div></div>
+      <div class="jd-m"><div class="tm">MA20 / MA60</div><div class="tv">${jd.ma20} / ${jd.ma60}</div><div class="ts">${jd.mid_bear?'中期空头':'中期多头'}</div></div>
+      <div class="jd-m"><div class="tm">MACD柱</div><div class="tv" style="color:${macCol}">${jd.hist}</div><div class="ts" style="color:${macCol}">${macTxt}</div></div>
+      <div class="jd-m"><div class="tm">RSI6 / RSI14</div><div class="tv">${jd.rsi6} / ${jd.rsi14}</div><div class="ts">${jd.rsi6>70?'超买':jd.rsi6<30?'超卖':'中性'}</div></div>
+      <div class="jd-m"><div class="tm">布林带</div><div class="tv">${jd.boll_low}~${jd.boll_up}</div><div class="ts">中轨 ${jd.boll_mid}</div></div>
+      <div class="jd-m"><div class="tm">支撑 / 阻力</div><div class="tv">${jd.lo20} / ${jd.hi20}</div><div class="ts">近20日 · 强撑${jd.lo120}</div></div>
+    </div>
+    <div class="jd-summary">${note}</div>
+    <div class="jd-note">仅基于个券JD2611真实日线（${jd.via_date}）的研判，非投资建议。</div>`;
+}
+
+function renderKPI(st){
+  const cards=[
+    {k:'收盘价',v:st.close,cls:st.chg_pct>0?'up':st.chg_pct<0?'dn':'',sub:`${st.chg_pct>0?'+':''}${st.chg_pct}%`},
+    {k:'持仓量',v:(st.oi/1e4).toFixed(1)+'万',sub:`成交量 ${(st.vol/1e4).toFixed(1)}万`},
+    {k:'总交易',v:st.trade_count+'次',sub:`净止盈 ${st.trade_count}单`},
+    {k:'权益',v:st.equity_final.toLocaleString(),cls:st.eq_total_pct>0?'up':'dn',sub:`${st.eq_total_pct>0?'+':''}${(st.eq_total_pct*100).toFixed(2)}%`},
+    {k:'数据范围',v:st.n_bars+'根',sub:`至 ${st.date}`},
+  ];
+  $('kpis').innerHTML=cards.map(c=>`
+    <div class="card"><div class="k">${c.k}</div><div class="v ${c.cls||''}">${c.v}</div><div class="mut" style="font-size:12px;margin-top:2px">${c.sub||''}</div></div>
+  `).join('');
+}
+
+function renderChart(tail,levels){
+  // 空默认图
+  if(!tail||!tail.length){$('chart').innerHTML='<div class="mut">暂无数据</div>';return;}
+  const n=tail.length; const h=280;
+  const dates=tail.map(d=>d.date);
+  const hi=Math.max(...tail.map(d=>d.h));
+  const lo=Math.min(...tail.map(d=>d.l));
+  const pad=(hi-lo)*0.05||1;
+  const yMin=lo-pad,yMax=hi+pad;
+  const sx=(i)=>i/(n-1)*100;
+  const sy=(v)=>((yMax-v)/(yMax-yMin))*h;
+  const rh=(v)=>((yMax-v)/(yMax-yMin))*h;
+
+  // 画K线
+  let path='';
+  for(const t of tail){
+    const x1=sx(tail.indexOf(t));
+    const xw=Math.max(0.8,70/n);
+    const o=s(t.o)/s(t.c)?s(t.o):s(t.c);
+    const c=s(t.c)/s(t.o)?s(t.c):s(t.o);
+    const col=t.c>=t.o?'var(--up)':'var(--dn)';
+    path+=`<line x1="${x1}" y1="${s(t.l)}" x2="${x1}" y2="${s(t.h)}" stroke="${col}" stroke-width="1"/>
+      <rect x="${x1-xw/2}" y="${o}" width="${xw}" height="${Math.max(1,c-o)}" fill="${col}"/>`;
+  }
+
+  const lvHtml=levels?`
+    <line x1="0" y1="${s(levels.boll_up)}" x2="100%" y2="${s(levels.boll_up)}" stroke="#e23b3b" stroke-width="1" stroke-dasharray="6,4" opacity=".7"/>
+    <line x1="0" y1="${s(levels.boll_mid)}" x2="100%" y2="${s(levels.boll_mid)}" stroke="#ffa500" stroke-width="1" stroke-dasharray="4,4" opacity=".6"/>
+    <line x1="0" y1="${s(levels.boll_low)}" x2="100%" y2="${s(levels.boll_low)}" stroke="#22a06b" stroke-width="1" stroke-dasharray="6,4" opacity=".7"/>
+    <text x="99%" y="${s(levels.boll_up)-5}" fill="#e23b3b" font-size="10" text-anchor="end">上${levels.boll_up}</text>
+    <text x="99%" y="${s(levels.boll_mid)-5}" fill="#ffa500" font-size="10" text-anchor="end">中${levels.boll_mid}</text>
+    <text x="99%" y="${s(levels.boll_low)-5}" fill="#22a06b" font-size="10" text-anchor="end">下${levels.boll_low}</text>`:'';
+
+  // MA20
+  let maPath='';let firstM=true;
+  for(let i=0;i<n;i++){
+    if(tail[i].ma20===null)continue;
+    const x=sx(i),y=s(tail[i].ma20);
+    maPath+=(firstM?`M${x},${y}`:`L${x},${y}`);firstM=false;
+  }
+
+  // 买卖标记
+  let marks='';
+  for(let i=0;i<n;i++){
+    const m=tail[i].mark;
+    if(m){
+      const x=sx(i),y=s(tail[i].l)-8;
+      const col=m==='long'?'var(--up)':'var(--dn)';
+      marks+=`<circle cx="${x}" cy="${y-4}" r="4" fill="${col}" stroke="#fff" stroke-width="1.5"/>
+        <text x="${x}" y="${y-12}" fill="${col}" font-size="10" text-anchor="middle">${m==='long'?'▲B':'▼S'}</text>`;
+    }
+  }
+
+  const svg=`
+  <svg viewBox="0 0 ${100} ${h+30}" style="width:100%;height:auto" preserveAspectRatio="xMidYMid meet">
+    <rect x="0" y="0" width="98%" height="${h}" fill="none"/>
+    ${path}
+    <path d="${maPath}" fill="none" stroke="#ffa500" stroke-width="1.5" opacity=".8"/>
+    ${lvHtml}
+    ${marks}
+  </svg>`;
+
+  $('chart').innerHTML=svg;
+
+  function s(v){return ((yMax-v)/(yMax-yMin))*h;}
+}
+
+function renderSim(st){
+  const div=$('sim');
+  const pos=st.position;
+  const pending=st.pending;
+  const lastT=st.last_trade;
+  let html='';
+  if(pos){
+    html+=`<div style="margin-bottom:12px"><span class="tag live">持仓中</span></div>`;
+    html+=`<div class="sim-metrics"><div><div class="lbl">方向</div><div class="val pos-on">${pos.dir}</div></div>`;
+    html+=`<div><div class="lbl">手数</div><div class="val">${pos.lots}手</div></div>`;
+    html+=`<div><div class="lbl">开仓价</div><div class="val">${pos.entry}</div></div>`;
+    html+=`<div><div class="lbl">止损</div><div class="val">${pos.stop}${pos.trail?' <span class="mut">移动中</span>':''}</div></div></div>`;
+  }else{
+    html+=`<div style="margin-bottom:12px"><span class="tag warn">空仓</span></div>`;
+  }
+  if(pending){
+    html+=`<div style="margin-top:10px;padding:8px;background:rgba(34,160,107,.1);border-radius:8px">
+      <span class="mut">待执行信号：</span><span class="up" style="font-weight:700">${pending.dir}</span>
+      <span class="mut">（${pending.date}触发）</span></div>`;
+  }else{
+    html+=`<div style="margin-top:10px"><span class="mut">待执行信号：无</span></div>`;
+  }
+  if(lastT){
+    html+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">`;
+    html+=`<div class="lbl" style="margin-bottom:6px">最近平仓</div>`;
+    html+=`<table><tr><th>方向</th><th>入场</th><th>离场</th><th>盈亏</th><th>原因</th></tr>`;
+    html+=`<tr><td>${lastT.direction}</td><td>${lastT.entry}</td><td>${lastT.exit}</td>
+      <td class="${lastT.pnl>0?'up':'dn'}">${lastT.pnl>0?'+':''}${lastT.pnl}</td>
+      <td style="font-size:11px">${lastT.reason}</td></tr></table></div>`;
+  }
+  div.innerHTML=html||'<span class="mut">无数据</span>';
+}
+
+function renderParams(p){
+  $('params').innerHTML=Object.entries(p||{}).map(([k,v])=>
+    `<div class="param-row" style="margin-bottom:5px"><span class="lbl" style="min-width:130px">${k}</span><span class="val">${v}</span></div>`
+  ).join('');
+}
+
+function renderLevels(ls,bn){
+  if(!ls){$('levels').innerHTML='<span class="mut">暂无数据</span>';return;}
+  $('levels').innerHTML=`
+    <div class="lv-wrap">
+      <div class="lv-grp">
+        <h3>压力位</h3>
+        <div class="lv-item"><span class="lv-lbl">布林上轨</span><span class="lv-val" style="color:var(--up)">${ls.boll_up}</span></div>
+        <div class="lv-item"><span class="lv-lbl">近20日高</span><span class="lv-val" style="color:var(--up)">${ls.hi20}</span></div>
+      </div>
+      <div class="lv-grp">
+        <h3>中线</h3>
+        <div class="lv-item"><span class="lv-lbl">MA20 / 布林中轨</span><span class="lv-val" style="color:#ffa500">${ls.ma20} / ${ls.boll_mid}</span></div>
+      </div>
+      <div class="lv-grp">
+        <h3>支撑位</h3>
+        <div class="lv-item"><span class="lv-lbl">布林下轨</span><span class="lv-val" style="color:var(--dn)">${ls.boll_low}</span></div>
+        <div class="lv-item"><span class="lv-lbl">近20日低</span><span class="lv-val" style="color:var(--dn)">${ls.lo20}</span></div>
+      </div>
+      <div class="lv-grp">
+        <h3>极值</h3>
+        <div class="lv-item"><span class="lv-lbl">物极买区</span><span class="lv-val" style="color:#ffa500">${ls.extreme_buy}</span></div>
+      </div>
+    </div>
+    <div class="lv-buy">
+      <div class="lbl">买入区间提示</div>
+      ${(bn||[]).map(n=>'<div>· '+n+'</div>').join('')}
+    </div>`;
+}
+
+function renderAll(data){
+  const st=data[0];
+  if(!st){return;}
+  renderTrend(st.trend);
+  renderJd2611(st.jd2611);
+  renderKPI(st);
+  renderChart(st.tail, st.levels);
+  renderSim(st);
+  renderParams(st.params);
+  renderLevels(st.levels, st.buy_notes);
+  $('headSub').innerHTML=`<span class="mut">最后更新 ${st.updated}</span>`;
+}
+
+async function loadState(){
+  try{
+    const r=await fetch('/api/state');
+    const d=await r.json();
+    renderAll(d);
+  }catch(e){$('headSub').innerHTML=`<span class="mut">加载失败</span>`;}
+}
+
+async function refresh(withFetch){
+  $('headSub').innerHTML=`<span class="mut">刷新中…</span>`;
+  try{
+    const r=await fetch(`/api/refresh${withFetch?'?fetch=1':''}`);
+    const d=await r.json();
+    renderAll(d);
+  }catch(e){$('headSub').innerHTML=`<span class="mut">刷新失败</span>`;}
+}
+
+async function rerun(){
+  $('headSub').innerHTML=`<span class="mut">检验运行中（约2分钟）…</span>`;
+  try{
+    const r=await fetch('/api/rerun');
+    const d=await r.json();
+    if(d.status==='already running'){$('headSub').innerHTML=`<span class="mut">检验已在运行</span>`;return;}
+    $('headSub').innerHTML=`<span class="mut">检验完成</span>`;
+    loadState();
+  }catch(e){$('headSub').innerHTML=`<span class="mut">检验失败</span>`;}
+}
+
+loadState();
+setInterval(loadState,60000);
+</script>
+</body>
+</html>
