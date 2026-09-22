@@ -224,7 +224,7 @@ table.lvl td b{color:var(--txt)}
       </div>
       <div class="sec" id="trackBody">未持仓。录入持仓方向与开仓价后，自动监测结构破位、量仓异动与移动止损参考（仅供风险提示，执行由人工决定）。</div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;font-size:11px;color:var(--dim);flex-wrap:wrap">
-        <span>当日连亏 <b id="lossCnt" class="num" style="color:var(--warn)">0</b> 笔（纪律：3笔停止当日交易）</span>
+        <span>当日连亏 <b id="lossCnt" class="num" style="color:var(--warn)">0</b> 笔（纪律：2笔仓位减半，3笔锁仓停新单）</span>
         <button class="fbtn" id="lossAdd">亏一笔 +1</button>
         <button class="fbtn" id="lossReset">重置</button>
         <span>历史最大连亏：<b id="maxLossCnt" class="num" style="color:var(--risk)">0</b> 笔</span>
@@ -567,18 +567,43 @@ function detectFalseBreak(m5, levels, atr5){
   }
   return out;
 }
+/* 突破防抖（用户规则）：盘中刺破不算突破，单根K线收盘越位也不算——必须下一根K线继续收盘站稳关键位外侧才确认有效突破；
+ * 最后一根收盘越位但尚无下一根 → 标记 pending（待确认）；有下一根但收回 → 既不确认也不待确认（归入假突破/刺破统计） */
 function detectValidBreak(m5, levels, atr5){
   const out=[]; if(!m5.length) return out;
   const n=m5.length;
   for(const L of levels){
     if(L==null) continue;
-    let crossed=false, crossedT=null;
+    let crossed=false, crossedT=null, confirmed=false, pending=false;
     for(let i=Math.max(0,n-50);i<n;i++){
       const b=m5[i];
-      if(b.c>L+0.3*atr5 && b.v>1.5*avgVB(m5,i) && b.c>b.o){ crossed=true; crossedT=b.t; break; }
-      if(b.c<L-0.3*atr5 && b.v>1.5*avgVB(m5,i) && b.c<b.o){ crossed=true; crossedT=b.t; break; }
+      if(b.c>L+0.3*atr5 && b.v>1.5*avgVB(m5,i) && b.c>b.o){
+        crossed=true; crossedT=b.t;
+        if(i===n-1) pending=true; else confirmed=m5[i+1].c>L+0.3*atr5;
+        break;
+      }
+      if(b.c<L-0.3*atr5 && b.v>1.5*avgVB(m5,i) && b.c<b.o){
+        crossed=true; crossedT=b.t;
+        if(i===n-1) pending=true; else confirmed=m5[i+1].c<L-0.3*atr5;
+        break;
+      }
     }
-    if(crossed){ out.push({level:L,t:crossedT}); }
+    if(crossed){ out.push({level:L,t:crossedT,confirmed,pending}); }
+  }
+  return out;
+}
+/* 盘中刺破检测（突破防抖配套）：影线越过关键位但收盘收回（无论量能大小）；
+ * 其中巨量(z≥1.5)刺破回落=扫止损/诱单特征，单独计数供风控扣分 */
+function detectProbes(m5, levels){
+  const out={upN:0,dnN:0,heavyN:0,note:''}; if(!m5.length) return out;
+  const n=m5.length;
+  for(const L of levels){
+    if(L==null) continue;
+    for(let i=Math.max(0,n-50);i<n;i++){
+      const b=m5[i], z=volZ(m5,i);
+      if(b.h>L && b.c<=L){ out.upN++; if(z>=1.5){ out.heavyN++; if(!out.note) out.note='巨量上刺'+L.toFixed(0)+'后收回('+fmtT(b.t)+')'; } }
+      if(b.l<L && b.c>=L){ out.dnN++; if(z>=1.5){ out.heavyN++; if(!out.note) out.note='巨量下探'+L.toFixed(0)+'后收回('+fmtT(b.t)+')'; } }
+    }
   }
   return out;
 }
@@ -586,7 +611,7 @@ function avgVB(m5,i){ const st=Math.max(0,i-40),seg=m5.slice(st,i); return seg.l
 
 /* ---------------- 威科夫量仓 ---------------- */
 function wyckoff(m5, live, fb){
-  const n=m5.length; if(n<15) return {supplyDemand:'数据不足',events:[],effortNoResult:false,effortBar:null,realDrive:0,noResN:0,fbCountNear:0,oiState:'--',behavior:'--'};
+  const n=m5.length; if(n<15) return {supplyDemand:'数据不足',events:[],effortNoResult:false,effortBar:null,realDrive:0,noResN:0,fbCountNear:0,oiState:'--',behavior:'--',actBuyV:0,actSellV:0,actRatio:0,activeSide:'--',washFlag:false,washN:0,washNote:''};
   const events=[];
   for(let i=Math.max(0,n-60);i<n;i++){
     const z=volZ(m5,i);
@@ -600,6 +625,20 @@ function wyckoff(m5, live, fb){
   const upV=seg.filter(b=>b.c>=b.o).reduce((s,b)=>s+b.v,0);
   const dnV=seg.filter(b=>b.c<b.o).reduce((s,b)=>s+b.v,0);
   const supplyDemand = upV>dnV*1.15?'需求占优':(dnV>upV*1.15?'供应占优':'供需均衡');
+  /* 主动盘识别（用户规则）：普通成交量只是成交总和，假突破常伴随总量大但没有对应的主动盘。
+   * 以K线收盘位置近似主动方向：closePos≥0.65 → 该bar量记入主动买盘；≤0.35 → 主动卖盘；
+   * 中间(0.35~0.65) → 无明确主动方向。主动占比 = (主动买+主动卖)/总量，过低说明多为被动对倒撮合。
+   * 对倒假放量：量≥2×均量 但 closePos落在0.4~0.6中性区（总量大、主动盘缺位）——资金对倒制造假放量的典型特征 */
+  let actBuyV=0, actSellV=0, neutralV=0, washN=0, washNote='';
+  for(let i=Math.max(0,n-30);i<n;i++){
+    const b=m5[i], cp=(b.c-b.l)/((b.h-b.l)||1);
+    if(cp>=0.65) actBuyV+=b.v; else if(cp<=0.35) actSellV+=b.v; else neutralV+=b.v;
+    if(b.v>=2*avgVB(m5,i) && cp>=0.4 && cp<=0.6){ washN++; if(!washNote) washNote=fmtT(b.t)+' 放量('+z.toFixed(1)+'σ)收在中位'; }
+  }
+  const actTot=actBuyV+actSellV, segV=seg.reduce((s,b)=>s+b.v,0)||1;
+  const actRatio=actTot/segV;
+  const washFlag = washN>=1 && actRatio<0.55;
+  const activeSide = actRatio<0.45?'主动盘缺位':(actBuyV>actSellV*1.3?'主动买盘':(actSellV>actBuyV*1.3?'主动卖盘':'多空主动盘均衡'));
   /* 努力与结果量化（威科夫）：区分「真放量驱动行情」vs「无效放量骗线」
    * 努力bar = 量≥2.2×40bar均量；结果按振幅分档：
    *   振幅≥1.5×ATR5 → 真驱动（努力有结果，放量行情可信）；
@@ -632,7 +671,7 @@ function wyckoff(m5, live, fb){
   else if(drift>0 && intraOI<0){ behavior='空头回补'; behNote='价涨+减仓'; }
   else if(drift<0 && intraOI>0){ behavior='砸盘行为'; behNote='价跌+增仓'; }
   else if(drift<0 && intraOI<0){ behavior='多头离场'; behNote='价跌+减仓'; }
-  return {supplyDemand,events:events.slice(-8),effortNoResult,effortBar,realDrive,noResN,fbCountNear,oiState,intraOI,oiDeltaPct,behavior,behNote};
+  return {supplyDemand,events:events.slice(-8),effortNoResult,effortBar,realDrive,noResN,fbCountNear,oiState,intraOI,oiDeltaPct,behavior,behNote,actBuyV,actSellV,actRatio,activeSide,washFlag,washN,washNote};
 }
 
 /* =====================================================================
@@ -838,6 +877,7 @@ function analyze(){
   const lvAll=[A.res[0]&&A.res[0].price, A.res[1]&&A.res[1].price, A.sup[0]&&A.sup[0].price, A.sup[1]&&A.sup[1].price, live.prevSettle].filter(x=>x!=null);
   A.falseBreaks=detectFalseBreak(m5,lvAll,atr5);
   A.validBreaks=detectValidBreak(m5,lvAll,atr5);
+  A.probes=detectProbes(m5,lvAll);
   A.wy=wyckoff(m5,live,A.falseBreaks);
   A.eagle=eagleEye(m5,live,A);
   /* 日线5日涨跌量对比（按结算价口径） */
@@ -939,6 +979,13 @@ function analyze(){
     const wy=A.wy||{};
     if(wy.effortNoResult) push('努力无结果', 3, '近24根5分钟出现'+(wy.noResN||1)+'次放量（≥2.2×均量）但振幅≤0.35×ATR5：量大价不动，疑似吸筹/派发'+((wy.fbCountNear||0)>0?'，且伴随假突破——无效放量骗线特征':''));
     if((wy.realDrive||0)>0 && !wy.effortNoResult) push('真放量驱动', 0, '近24根出现'+wy.realDrive+'次放量+振幅≥1.5×ATR5的真驱动bar：放量行情可信（提示项，不扣分）');
+    /* 主动盘识别（用户规则）：区分主动量与普通总成交量，过滤对倒假放量 */
+    if(wy.washFlag) push('对倒假放量', 3, '近30根出现'+wy.washN+'次放量(≥2×均量)但收盘收在中位'+(wy.washNote?'（'+wy.washNote+'）':'')+'：总量大而主动盘缺位，疑似资金对倒');
+    else if((wy.actRatio||0)<0.45 && wy.supplyDemand!=='数据不足') push('主动盘缺位', 2, '近12根主动盘占比仅'+Math.round((wy.actRatio||0)*100)+'%：成交多为被动撮合，量能可信度低');
+    /* 盘中刺破（突破防抖配套）：巨量影线扫过关键位又收回=扫止损/诱单特征 */
+    const pr=A.probes||{upN:0,dnN:0,heavyN:0,note:''};
+    if(pr.heavyN>=1) push('巨量刺破', 3, '近50根出现'+pr.heavyN+'次巨量影线刺过关键位又收回'+(pr.note?'（'+pr.note+'）':'')+'：扫止损/诱单特征，关键位不可信');
+    else if((pr.upN+pr.dnN)>=3) push('频繁刺破', 1, '关键位被影线刺破又收回×'+(pr.upN+pr.dnN)+'次（上'+pr.upN+'/下'+pr.dnN+'）：价位反复争夺，突破信号可信度打折');
     if(!A.spotMissing && A.spotChgPct!=null && A.spotChgPct<-2 && dayUp) push('期现背离', 3, '现货单日跌'+A.spotChgPct.toFixed(1)+'%而期货收涨');
     if(A.crossConflict===2) push('多周期严重冲突', 4, A.crossNotes[0]+'：趋势结构项已扣7分，风险项再扣4分');
     else if(A.crossConflict===1) push('多周期轻度冲突', 1, A.crossNotes[0]);
@@ -954,6 +1001,8 @@ function analyze(){
   if(egv&&egv.ok&&egv.enr) A.veto.push('量价背离：大量成交价格走不动（努力-结果失效）');
   if((A.wy||{}).noResN>=2) A.veto.push('放量与价格结果完全背离（努力-结果失效）：近24根'+A.wy.noResN+'次大量滞涨');
   if(egv&&egv.ok&&(egv.shocks.length||egv.openShock)) A.veto.push('突发大额资金冲击/剧烈放量');
+  if((A.wy||{}).washFlag) A.veto.push('对倒假放量：放量无主动盘配合，量能信号不可信');
+  if((A.probes||{}).heavyN>=2) A.veto.push('关键位反复巨量刺破×'+A.probes.heavyN+'：扫止损/诱单密集，突破信号不可信');
   if(A.crossConflict===2) A.veto.push('多周期趋势严重冲突：'+A.crossNotes[0].replace('（跨周期矛盾 −7）',''));
   let total=A.scoreTrend+A.scoreVol+A.scoreSpot+A.scoreRisk;
   if(A.veto.length){ A.capped=true; total=Math.min(45,Math.round(total*0.65)); }
@@ -1107,7 +1156,7 @@ function gradeABCD(A){
   }
   /* D：触发风控 → 禁止开仓（D 级同样给出候选交易参数，仅做观察参考） */
   if(A.veto.length){ g.grade='D'; g.why.push('触发一票否决风控（'+A.veto[0]+'），禁止开仓'); g.rrRef=rrCalc(A); return g; }
-  if(S.losses&&S.losses.n>=3){ g.grade='D'; g.why.push('当日连亏已达'+S.losses.n+'笔：按纪律停止当日交易，空仓休息'); g.rrRef=rrCalc(A); return g; }
+  if(S.losses&&S.losses.n>=3){ g.grade='D'; g.why.push('当日连亏已达'+S.losses.n+'笔：按纪律暂停开仓，强制进入复盘模式，不允许新建单子'); g.rrRef=rrCalc(A); return g; }
   const mtf=A.mtf, rr=rrCalc(A), fu=A.fu||fuFundamental(A);
   A.rr=rr;
   const resCount=[mtf.pass, rr.pass, fu.verdict==='利多'||fu.verdict==='利空', A.wy.behavior!=='--'&&A.wy.behavior!=='派发'&&A.wy.behavior!=='砸盘'].filter(Boolean).length;
@@ -1124,6 +1173,9 @@ function gradeABCD(A){
   } else {
     g.grade='C'; g.why.push('基本面与量仓信号模棱两可，按框架尽量放弃');
   }
+  /* 连亏降仓（用户规则）：连续2笔亏损 → 下一次仓位减半（不影响评级，只压仓位） */
+  if(S.losses&&S.losses.n===2){ g.why.push('⚠ 当日连亏已2笔：纪律要求下一次开仓仓位减半（达到3笔将锁仓停新单）'); }
+  else if(S.losses&&S.losses.n>=3){ g.why.push('⛔ 当日连亏'+S.losses.n+'笔：仓位锁死，本条仅复盘用'); }
   return g;
 }
 
@@ -1526,7 +1578,7 @@ function renderPanels(){
   $('shiBody').innerHTML=
    `<b>【势】</b>日线：<span class="hl">${tTxt(A.d.trend)}${dSub}</span>；60分钟：<span class="hl">${tTxt(A.h1.trend)}${hSub}</span>；5分钟：${A.m5.rsi!=null?'RSI '+A.m5.rsi.toFixed(1):'--'}。<br>`+
    `<b>【位】</b>当前价 <b class="num hl">${L.price.toFixed(0)}</b> 处于 <b>${A.pos}</b>（支${A.sup[0]?A.sup[0].price.toFixed(0):'--'} ~ 压${A.res[0]?A.res[0].price.toFixed(0):'--'} 区间${A.res[0]&&A.sup[0]?' '+(((L.price-A.sup[0].price)/(A.res[0].price-A.sup[0].price)*100)||0).toFixed(0)+'% 处':'，数据不足'}）。<br>`+
-   `<b>【态】</b>${A.patterns.length?A.patterns.map(p=>p.name+(p.note?'（'+p.note+'）':'')).join('、'):'常规结构'}；${A.structIntact?'短线低点结构完好':'短线结构破坏'}${A.falseBreaks.length?`；<span style="color:var(--risk)">出现${A.falseBreaks.length}次假突破</span>`:''}${A.validBreaks.length?`；${A.validBreaks.length}个关键位放量有效突破`:''}。`;
+   `<b>【态】</b>${A.patterns.length?A.patterns.map(p=>p.name+(p.note?'（'+p.note+'）':'')).join('、'):'常规结构'}；${A.structIntact?'短线低点结构完好':'短线结构破坏'}${A.falseBreaks.length?`；<span style="color:var(--risk)">出现${A.falseBreaks.length}次假突破</span>`:''}${A.validBreaks.length?`；<span style="color:var(--ok)">${A.validBreaks.length}个关键位突破已确认</span>（收盘站稳）`:''}${(A.validBreaks||[]).filter(v=>v.pending).length?`；<span style="color:var(--warn)">${A.validBreaks.filter(v=>v.pending).length}个待确认（防抖中）</span>`:''}${(A.probes&&(A.probes.upN+A.probes.dnN))?`；影线刺破×${A.probes.upN+A.probes.dnN}（盘中刺破不算突破）`:''}。`;
   /* 关键价位 */
   let lv='';
   (A.res||[]).slice(0,2).forEach((r,i)=>{ lv+=`<div class="lvlrow"><span><span class="lv" style="color:var(--res)">压力${i+1}</span>${r.n>1?`（${r.n}个波段点聚类）`:''}</span><b class="num">${r.price.toFixed(0)}</b></div>`; });
@@ -1540,6 +1592,8 @@ function renderPanels(){
   $('wyBody').innerHTML=
    `<span class="pill ${sdCls}">${wy.supplyDemand}</span> <span class="pill oi">${wy.oiState}${L.oiDelta!=null?' '+((L.oiDelta>0?'+':'')+fmtN(L.oiDelta))+'手':''}</span> <span class="pill ${wy.behavior.includes('砸')||wy.behavior.includes('派')?'supply':'neutral'}">${wy.behavior}${wy.behNote?'·'+wy.behNote:''}</span>`+
    (wy.effortNoResult?`<br><span class="pill wide">⚠ 努力与结果背离：巨量滞涨，力量衰竭</span>`:'')+
+   `<br><span class="pill ${wy.activeSide==='主动买盘'?'demand':(wy.activeSide==='主动卖盘'?'supply':(wy.activeSide==='主动盘缺位'?'supply':'neutral'))}">主动盘：${wy.activeSide} ${Math.round((wy.actRatio||0)*100)}%</span>`+
+   (wy.washFlag?`<br><span class="pill wide supply">⚠ 对倒假放量×${wy.washN}${wy.washNote?'：'+wy.washNote:''}——总量大而主动盘缺位</span>`:'')+
    `<br>近12根5分钟：上涨bar量 ${fmtN(m5UpV())} / 下跌bar量 ${fmtN(m5DnV())}。`;
   /* 事件流 */
   const evs=wy.events.map(e=>`<div class="ev"><div class="et">${e.dir==='up'?'<span class="pill demand">放量上攻</span>':'<span class="pill supply">放量下杀</span>'}<span>z=${e.z.toFixed(1)}</span>${e.dOI?`<span class="pill oi">仓${e.dOI>0?'+':''}${fmtN(e.dOI)}</span>`:''}<span class="tm">${fmtDT(e.t)}</span></div><div class="ed">${e.dir==='up'?'需求信号':'供应信号'}，收盘位于bar内 ${(e.closePos*100).toFixed(0)}% 位置。</div></div>`).join('');
@@ -1609,6 +1663,7 @@ function renderEagle(){
     item36=
      `<div class="erow"><b>3. 资金行为判定</b>：<span class="pill ${behCls[E.behavior]||'neutral'}">${E.behavior}</span> ${E.behNote||''}${E.behWarn||''}；供求：<b>${E.supplyDemand||'--'}</b>${E.supplyDemand==='需求强'?'（放量上涨）':E.supplyDemand==='供应强'?'（放量下跌）':''}。</div>`+
      `<div class="erow"><b>4. 是否触发资金异动</b>：${anomalyHtml}。</div>`+
+     `<div class="erow"><b>4b. 主动盘判定</b>：<span class="pill ${A.wy&&A.wy.activeSide==='主动买盘'?'demand':(A.wy&&A.wy.activeSide==='主动卖盘'?'supply':'neutral')}">${(A.wy&&A.wy.activeSide)||'--'}（主动盘占比${Math.round(((A.wy&&A.wy.actRatio)||0)*100)}%）</span>${A.wy&&A.wy.washFlag?'<span style="color:var(--risk)">⚠ 对倒假放量×'+A.wy.washN+'：总量大而主动盘缺位，量能信号不可信</span>':''}${A.probes&&A.probes.heavyN?'<span style="color:var(--warn)">巨量刺破×'+A.probes.heavyN+'（扫止损/诱单特征）</span>':''}。</div>`+
      `<div class="erow"><b>5. 是否触发一票否决风险</b>：${vetoList.length?'<b style="color:var(--risk)">是</b> ⛔ '+vetoList.join('；'):'<b style="color:var(--ok)">否</b>'}</div>`+
      `<div class="erow"><b>6. 风险等级</b>：<b style="color:${lvlColor}">${E.level}</b>${vetoList.length?'（一票否决生效：高风险，观望，不作为交易机会）':(E.anomaly?'（存在资金异动，未达否决阈值）':'（量仓结构正常）')}。</div>`;
   }else{
@@ -1638,7 +1693,8 @@ function renderEagle(){
   /* 10. 交易提示 */
   let tip;
   if(vetoList.length) tip='⛔ 一票否决生效：标记【高风险，观望，不作为交易机会】，不参与。';
-  else if(S.losses&&S.losses.n>=3) tip='⛔ 当日连亏已达'+S.losses.n+'笔：按纪律停止当日交易，空仓休息。';
+  else if(S.losses&&S.losses.n>=3) tip='⛔ 当日连亏已达'+S.losses.n+'笔：按纪律暂停开仓，强制进入复盘模式，不允许新建单子（已有持仓按原计划管理）。';
+  else if(S.losses&&S.losses.n===2) tip='⚠ 当日连亏已2笔：下一次开仓仓位减半（纪律要求），再亏1笔即锁仓停新单。';
   else if(gr.grade==='C') tip='条件模棱两可：按框架尽量放弃，耐心等待，大部分时间保持空仓，不频繁寻找机会。';
   else if(gr.grade==='B') tip='条件大部分满足、存在小瑕疵：可轻仓试单（单笔最大亏损控制在账户1-2%以内，严格带止损）。是否开仓由人工决定。';
   else if(gr.grade==='A') tip='多周期共振＋量仓确认＋基本面配合＋盈亏比达标：优质机会（本提示不构成交易指令，仓位与执行由人工决定），单笔风险≤1-2%。';
@@ -1906,8 +1962,8 @@ function bindUI(){
   $('posDir').addEventListener('change',posChange);
   $('posEntry').addEventListener('input',posChange);
   $('posStop').addEventListener('input',posChange);
-  /* ---- 当日连亏计数（纪律模块：3笔停止当日交易）+ 历史最大连亏 + 简易回撤 ---- */
-  const lossRender=()=>{ $('lossCnt').textContent=S.losses.n; $('lossCnt').style.color=S.losses.n>=3?'var(--risk)':'var(--warn)'; $('maxLossCnt').textContent=S.losses.maxLossN||0; };
+  /* ---- 当日连亏计数（纪律模块：2笔仓位减半，3笔锁仓停新单）+ 历史最大连亏 + 简易回撤 ---- */
+  const lossRender=()=>{ $('lossCnt').textContent=S.losses.n; $('lossCnt').style.color=S.losses.n>=3?'var(--risk)':(S.losses.n===2?'var(--gold)':'var(--warn)'); $('maxLossCnt').textContent=S.losses.maxLossN||0; };
   const ddRender=()=>{
     const el=$('ddInfo');
     if(S.dd.peak==null&&S.dd.last==null){ el.textContent='回撤: --（录入累计盈亏后自动跟踪峰值与最大回撤）'; return; }
@@ -1920,7 +1976,7 @@ function bindUI(){
     LS.set('lossDate',S.losses.date); LS.set('lossN',S.losses.n); LS.set('maxLossN',S.losses.maxLossN);
     lossRender();
     if(S.losses.n>=3){ analyze(); renderPanels(); }
-    else { S.A=analyze(); renderTrack(); }
+    else { S.A=analyze(); renderPanels(); }
   };
   $('lossReset').onclick=()=>{
     S.losses.n=0; S.losses.date=bjStr(bj());
