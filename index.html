@@ -162,6 +162,8 @@ table.lvl td b{color:var(--txt)}
     <div class="gbcell"><div id="gbGrade" class="num gbnum">--</div><div class="gblab">机会评级</div></div>
     <div id="gbVeto">--</div>
   </div>
+  <!-- n2: 一句话行情结论（评级横幅旁） -->
+  <div id="gbOneLiner" style="display:none;margin-top:8px;padding:7px 10px;border-left:3px solid var(--dim);background:rgba(127,127,127,.08);border-radius:0 6px 6px 0;font-size:13px;font-weight:700;line-height:1.5">--</div>
 </div>
 
 <main>
@@ -269,8 +271,26 @@ table.lvl td b{color:var(--txt)}
     </div>
 
     <div class="card" id="recapCard" style="display:none">
-      <h3>收盘复盘 <span class="tag" id="recapdate">--</span><button class="fbtn" id="recapCopy" style="float:right;margin-top:-1px">📋 复制复盘</button></h3>
+      <h3>收盘复盘 <span class="tag" id="recapdate">--</span><button class="fbtn" id="recapCopy" style="float:right;margin-top:-1px">📋 复盘+策略</button></h3>
       <div id="recapBody"></div>
+      <!-- n1: AI 策略输出区块（复用打分/价位/一票否决变量，不新增计算） -->
+      <div id="strategyBody" style="margin-top:10px"></div>
+    </div>
+
+    <!-- n3: Chart.js 简易K线速览（5分钟K线+成交量柱，纯可视化不参与计算；CDN加载失败自动隐藏） -->
+    <div class="card" id="cjsCard" style="display:none">
+      <h3>5分钟K线速览 <span class="tag">Chart.js · 近60根</span></h3>
+      <div style="height:280px;position:relative"><canvas id="chartjs5m"></canvas></div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">红=涨 / 绿=跌（量柱同色），黄线为收盘价参考；量柱见底部下轴。仅作速览，精确看盘请用上方主图（自研渲染，无外部依赖）。</div>
+    </div>
+
+    <!-- n5: 历史策略回查（localStorage 每日自动存档，支持导出JSON/清空） -->
+    <div class="card" id="histCard" style="display:none">
+      <h3>历史策略回查 <span class="tag" id="histTag">0 条</span>
+        <button class="fbtn" id="histExport" style="float:right;margin-top:-1px">⤓ 导出JSON</button>
+        <button class="fbtn" id="histClear" style="float:right;margin-top:-1px;margin-right:6px">🗑 清空</button></h3>
+      <div id="histBody"></div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">每个交易日收盘复盘时自动存档当日研判与策略（同日刷新覆盖，最多保留 90 条），保存在本机浏览器中，不上传任何服务器。</div>
     </div>
 
     <div class="card">
@@ -288,6 +308,25 @@ table.lvl td b{color:var(--txt)}
       </div>
       <div class="sec" id="spotHint" style="display:none;margin-top:6px;color:var(--faint);line-height:1.7"></div>
       <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2611 属远月合约，重点看补栏周期，现货仅短期扰动。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。</div>
+    </div>
+
+    <!-- n4: 行情API接入预留接口（默认走内置新浪源；配置自定义源后自动拉取覆盖S.bars，无需手动填数） -->
+    <div class="card" id="apiCard">
+      <h3>行情数据源 · API 接入 <span class="tag">预留接口</span></h3>
+      <div class="inp">
+        <div style="grid-column:1/-1"><label>数据源</label>
+          <select id="apiSrcSel">
+            <option value="0">内置：新浪财经 JSONP（默认，免配置）</option>
+            <option value="1">自定义 API（自动拉取，覆盖K线数据）</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1"><label>API URL 模板（占位符：{symbol}=合约，{period}=周期 1/5/60/d）</label>
+          <input id="apiurl" type="text" placeholder="https://your-api.example.com/kline?code={symbol}&bar={period}" style="font-size:11px">
+        </div>
+      </div>
+      <div style="margin-top:8px"><button class="fbtn" id="apiFetchBtn">⤓ 立即拉取（自定义源）</button>
+        <span id="apiStat" style="font-size:11px;margin-left:8px;color:var(--faint)"></span></div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px;line-height:1.7">返回需为 JSON 数组，每根K线一个对象；字段名兼容 <b>d/date/time</b>（日期串或秒/毫秒时间戳）、<b>o/open · h/high · l/low · c/close · v/volume · p/oi/open_interest</b>，自动经统一管线（toBars）清洗后写入 K线数据。配置后每个数据周期自动同步（60秒一次，与主流程同频），失败时静默保留内置源数据。跨域限制：目标接口需允许 CORS，否则请经自建代理转发。</div>
     </div>
 
     <div class="card">
@@ -313,6 +352,8 @@ table.lvl td b{color:var(--txt)}
 
 <footer><b>免责声明：</b>本内容仅为盘面数据复盘参考，不构成任何期货投资建议，期货杠杆风险极高，所有交易盈亏由使用者自行承担。本系统为规则化半量化工具，所有打分与标注均为算法估算，不预测未来涨跌，不提供任何做多/做空交易指令。<b>历史案例存在样本偏差</b>（案例库仅收录符合特定筛选条件的代表性行情，且历史规律由事后归纳得出），不能预判未来行情。</footer>
 
+<!-- n3: Chart.js CDN（简易K线速览用；加载失败时主图与全部功能不受影响，仅隐藏速览卡片） -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 /* =====================================================================
  *  JD2611 鸡蛋期货 AI 半量化研判系统
@@ -435,6 +476,62 @@ async function fetchM1(){
   }catch(e){ S.errStreak++; }
   finally{ S.busy.m1 = false; }
 }
+/* =====================================================================
+ *  n4 行情API接入预留接口
+ *  - 默认数据源：内置新浪 JSONP（零配置）；
+ *  - 自定义源：URL 模板占位符 {symbol}（合约）/ {period}（1/5/60/d），
+ *    返回 JSON 数组，字段名宽松兼容（d/date/time、o/open、h/high、
+ *    l/low、c/close、v/volume、p/oi/open_interest），经 toBars 统一
+ *    清洗后写入 S.bars，后续打分/复盘/策略零改动；
+ *  - 自动同步：fullCycle 每轮（60秒）拉取一次，失败静默保留内置源。
+ * ===================================================================== */
+const API_FIELD_ALIASES = { d:['d','date','time','datetime','t'], o:['o','open'], h:['h','high'], l:['l','low'], c:['c','close'], v:['v','vol','volume'], p:['p','oi','open_interest','openinterest','position'] };
+function pickF(r, keys){ for(const k of keys){ if(r[k]!=null && r[k]!=='') return r[k]; } return undefined; }
+function normalizeRaw(raw){
+  const out=[];
+  for(const r of raw){
+    if(typeof r!=='object'||!r) continue;
+    const d=pickF(r,API_FIELD_ALIASES.d);
+    if(d==null) continue;
+    let t;
+    const dStr=typeof d==='number' ? String(d) : String(d).trim();
+    if(/^\d{8}$/.test(dStr)){ t=Date.parse(dStr.slice(0,4)+'-'+dStr.slice(4,6)+'-'+dStr.slice(6,8)+'T00:00:00+08:00'); }  /* 纯日期 20251126 */
+    else if(typeof d==='number'){ t = d>1e12 ? d : d*1000; }  /* 毫秒级 / 秒级时间戳 */
+    else { const s=dStr.replace(' ','T'); t = s.indexOf('T')>=0 ? Date.parse(s+'+08:00') : Date.parse(s+'T00:00:00+08:00'); }
+    if(isNaN(t)) continue;
+    const b={ t, o:+pickF(r,API_FIELD_ALIASES.o)||0, h:+pickF(r,API_FIELD_ALIASES.h)||0,
+      l:+pickF(r,API_FIELD_ALIASES.l)||0, c:+pickF(r,API_FIELD_ALIASES.c)||0,
+      v:+pickF(r,API_FIELD_ALIASES.v)||0, oi:+(pickF(r,API_FIELD_ALIASES.p)||0) };
+    if(b.h>0&&b.l>0&&b.c>0) out.push(b);
+  }
+  return out;
+}
+function apiCfg(){
+  return { mode:LS.get('apiMode')||'0', url:LS.get('apiUrl')||'' };
+}
+function apiSetStat(msg, col){ const s=$('apiStat'); if(s){ s.textContent=msg; s.style.color=col||'var(--faint)'; } }
+async function fetchCustomKlines(silent){
+  const cfg=apiCfg();
+  if(cfg.mode!=='1'||!cfg.url) return;
+  try{
+    const tpl=u=>u.replace(/\{symbol\}/g,S.contract);
+    const [m5,h1,d] = await Promise.all([
+      fetch(tpl(cfg.url).replace(/\{period\}/g,'5')).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(()=>[]),
+      fetch(tpl(cfg.url).replace(/\{period\}/g,'60')).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(()=>[]),
+      fetch(tpl(cfg.url).replace(/\{period\}/g,'d')).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(()=>[])
+    ]);
+    const n5=normalizeRaw(Array.isArray(m5)?m5:[]), n1=normalizeRaw(Array.isArray(h1)?h1:[]), nd=normalizeRaw(Array.isArray(d)?d:[]);
+    let hit=0;
+    if(n5.length){ S.bars.m5=toBars(n5,720); hit++; }
+    if(n1.length){ S.bars.h1=toBars(n1,200); hit++; }
+    if(nd.length){ S.bars.d=toBars(nd,null); hit++; }
+    if(hit){ S.lastOK=Date.now(); apiSetStat('✔ 自定义源已同步（'+new Date().toLocaleTimeString('zh-CN',{hour12:false})+'，'+hit+'/3 周期）','var(--ok)'); }
+    else if(!silent) apiSetStat('⚠ 已返回但未解析出有效K线（检查字段名/数据格式）','var(--warn)');
+  }catch(e){
+    if(!silent) apiSetStat('✖ 拉取失败：'+e.message+'（沿用内置源数据）','var(--risk)');
+  }
+}
+function pullCustomOnce(){ return fetchCustomKlines(false); }
 
 /* 由K线推导实时行情快照 */
 function deriveLive(){
@@ -1707,6 +1804,20 @@ function renderPanels(){
     $('gbVeto').innerHTML = A.veto.length
       ? `<b style="color:var(--risk)">⛔ 一票否决已触发（${A.veto.length}项）</b>：硬阻断，优先级高于打分，总分已按 ×0.65 折算并封顶 45 分，不视为交易机会。<br><span style="color:var(--risk)">${A.veto[0]}${A.veto.length>1?' 等':''}</span>`
       : `<b style="color:var(--ok)">✔ 未触发一票否决</b>${A.riskFlags.length?`（另有异动风险提示 ${A.riskFlags.length} 项，见风险提示卡片）`:''}。评级规则：A≥80 · B≥65 · C≥45 · D&lt;45。`;
+    /* n2 一句话行情结论：拼接评级+首要否决项/定性，直接给出可读结论 */
+    {
+      const ol=$('gbOneLiner');
+      let lin, linC;
+      if(A.veto.length){ lin=`${gr} 级，${A.veto[0]}，仅观望，禁止开仓`; linC='var(--risk)'; }
+      else if(S.losses&&S.losses.n>=3){ lin=`${gr} 级，当日连亏${S.losses.n}笔，按纪律暂停开仓，只复盘不开新单`; linC='var(--risk)'; }
+      else if((gr==='A'||gr==='B')&&A.rr&&A.rr.pass){ lin=`${gr} 级，适合${A.rr.side==='多'?'做多':'做空'}（盈亏比≈${A.rr.rr.toFixed(1)}R），可按仓位纪律轻仓试单`; linC=gr==='A'?'var(--ok)':'var(--gold)'; }
+      else if(gr==='A'||gr==='B'){ lin=`${gr} 级，盘面共振但盈亏比未达标，等回踩更好的入场位`; linC='var(--gold)'; }
+      else { lin=`${gr} 级，条件不足，观望为主，等多周期共振或盈亏比达标再评估`; linC='var(--dim)'; }
+      ol.textContent='📌 一句话结论：'+lin;
+      ol.style.display='block';
+      ol.style.borderLeftColor=linC;
+      ol.style.color=linC;
+    }
   }
   /* 现货/基差 */
   const st=parseFloat(S.spot.today);
@@ -1852,7 +1963,126 @@ function renderRecap(){
    `<div class="recaph">④ 信号有效性</div><div class="sec">${rc.sigEffect.length?rc.sigEffect.map(s=>`${fmtT(s.t)} 放量${s.dir==='up'?'上攻':'下杀'} → <b>${s.verdict}</b>`).join('；')+'。':'当日无待验证信号事件。'}</div>`+
    `<div class="recaph">⑤ 下一交易日观察</div><div class="sec"><b>短线多空分界线</b>：<b class="num" style="color:var(--gold)">${rc.watchDiv!=null?rc.watchDiv.toFixed(0):'--'}</b>（昨结算${rc.settle==null?'，无数据时用当日均价代替':' '+rc.settle.toFixed(0)}）——明日收盘站上视为短线偏多，收于其下视为短线偏空。<br>上方关注：<b class="num" style="color:var(--res)">${rc.watchRes.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；下方关注：<b class="num" style="color:var(--sup)">${rc.watchSup.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>。<br><b>向上突破压力位需同时满足</b>：①放量（量比明显抬升）②仓差配合（增仓上行更佳）——无量上冲容易假突破，冲高缩量回落的先当诱多对待。<br><b>跌破支撑位代表</b>：多头防线失守，短线结构转坏，原支撑转为新的压力；若跌破时放量增仓，说明主动卖盘坚决，反弹先看修复再看反转。<br>风险点：${(S.A&&S.A.riskFlags.length)?S.A.riskFlags.map(f=>f.tag).join('、'):'常规——注意开盘巨量换手与压力位量能配合情况'}。现货端请持续跟踪主产区报价变化（人工输入区）。</div>`+
    `<div class="recaph">⑥ 免责声明</div><div class="sec" style="color:var(--faint)">本复盘仅为盘面数据整理与规则化打分输出，不构成任何期货投资建议；期货杠杆交易风险极高，所有交易决策与盈亏由使用者自行承担。</div>`;
+  renderStrategy();
 }
+
+/* =====================================================================
+ *  n1 AI 策略输出区块：全部复用既有变量（A.rr / A.grade.rrRef / A.total /
+ *  A.veto / A.sup / A.res / A.d.atr），不新增任何计算逻辑；
+ *  第二目标为等距延伸的纯展示换算，仓位比例为纪律映射（非计算模型）。
+ * ===================================================================== */
+function renderStrategy(){
+  const el=$('strategyBody'); const A=S.A;
+  if(S.mode==='live'||!A||!S.recap||!S.live){ el.innerHTML=''; return; }
+  const gr=A.grade?A.grade.grade:'--';
+  const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
+  /* ① 行情定性：一票否决 > 连亏纪律 > 评级+盈亏比 > 观望 */
+  let side, sideC, qualNote='';
+  if(A.veto.length){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='触发一票否决（硬阻断优先于打分）：'+A.veto[0]+(A.veto.length>1?' 等 '+A.veto.length+' 项':''); }
+  else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
+  else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
+  else { side='观望'; sideC='var(--dim)'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':'')+'，未达执行标准'; }
+  const rows=[];
+  rows.push(`<tr><td><b>行情定性</b></td><td><b style="color:${sideC}">${side}</b>　<span style="color:var(--faint)">${qualNote}</span></td></tr>`);
+  if(R){
+    const t2=R.entry+2*(R.target-R.entry);   /* 第二目标：等距延伸（纯展示换算） */
+    const supP=A.sup[0]?A.sup[0].price:null, resP=A.res[0]?A.res[0].price:null;
+    rows.push(`<tr><td><b>推荐入场区间</b></td><td>参考入场 <b class="num">${R.entry.toFixed(0)}</b>（现价附近${R.side==='多'?'，回踩支撑不破再确认':'，反抽压力受阻再确认'}）${supP!=null&&resP!=null?`<br><span style="color:var(--faint)">操作区间参照：支撑 <b class="num" style="color:var(--sup)">${supP.toFixed(0)}</b> ~ 压力 <b class="num" style="color:var(--res)">${resP.toFixed(0)}</b></span>`:''}</td></tr>`);
+    rows.push(`<tr><td><b>止损价格</b></td><td><b class="num" style="color:var(--risk)">${R.stop.toFixed(0)}</b>　<span style="color:var(--faint)">${R.side==='多'?'支撑下方':'压力上方'}留 0.3×ATR 缓冲（ATR日≈${(A.d.atr||50).toFixed(0)}）</span></td></tr>`);
+    rows.push(`<tr><td><b>止盈目标</b></td><td>第一目标 <b class="num" style="color:var(--ok)">${R.target.toFixed(0)}</b>（${R.side==='多'?'压力位':'支撑位'}）；第二目标 <b class="num" style="color:var(--ok)">${t2.toFixed(0)}</b>（等距延伸）</td></tr>`);
+    rows.push(`<tr><td><b>预估盈亏比</b></td><td><b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b>${R.pass?'　<span style="color:var(--ok)">≥1.5R 达标</span>':'　<span style="color:var(--risk)">&lt;1.5R，按框架直接过滤，不推荐开仓</span>'}</td></tr>`);
+  }else{
+    rows.push(`<tr><td><b>交易参数</b></td><td><span style="color:var(--dim)">支撑压力区间不完整，入场/止损/目标暂无法计算。</span></td></tr>`);
+  }
+  /* ② 建议仓位：评级纪律映射（连亏2笔减半 / 3笔锁仓） */
+  const half=s=>(S.losses&&S.losses.n===2)?`（连亏2笔，仓位减半→${s}）`:'';
+  let posTxt;
+  if(A.veto.length) posTxt='<b style="color:var(--risk)">0%</b>（触发一票否决，禁止开仓）';
+  else if(S.losses&&S.losses.n>=3) posTxt='<b style="color:var(--risk)">0%</b>（连亏'+S.losses.n+'笔，当日锁仓停新单）';
+  else if(gr==='A') posTxt='<b style="color:var(--ok)">≤30%</b>'+half('≤15%')+'（优质机会，仍须严格止损）';
+  else if(gr==='B') posTxt='<b style="color:var(--gold)">≤20%</b>'+half('≤10%')+'（轻仓试单）';
+  else if(gr==='C') posTxt='<b>≤10% 或观望</b>'+half('≤5%')+'（条件不足，等待更佳位置）';
+  else posTxt='<b style="color:var(--risk)">0%</b>（评级 D，仅观察）';
+  rows.push(`<tr><td><b>建议仓位</b></td><td>${posTxt}</td></tr>`);
+  /* ③ 禁止入场触发条件 */
+  const ban=[];
+  A.veto.forEach(v=>ban.push('⛔ '+v+'（一票否决，硬阻断）'));
+  if(S.losses&&S.losses.n>=3) ban.push('⛔ 当日连亏≥3笔：锁仓停新单');
+  else if(S.losses&&S.losses.n===2) ban.push('⚠ 当日连亏2笔：下一次开仓仓位减半，再亏1笔即锁仓');
+  if(R&&!R.pass) ban.push('⚠ 盈亏比 &lt;1.5R（当前 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R）：按框架直接过滤，不推荐开仓');
+  if(gr==='C'&&!A.veto.length) ban.push('⚠ 评级未达 B 级（多周期/盈亏比/量仓/基本面未全部满足）：按框架尽量放弃');
+  if(!R) ban.push('⚠ 支撑压力区间不完整：无法评估盈亏比，不满足开仓前置条件');
+  if(!ban.length) ban.push('当前无额外禁入条件；突破确认前提：①放量 ②仓差配合（无量上冲当诱多对待）');
+  rows.push(`<tr><td><b>禁止入场触发条件</b></td><td>${ban.join('<br>')}</td></tr>`);
+  el.innerHTML=
+   `<div class="recaph" style="border-left-color:var(--purple)">🤖 AI 策略输出（评级+价位+一票否决自动生成，非交易指令）</div>`+
+   `<div class="lvlwrap"><table class="lvl"><tr><th style="width:130px">项目</th><th>内容</th></tr>${rows.join('')}</table></div>`+
+   `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">本区块由既有打分（总分 ${A.total}）、关键价位（支撑 ${A.sup[0]?A.sup[0].price.toFixed(0):'--'} / 压力 ${A.res[0]?A.res[0].price.toFixed(0):'--'}）与一票否决规则自动汇总生成，未新增任何计算；参数为量化参考位，是否开仓与实际执行由人工决定，盈亏自负。</div>`;
+  if(S.mode==='close') saveStrategyToLS();   /* n5: 收盘复盘渲染成功后自动存档当日策略 */
+    }
+    /* =====================================================================
+     *  n5 策略保存 + 历史策略回查
+     *  - 存档时机：renderStrategy 渲染成功后自动调用（仅收盘复盘模式）；
+     *  - 结构：{ day, ts, total, grade, vetos[], qual, entry, stop, t1, t2,
+     *            rr, pos, recapText, stratText }；
+     *  - 存储：localStorage 'strategies'，按 day 去重覆盖，上限 90 条（FIFO）。
+     * ===================================================================== */
+    function saveStrategyToLS(){
+      try{
+        const A=S.A; if(!A||!S.recap||!S.live) return;
+        const gr=A.grade?A.grade.grade:'--';
+        const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
+        let side, qualNote='';
+        if(A.veto.length){ side='观望 · 禁止开仓'; qualNote='触发一票否决：'+A.veto[0]; }
+        else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓'; }
+        else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 达标'; }
+        else { side='观望'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':''); }
+        let posTxt;
+        if(A.veto.length) posTxt='0%（一票否决）';
+        else if(S.losses&&S.losses.n>=3) posTxt='0%（连亏'+S.losses.n+'笔锁仓）';
+        else if(gr==='A') posTxt='≤30%'+((S.losses&&S.losses.n===2)?'（连亏减半→≤15%）':'');
+        else if(gr==='B') posTxt='≤20%'+((S.losses&&S.losses.n===2)?'（连亏减半→≤10%）':'');
+        else if(gr==='C') posTxt='≤10% 或观望'+((S.losses&&S.losses.n===2)?'（连亏减半→≤5%）':'');
+        else posTxt='0%（D级观察）';
+        const rec={
+          day:S.recap.day, ts:Date.now(), total:A.total, grade:gr, vetos:A.veto.slice(0,3),
+          qual:side, qualNote:qualNote,
+          entry:R?+R.entry.toFixed(0):null, stop:R?+R.stop.toFixed(0):null,
+          t1:R?+R.target.toFixed(0):null, t2:R?+(R.entry+2*(R.target-R.entry)).toFixed(0):null,
+          rr:R&&R.rr!=null?+R.rr.toFixed(2):null, pos:posTxt,
+          recapText:$('recapBody').innerText.trim(), stratText:$('strategyBody').innerText.trim()
+        };
+        const list=JSON.parse(LS.get('strategies')||'[]');
+        const i=list.findIndex(x=>x.day===rec.day);
+        if(i>=0) list[i]=rec; else list.push(rec);
+        while(list.length>90) list.shift();
+        LS.set('strategies',JSON.stringify(list));
+        renderHistStrategies();
+      }catch(e){}
+    }
+    function renderHistStrategies(){
+      const card=$('histCard'), body=$('histBody');
+      let list=[];
+      try{ list=JSON.parse(LS.get('strategies')||'[]'); }catch(e){}
+      $('histTag').textContent=list.length+' 条';
+      if(!list.length){ card.style.display='none'; body.innerHTML=''; return; }
+      card.style.display='block';
+      const rows=list.slice().reverse().map(r=>{
+        const gc=r.grade==='A'?'var(--ok)':(r.grade==='B'?'var(--gold)':(r.grade==='C'?'var(--txt)':'var(--risk)'));
+        const vt=r.vetos&&r.vetos.length?`　<span style="color:var(--risk);font-size:10px">⛔ ${r.vetos[0]}</span>`:'';
+        const px=r.entry!=null?`　<span style="color:var(--faint)">入 ${r.entry} / 损 ${r.stop} / 目标 ${r.t1}→${r.t2} / ${(r.rr!=null?r.rr:'--')}R</span>`:'';
+        return `<tr><td style="white-space:nowrap"><b class="num">${r.day}</b></td>`+
+          `<td style="white-space:nowrap">评级 <b style="color:${gc}">${r.grade}</b>（${r.total} 分）</td>`+
+          `<td>${r.qual}${vt}</td>`+
+          `<td>${px||'<span style="color:var(--faint)">--</span>'}</td>`+
+          `<td style="color:var(--dim)">${r.pos}</td></tr>`;
+      }).join('');
+      body.innerHTML=
+        `<div class="lvlwrap"><table class="lvl"><tr><th style="width:88px">交易日</th><th style="width:110px">评级</th><th style="width:190px">定性</th><th>策略参数</th><th style="width:110px">仓位</th></tr>${rows}</table></div>`+
+        `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:var(--dim)">展开最近一日完整研判与策略原文</summary><pre id="histDetail" style="white-space:pre-wrap;font-size:11px;line-height:1.7;color:var(--dim);background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:6px;max-height:300px;overflow:auto"></pre></details>`;
+      const last=list[list.length-1];
+      $('histDetail').textContent=(last.day||'')+'\n\n'+(last.recapText||'')+'\n\n'+(last.stratText||'');
+    }
 
 /* =====================================================================
  *  历史案例库
@@ -1992,6 +2222,7 @@ async function fullCycle(){
   try{
     await fetchM1();
     await fetchAllKlines();
+    await fetchCustomKlines(true);   /* n4: 自定义API源（若已配置）自动同步，覆盖内置源K线 */
     S.lastOK=Date.now();
     deriveLive();
     detectMode();
@@ -2016,6 +2247,67 @@ function setChartData(){
   const last=bars[bars.length-1];
   if(last) $('lastts').textContent='最近K线: '+bjStr(new Date(last.t))+' '+(S.tf==='d'?'日线收盘':fmtT(last.t))+' · 可在行情软件对应周期定位';
   else $('lastts').textContent='最近K线: --';
+  renderChartJS();   /* n3: 简易K线速览（Chart.js），与主图同步刷新 */
+}
+/* =====================================================================
+ *  n3 简易K线速览（Chart.js 4）：纯可视化，不参与任何计算。
+ *  方案：bar 图承载成交量（y1 下方轴）+ inline plugin 自绘蜡烛+收盘价折线，
+ *  不引入 financial 插件/日期适配器；Chart 未加载成功则整卡隐藏，主图不受影响。
+ * ===================================================================== */
+let cjsChart=null;
+function renderChartJS(){
+  const card=$('cjsCard'), cvs=$('chartjs5m');
+  if(typeof Chart==='undefined'){ card.style.display='none'; return; }   /* CDN 失败降级 */
+  const bars=S.bars.m5.slice(-60);
+  if(!bars.length){ card.style.display='none'; if(cjsChart){cjsChart.destroy(); cjsChart=null;} return; }
+  card.style.display='block';
+  const labels=bars.map(b=>fmtT(b.t));
+  const vols=bars.map(b=>b.v);
+  const vc  =bars.map(b=>b.c>=b.o?C.volUp:C.volDn);
+  /* 内联蜡烛绘制插件：每根K线画影线+实体（涨红跌绿，与主图配色一致）；数据直接读闭包 bars，首次渲染即可绘制 */
+  const candle={id:'candle',afterDatasetsDraw(ch){
+    const {ctx,chartArea:ar,scales:{y}}=ch, data=bars;
+    if(!ar||!data.length) return;
+    const n=data.length, step=ar.width/n, bw=Math.max(1.5,Math.min(9,step*0.62));
+    ctx.save(); ctx.lineWidth=1;
+    data.forEach((b,i)=>{
+      const x=ar.left+step*i+step/2;
+      const up=b.c>=b.o, col=up?C.up:C.dn;
+      const yH=y.getPixelForValue(b.h), yL=y.getPixelForValue(b.l);
+      const yO=y.getPixelForValue(b.o), yC=y.getPixelForValue(b.c);
+      ctx.strokeStyle=col; ctx.fillStyle=col;
+      ctx.beginPath(); ctx.moveTo(x,yH); ctx.lineTo(x,yL); ctx.stroke();          /* 影线 */
+      const top=Math.min(yO,yC), h=Math.max(1,Math.abs(yO-yC));
+      ctx.globalAlpha=up?1:0.85; ctx.fillRect(x-bw/2,top,bw,h); ctx.globalAlpha=1; /* 实体 */
+    });
+    ctx.restore();
+  }};
+  const cfg={
+    type:'bar',
+    data:{labels:labels,datasets:[
+      {label:'成交量',data:vols,backgroundColor:vc,yAxisID:'yv',order:3,barPercentage:0.62,borderWidth:0},
+      {label:'收盘价',data:bars.map(b=>b.c),type:'line',borderColor:C.ma5,backgroundColor:'rgba(240,185,11,.08)',borderWidth:1.5,pointRadius:0,tension:.25,yAxisID:'y',order:2}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(13,16,23,.92)',borderColor:'#1c2333',borderWidth:1,titleColor:'#cfd8e6',bodyColor:'#8391a8',callbacks:{
+        label:c=>c.datasetIndex===1? '收 '+c.parsed.y.toFixed(0) : '量 '+c.parsed.y.toFixed(0),
+        afterBody:items=>{ const b=(typeof cjsChart!=='undefined'&&cjsChart&&cjsChart.$bars||[])[items[0].dataIndex]; if(!b) return '';
+          return ['开 '+b.o.toFixed(0)+'  高 '+b.h.toFixed(0)+'  低 '+b.l.toFixed(0)]; }
+      }}},
+      scales:{
+        x:{ticks:{color:C.axis,font:{size:9},maxTicksLimit:8,maxRotation:0},grid:{color:'rgba(28,35,51,.35)'}},
+        y:{position:'right',grace:'8%',ticks:{color:C.axis,font:{size:9},maxTicksLimit:6},grid:{color:'rgba(28,35,51,.35)'}},
+        yv:{position:'left',display:false,beginAtZero:true,weight:0}
+      }
+    },
+    plugins:[candle]
+  };
+  if(cjsChart){ cjsChart.destroy(); cjsChart=null; }
+  cvs.style.position='absolute';
+  cjsChart=new Chart(cvs.getContext('2d'),cfg);
+  cjsChart.$bars=bars;   /* tooltip afterBody 读取 OHLC 用 */
 }
 /* 定时器管理 */
 let timerFast=null, timerSlow=null;
@@ -2107,10 +2399,12 @@ function bindUI(){
     if(S.losses.n>=3){ analyze(); renderPanels(); }
     else { S.A=analyze(); renderPanels(); }
   };
-  /* k3-1 复盘一键复制（clipboard API + 降级方案） */
+  /* k3-1 复盘一键复制（clipboard API + 降级方案）；n1 起附带 AI 策略区块 */
   $('recapCopy').onclick=()=>{
-    const txt='【JD2611 半量化研判 · 收盘复盘 '+$('recapdate').textContent+'】\n'+$('recapBody').innerText;
-    const done=()=>{ const b=$('recapCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复制复盘',1500); };
+    const strat=$('strategyBody').innerText.trim();
+    const stratTxt=strat?'\n\n—— AI 策略输出 ——\n'+strat:'';
+    const txt='【JD2611 半量化研判 · 收盘复盘 '+$('recapdate').textContent+'】\n'+$('recapBody').innerText+stratTxt;
+    const done=()=>{ const b=$('recapCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复盘+策略',1500); };
     const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ alert('复制失败，请手动全选复制'); } document.body.removeChild(ta); };
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
   };
@@ -2119,6 +2413,38 @@ function bindUI(){
     const f=$('caseFold'), open=f.style.display!=='none';
     f.style.display=open?'none':'block';
     $('caseFoldBtn').textContent=open?'▸ 展开':'▾ 收起';
+  };
+  /* n4 行情API接入：数据源选择/URL模板持久化 + 立即拉取 */
+  $('apiSrcSel').value=LS.get('apiMode')||'0';
+  $('apiurl').value=LS.get('apiUrl')||'';
+  $('apiSrcSel').addEventListener('change',e=>{
+    LS.set('apiMode',e.target.value); apiSetStat(e.target.value==='1'?'已切至自定义源，填URL后点击「立即拉取」':'已切至内置新浪源','');
+  });
+  $('apiurl').addEventListener('change',e=>{ LS.set('apiUrl',e.target.value.trim()); });
+  $('apiFetchBtn').onclick=async()=>{
+    const u=$('apiurl').value.trim();
+    if(!u){ apiSetStat('请先填写 API URL 模板','var(--warn)'); return; }
+    if(u.indexOf('{symbol}')<0){ apiSetStat('URL 需包含 {symbol} 占位符','var(--warn)'); return; }
+    LS.set('apiMode','1'); LS.set('apiUrl',u); $('apiSrcSel').value='1';
+    $('apiFetchBtn').disabled=true; $('apiFetchBtn').textContent='⤓ 拉取中…';
+    await pullCustomOnce();
+    $('apiFetchBtn').disabled=false; $('apiFetchBtn').textContent='⤓ 立即拉取（自定义源）';
+    if(S.bars.m5.length){ deriveLive(); analyze(); renderPanels(); setChartData(); }   /* 全流程刷新 */
+  };
+  /* n5 历史策略回查：导出 JSON / 清空 */
+  $('histExport').onclick=()=>{
+    let list=[];
+    try{ list=JSON.parse(LS.get('strategies')||'[]'); }catch(e){}
+    if(!list.length){ alert('暂无存档：收盘复盘模式下会自动保存当日研判与策略'); return; }
+    const blob=new Blob([JSON.stringify(list,null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='jd_strategies_'+bjStr(bj())+'.json'; a.click(); URL.revokeObjectURL(a.href);
+  };
+  $('histClear').onclick=()=>{
+    let n=0; try{ n=JSON.parse(LS.get('strategies')||'[]').length; }catch(e){}
+    if(!n){ alert('暂无存档可清空'); return; }
+    if(!confirm('确认清空全部 '+n+' 条历史策略存档？此操作不可恢复。')) return;
+    LS.set('strategies','[]'); renderHistStrategies();
   };
   $('lossReset').onclick=()=>{
     S.losses.n=0; S.losses.date=bjStr(bj());
@@ -2155,6 +2481,7 @@ function bindUI(){
   $('contract').value=S.contract;
   chart.init();
   bindUI();
+  renderHistStrategies();   /* n5: 页面加载时恢复历史策略面板（如有存档） */
   renderHeader();
   await fullCycle();
   restartTimers();
