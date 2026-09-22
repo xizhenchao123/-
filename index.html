@@ -39,6 +39,14 @@ header{position:sticky;top:0;z-index:50;background:rgba(11,14,20,.94);backdrop-f
 .chip b{color:var(--txt);font-weight:600;margin-left:4px}
 .chip u{text-decoration:none;color:var(--up);font-weight:700;margin-left:4px}
 .chip d{text-decoration:none;color:var(--dn);font-weight:700;margin-left:4px}
+/* ---------- 评级横幅卡片（k1-3） ---------- */
+#gradeBanner{padding:8px 12px}
+#gbRow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.gbcell{text-align:center;min-width:78px}
+.gbnum{font-weight:800;line-height:1.15}
+.gblab{font-size:10px;color:var(--dim);margin-top:2px}
+#gbVeto{flex:1;min-width:220px;font-size:12px;line-height:1.65}
+#vetobox .vtnote{margin-top:5px;font-weight:400;font-size:11px;color:rgba(240,168,162,.85);border-top:1px dashed rgba(230,72,61,.35);padding-top:4px;line-height:1.6}
 /* ---------- layout ---------- */
 main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;padding:10px 12px;max-width:1500px;margin:0 auto}
 @media(max-width:960px){main{grid-template-columns:1fr}}
@@ -126,6 +134,7 @@ table.lvl{width:100%;border-collapse:collapse;font-size:12px}
 table.lvl th{color:var(--faint);font-weight:400;text-align:left;padding:4px 4px;border-bottom:1px solid var(--line)}
 table.lvl td{padding:4px;border-bottom:1px dashed rgba(255,255,255,.05);color:var(--dim)}
 table.lvl td b{color:var(--txt)}
+.lvlwrap{overflow-x:auto;-webkit-overflow-scrolling:touch} /* k3-2 移动端横向滚动 */
 </style>
 </head>
 <body>
@@ -133,7 +142,7 @@ table.lvl td b{color:var(--txt)}
 <header>
   <div class="hrow">
     <div class="logo">🥚 JD2611 半量化研判系统<small>傅海棠供需 + 势位态 + 威科夫鹰眼</small></div>
-    <input id="contract" value="JD2611" maxlength="8" title="合约代码（回车切换）">
+    <input id="contract" value="JD2611" maxlength="8" title="k3-6 合约切换：输入代码（如 JD2605 / JD0）后回车，自动重载全部数据；历史日期切换为预留功能">
     <span id="modebadge" class="badge close">收盘复盘模式</span>
     <div class="pricebox">
       <span><span id="dot"></span><span id="bigprice" class="num">--</span></span>
@@ -145,6 +154,15 @@ table.lvl td b{color:var(--txt)}
 
 <div id="chips"></div>
 <div class="errbox" id="errbox"></div>
+
+<!-- 评级横幅卡片（k1-3）：综合得分 / 机会评级 / 一票否决状态 -->
+<div class="card" id="gradeBanner" style="display:none;margin:10px 12px 0">
+  <div id="gbRow">
+    <div class="gbcell"><div id="gbScore" class="num gbnum">--</div><div class="gblab">综合得分</div></div>
+    <div class="gbcell"><div id="gbGrade" class="num gbnum">--</div><div class="gblab">机会评级</div></div>
+    <div id="gbVeto">--</div>
+  </div>
+</div>
 
 <main>
   <!-- 左：图表 -->
@@ -191,12 +209,13 @@ table.lvl td b{color:var(--txt)}
           <div class="sbar"><div class="lab"><span>④ 异动风险</span><b class="num" id="s_risk">--</b></div><div class="track"><div class="fill" id="f_risk" style="background:var(--ok);width:0"></div></div></div>
         </div>
       </div>
-      <div id="vetobox"><div class="vt">⛔ 一票否决触发：【高风险 · 观望 · 不视为交易机会】</div><ul id="vetolist"></ul></div>
+      <div id="vetobox"><div class="vt">⛔ 一票否决触发：【高风险 · 观望 · 不视为交易机会】</div><ul id="vetolist"></ul><div class="vtnote">规则说明：一票否决是硬阻断，优先级高于四项打分；触发后总分按 ×0.65 折算，最高封顶 45 分——无论打分高低均不视为交易机会，仅供复盘观察。</div></div>
     </div>
 
     <div class="card" id="shiweiCard">
       <h3>势 · 位 · 态 <span class="tag" id="swtag">--</span></h3>
       <div class="sec" id="shiBody">加载中…</div>
+      <div class="sec" id="mtfBody" style="margin-top:6px"></div>
     </div>
 
     <div class="card">
@@ -221,10 +240,15 @@ table.lvl td b{color:var(--txt)}
         <div><label>持仓方向</label><select id="posDir"><option value="none">无持仓</option><option value="long">持多</option><option value="short">持空</option></select></div>
         <div><label>开仓价</label><input id="posEntry" type="number" step="1" placeholder="如 4600"></div>
         <div><label>止损价（留空按2×ATR日估算）</label><input id="posStop" type="number" step="1" placeholder="如 4520"></div>
+        <div><label>止盈参考</label><input id="posTP" type="number" step="1" placeholder="如 4700，触及后人工评估"></div>
+        <div><label>开仓时间</label><input id="posTime" placeholder="如 09:31，切换持仓时留空自动记录"></div>
+        <div><label>手数</label><input id="posLots" type="number" step="1" min="1" placeholder="如 2"></div>
+        <div><label>交易笔记</label><input id="posNote" placeholder="开仓理由/计划，如：放量突破昨高"></div>
       </div>
       <div class="sec" id="trackBody">未持仓。录入持仓方向与开仓价后，自动监测结构破位、量仓异动与移动止损参考（仅供风险提示，执行由人工决定）。</div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;font-size:11px;color:var(--dim);flex-wrap:wrap">
         <span>当日连亏 <b id="lossCnt" class="num" style="color:var(--warn)">0</b> 笔（纪律：2笔仓位减半，3笔锁仓停新单）</span>
+        <span id="lossWarn" style="display:none;color:var(--risk);font-weight:600;flex-basis:100%"></span>
         <button class="fbtn" id="lossAdd">亏一笔 +1</button>
         <button class="fbtn" id="lossReset">重置</button>
         <span>历史最大连亏：<b id="maxLossCnt" class="num" style="color:var(--risk)">0</b> 笔</span>
@@ -235,15 +259,17 @@ table.lvl td b{color:var(--txt)}
     </div>
 
     <div class="card" id="caseCard">
-      <h3>📚 历史案例库 <span class="tag" id="caseCount">--</span></h3>
+      <h3>📚 历史案例库 <span class="tag" id="caseCount">--</span><span id="caseFoldBtn" style="float:right;cursor:pointer;color:var(--faint);font-size:11px;font-weight:400">▸ 展开</span></h3>
+      <div id="caseFold" style="display:none">
       <div id="caseSim"></div>
       <div id="caseFilters"></div>
       <div id="caseList" style="max-height:300px;overflow-y:auto"></div>
-      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">内置案例取自2013-2026主连日线与2026年4-9月5分钟全样本；此后每日收盘自动积累。「次日±%」为JD0主连真实次日涨跌（联网自动计算，缺数据不显示），供历史案例后续走势参考；风险标签见各条目。仅供盘面复盘对照，不构成投资建议。</div>
+      </div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">内置案例取自2013-2026主连日线与2026年4-9月5分钟全样本；此后每日收盘自动积累。「次日±%」为JD0主连真实次日涨跌（联网自动计算，缺数据不显示），供历史案例后续走势参考；风险标签见各条目。仅供盘面复盘对照，不构成投资建议。历史案例存在样本偏差（仅收录满足特定筛选条件的行情），不能预判未来行情。</div>
     </div>
 
     <div class="card" id="recapCard" style="display:none">
-      <h3>收盘复盘 <span class="tag" id="recapdate">--</span></h3>
+      <h3>收盘复盘 <span class="tag" id="recapdate">--</span><button class="fbtn" id="recapCopy" style="float:right;margin-top:-1px">📋 复制复盘</button></h3>
       <div id="recapBody"></div>
     </div>
 
@@ -252,11 +278,16 @@ table.lvl td b{color:var(--txt)}
       <div class="inp">
         <div><label>今日现货均价（元/斤）</label><input id="spotToday" type="number" step="0.01" placeholder="如 5.27"></div>
         <div><label>昨日现货均价（元/斤）</label><input id="spotYest" type="number" step="0.01" placeholder="如 5.65"></div>
+        <div><label>在产蛋鸡存栏同比（%）</label><input id="fHenRatio" type="number" step="0.1" placeholder="如 +1.2"></div>
+        <div><label>单斤养殖利润（元/斤）</label><input id="fProfit" type="number" step="0.05" placeholder="如 0.35，亏损填负数"></div>
+        <div><label>淘汰鸡价格（元/斤）</label><input id="fCull" type="number" step="0.05" placeholder="如 6.20"></div>
+        <div><label>玉米豆粕饲料成本（元/斤蛋）</label><input id="fFeed" type="number" step="0.05" placeholder="如 3.60"></div>
         <div style="grid-column:1/-1"><label>基本面倾向（人工修正 ±4 分）</label>
           <select id="biasSel"><option value="0">自动（不修正）</option><option value="4">偏多（+4）</option><option value="-4">偏空（−4）</option></select>
         </div>
       </div>
-      <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。</div>
+      <div class="sec" id="spotHint" style="display:none;margin-top:6px;color:var(--faint);line-height:1.7"></div>
+      <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2611 属远月合约，重点看补栏周期，现货仅短期扰动。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。</div>
     </div>
 
     <div class="card">
@@ -280,7 +311,7 @@ table.lvl td b{color:var(--txt)}
   <div class="row" style="margin-bottom:0"><span>数据源</span><span style="color:var(--faint);font-size:10px">新浪财经公开接口</span></div>
 </div>
 
-<footer><b>免责声明：</b>本内容仅为盘面数据复盘参考，不构成任何期货投资建议，期货杠杆风险极高，所有交易盈亏由使用者自行承担。本系统为规则化半量化工具，所有打分与标注均为算法估算，不预测未来涨跌，不提供任何做多/做空交易指令。</footer>
+<footer><b>免责声明：</b>本内容仅为盘面数据复盘参考，不构成任何期货投资建议，期货杠杆风险极高，所有交易盈亏由使用者自行承担。本系统为规则化半量化工具，所有打分与标注均为算法估算，不预测未来涨跌，不提供任何做多/做空交易指令。<b>历史案例存在样本偏差</b>（案例库仅收录符合特定筛选条件的代表性行情，且历史规律由事后归纳得出），不能预判未来行情。</footer>
 
 <script>
 /* =====================================================================
@@ -293,7 +324,14 @@ table.lvl td b{color:var(--txt)}
 'use strict';
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
-const fmtN = (v,d=0) => (v==null||isNaN(v)) ? '--' : Number(v).toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d});
+/* 大数自动转「万/亿」中文单位：消除千分位逗号，避免窄屏数字换行错位（k1-7 修复） */
+const fmtN = v => {
+  if(v==null||isNaN(v)) return '--';
+  const n=Number(v), a=Math.abs(n);
+  if(a>=1e8) return (n/1e8).toFixed(2)+'亿';
+  if(a>=1e4) return (n/1e4).toFixed(1)+'万';
+  return String(Math.round(n));
+};
 const fmtT = ms => { const d=new Date(ms); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); };
 const fmtDT = ms => { const d=new Date(ms); return (d.getMonth()+1)+'/'+d.getDate()+' '+fmtT(ms); };
 
@@ -324,7 +362,7 @@ const S = {
   mode:'close',
   sessionDate:null,
   A:null,               // 最新分析结果
-  pos:{ on:LS.get('posOn',false), dir:LS.get('posDir','多'), entry:LS.get('posEntry',''), sl:LS.get('posSL','') },  // 持仓跟踪
+  pos:{ on:LS.get('posOn',false), dir:LS.get('posDir','多'), entry:LS.get('posEntry',''), sl:LS.get('posSL',''), tp:LS.get('posTP',''), time:LS.get('posTime',''), lots:LS.get('posLots',''), note:LS.get('posNote','') },  // 持仓跟踪（k3-3 扩展：止盈/开仓时间/手数/交易笔记）
   losses:{ date:LS.get('lossDate',''), n:LS.get('lossN',0), maxLossN:LS.get('maxLossN',0) },   // 当日连亏计数（人工点击累计，3笔停交易）+ 历史最大连亏
   dd:{ peak:LS.get('ddPeak',null), last:LS.get('ddLast',null), maxDD:LS.get('ddMax',0) },      // 简易回撤记录：人工录入累计盈亏(点)，自动跟踪峰值与最大回撤
   view:{ n:100, off:0 },
@@ -948,7 +986,7 @@ function analyze(){
       s += seasonBonus();
       s += Number(S.spot.bias)||0;
       A.scoreSpot=clamp(Math.round(s),0,25);
-    } else A.scoreSpot=12;
+  } else A.scoreSpot=12; /* k2-4：现货未录入时保底12分，renderPanels 按 A.spotMissing 提示"可信度低、总分仅作技术面参考" */
   }
   /* ---- ④ 异动风险（扣分制，阈值与鹰眼校准版同步） ---- */
   {
@@ -959,9 +997,10 @@ function analyze(){
     const fbS=(A.falseBreaks||[]).filter(x=>x.type==='诱空假突破');
     A.fbL=fbL.length; A.fbS=fbS.length;
     if(A.falseBreaks.length){
+      const fbTxt=A.falseBreaks.map(x=>x.type+'@'+fmtT(x.t)).join('、');
       const parts=[]; if(fbL.length) parts.push('诱多假突破×'+fbL.length); if(fbS.length) parts.push('诱空假突破×'+fbS.length);
-      push('假突破', 6, '近50根5分钟出现'+parts.join('、')+'（level='+A.falseBreaks.map(x=>x.level.toFixed(0)).join('/')+'）');
-      if(A.falseBreaks.length>=3) push('连续假突破', 3, '假突破已达'+parts.join('、')+'共'+A.falseBreaks.length+'次：突破节奏被反复收割，趋势可靠性下降');
+      push('假突破', 6, '近50根5分钟出现'+fbTxt+'（'+parts.join('、')+'，level='+A.falseBreaks.map(x=>x.level.toFixed(0)).join('/')+'）');
+      if(A.falseBreaks.length>=3) push('连续假突破', 3, '假突破已达'+A.falseBreaks.length+'次（'+fbTxt+'）：突破节奏被反复收割，趋势可靠性下降');
     }
     const eg=A.eagle;
     if(eg&&eg.ok){
@@ -1259,12 +1298,24 @@ function buildRecap(){
     ...(R.prevSettle?[{p:R.prevSettle,tag:'昨结算'}]:[])
   ].sort((a,b)=>b.p-a.p);
   R.levelTest=testLevels.map(L=>{
+    /* k1-1 修复：按价位类型分流语义——压力位不可能「跌破」，支撑位不可能「突破站稳」 */
     let res;
-    if(R.h>L.p && R.c>L.p) res={k:'突破站稳',cls:'b'};
-    else if(R.h>L.p && R.c<L.p) res={k:'冲高未破',cls:'w'};
-    else if(R.l<L.p && R.c<L.p) res={k:'跌破',cls:'s'};
-    else if(R.h>=L.p) res={k:'触及回落',cls:'w'};
-    else res={k:'未触及',cls:'n'};
+    const isRes=/(压力|高点)/.test(L.tag);   /* 压力类：波段压力 / 前日高点 */
+    const isSup=/(支撑|低点)/.test(L.tag);   /* 支撑类：波段支撑 / 前日低点 */
+    if(isRes){
+      if(R.h>L.p && R.c>L.p) res={k:'突破站稳',cls:'b'};
+      else if(R.h>L.p && R.c<L.p) res={k:'冲高未破',cls:'w'};
+      else if(R.h>=L.p) res={k:'触及回落',cls:'w'};
+      else res={k:'未向上突破',cls:'n'};
+    } else if(isSup){
+      if(R.l>=L.p) res={k:'守住',cls:'b'};
+      else if(R.l<L.p && R.c>=L.p) res={k:'刺破收回',cls:'w'};
+      else res={k:'跌破',cls:'s'};
+    } else { /* 昨结算：多空分界线，双向语义 */
+      if(R.c>L.p) res=R.l<L.p?{k:'下探后收于上方',cls:'w'}:{k:'收于上方',cls:'b'};
+      else if(R.c<L.p) res=R.h>L.p?{k:'上冲后收于下方',cls:'w'}:{k:'收于下方',cls:'s'};
+      else res={k:'收于昨结',cls:'w'};
+    }
     return {p:L.p,tag:L.tag,res:res.k,cls:res.cls};
   });
   /* 资金事件（当日5分钟z≥2） */
@@ -1282,10 +1333,12 @@ function buildRecap(){
   R.falseN=_fbs.length;
   R.falseL=_fbs.filter(f=>f.type==='诱多假突破').length;
   R.falseS=_fbs.filter(f=>f.type==='诱空假突破').length;
-  /* 明日观察位 */
+  R.falseTxt=_fbs.map(f=>f.type+'@'+fmtT(f.t)).join('、'); /* k1-2 假突破时间标记 */
+  /* 明日观察位（k2-5：多空分界线 + 突破/跌破条件说明） */
   const lv2=keyLevels(d, R.c, atr(d,14)||50);
   R.watchRes=lv2.res.slice(0,2).map(x=>x.price);
   R.watchSup=lv2.sup.slice(0,2).map(x=>x.price);
+  R.watchDiv=(R.settle!=null?R.settle:(R.o+R.c)/2); /* 短线多空分界：昨结算优先，无则当日均价 */
   return R;
 }
 function volZ2(ses,b,i){ /* 会话内量z */
@@ -1573,12 +1626,14 @@ function renderPanels(){
   const tTxt=t=>t.trend==='up'?'上涨趋势':t.trend==='down'?'下跌趋势':'震荡';
   const dSub=A.d.trend.sub?'（'+A.d.trend.sub+'阶段）':'';
   const hSub=A.h1.trend.sub?'（'+A.h1.trend.sub+'）':'';
+  /* RSI 文字解读（k2-2） */
+  const rsiTxt=r=>r==null?'':(r>=70?'超买（短线过热，追多易被套，留意冲高回落）':r>=55?'偏强（多头占优，回踩不破前低仍偏多对待）':r>=45?'中性（多空均衡，方向待量能选择）':r>=30?'偏弱（空头占优，反弹多为修复，反抽压力位易受阻）':'超卖（短线超跌，随时技术性反弹，但不等于反转）');
   /* 势·位·态 */
   $('swtag').textContent=A.pos+' · '+tTxt(A.d.trend).replace('趋势','');
   $('shiBody').innerHTML=
-   `<b>【势】</b>日线：<span class="hl">${tTxt(A.d.trend)}${dSub}</span>；60分钟：<span class="hl">${tTxt(A.h1.trend)}${hSub}</span>；5分钟：${A.m5.rsi!=null?'RSI '+A.m5.rsi.toFixed(1):'--'}。<br>`+
+   `<b>【势】</b>日线：<span class="hl">${tTxt(A.d.trend)}${dSub}</span>；60分钟：<span class="hl">${tTxt(A.h1.trend)}${hSub}</span>；5分钟：${A.m5.rsi!=null?`RSI ${A.m5.rsi.toFixed(1)}<span style="color:var(--dim)">（${rsiTxt(A.m5.rsi)}）</span>`:'--'}。<br>`+
    `<b>【位】</b>当前价 <b class="num hl">${L.price.toFixed(0)}</b> 处于 <b>${A.pos}</b>（支${A.sup[0]?A.sup[0].price.toFixed(0):'--'} ~ 压${A.res[0]?A.res[0].price.toFixed(0):'--'} 区间${A.res[0]&&A.sup[0]?' '+(((L.price-A.sup[0].price)/(A.res[0].price-A.sup[0].price)*100)||0).toFixed(0)+'% 处':'，数据不足'}）。<br>`+
-   `<b>【态】</b>${A.patterns.length?A.patterns.map(p=>p.name+(p.note?'（'+p.note+'）':'')).join('、'):'常规结构'}；${A.structIntact?'短线低点结构完好':'短线结构破坏'}${A.falseBreaks.length?`；<span style="color:var(--risk)">出现${A.falseBreaks.length}次假突破</span>`:''}${A.validBreaks.length?`；<span style="color:var(--ok)">${A.validBreaks.length}个关键位突破已确认</span>（收盘站稳）`:''}${(A.validBreaks||[]).filter(v=>v.pending).length?`；<span style="color:var(--warn)">${A.validBreaks.filter(v=>v.pending).length}个待确认（防抖中）</span>`:''}${(A.probes&&(A.probes.upN+A.probes.dnN))?`；影线刺破×${A.probes.upN+A.probes.dnN}（盘中刺破不算突破）`:''}。`;
+   `<b>【态】</b>${A.patterns.length?A.patterns.map(p=>p.name+(p.note?'（'+p.note+'）':'')).join('、'):'常规结构'}；${A.structIntact?'短线低点结构完好':'短线结构破坏'}${A.falseBreaks.length?`；<span style="color:var(--risk)">出现${A.falseBreaks.length}次假突破（${A.falseBreaks.map(x=>x.type.slice(0,2)+'@'+fmtT(x.t)).join('、')}）</span>`:''}${A.validBreaks.length?`；<span style="color:var(--ok)">${A.validBreaks.length}个关键位突破已确认</span>（收盘站稳）`:''}${(A.validBreaks||[]).filter(v=>v.pending).length?`；<span style="color:var(--warn)">${A.validBreaks.filter(v=>v.pending).length}个待确认（防抖中）</span>`:''}${(A.probes&&(A.probes.upN+A.probes.dnN))?`；影线刺破×${A.probes.upN+A.probes.dnN}（盘中刺破不算突破）`:''}。`;
   /* 关键价位 */
   let lv='';
   (A.res||[]).slice(0,2).forEach((r,i)=>{ lv+=`<div class="lvlrow"><span><span class="lv" style="color:var(--res)">压力${i+1}</span>${r.n>1?`（${r.n}个波段点聚类）`:''}</span><b class="num">${r.price.toFixed(0)}</b></div>`; });
@@ -1595,13 +1650,41 @@ function renderPanels(){
    `<br><span class="pill ${wy.activeSide==='主动买盘'?'demand':(wy.activeSide==='主动卖盘'?'supply':(wy.activeSide==='主动盘缺位'?'supply':'neutral'))}">主动盘：${wy.activeSide} ${Math.round((wy.actRatio||0)*100)}%</span>`+
    (wy.washFlag?`<br><span class="pill wide supply">⚠ 对倒假放量×${wy.washN}${wy.washNote?'：'+wy.washNote:''}——总量大而主动盘缺位</span>`:'')+
    `<br>近12根5分钟：上涨bar量 ${fmtN(m5UpV())} / 下跌bar量 ${fmtN(m5DnV())}。`;
-  /* 事件流 */
-  const evs=wy.events.map(e=>`<div class="ev"><div class="et">${e.dir==='up'?'<span class="pill demand">放量上攻</span>':'<span class="pill supply">放量下杀</span>'}<span>z=${e.z.toFixed(1)}</span>${e.dOI?`<span class="pill oi">仓${e.dOI>0?'+':''}${fmtN(e.dOI)}</span>`:''}<span class="tm">${fmtDT(e.t)}</span></div><div class="ed">${e.dir==='up'?'需求信号':'供应信号'}，收盘位于bar内 ${(e.closePos*100).toFixed(0)}% 位置。</div></div>`).join('');
-  $('events').innerHTML=evs||'<div class="sec">近60根无显著放量异动。</div>';
+  /* 事件流（k2-3 表格化：时间 | 事件类型 | 说明） */
+  const evRows=wy.events.map(e=>({t:fmtDT(e.t),ty:e.dir==='up'?'放量上攻':(e.dir==='down'?'放量下杀':'异动'),note:`z=${e.z.toFixed(1)}${e.dOI?`，仓差${e.dOI>0?'+':''}${fmtN(e.dOI)}`:''}，收于bar内 ${(e.closePos*100).toFixed(0)}% 位置 → ${e.dir==='up'?'需求信号':'供应信号'}`}));
+  $('events').innerHTML = evRows.length
+    ? `<div class="lvlwrap"><table class="lvl"><tr><th>时间</th><th>事件类型</th><th>说明</th></tr>${evRows.map(e=>`<tr><td style="white-space:nowrap">${e.t}</td><td><b style="color:${e.ty==='放量上攻'?'var(--up)':(e.ty==='放量下杀'?'var(--dn)':'var(--warn)')}">${e.ty}</b></td><td>${e.note}</td></tr>`).join('')}</table></div>`
+    : '<div class="sec">近60根无显著放量异动。</div>';
+  /* 多周期趋势冲突解读（k2-1） */
+  {
+    const dT=A.d.trend.trend, hT=A.h1.trend.trend;
+    let mtf,cls;
+    if(dT==='down'&&hT==='up'){ mtf='日线下跌 + 60分钟上涨 → 判定为<b>下跌趋势里的反弹</b>，不是反转；大周期压制小周期，反弹至日线压力区易再受阻，做多需日线率先止跌企稳。'; cls='var(--warn)'; }
+    else if(dT==='up'&&hT==='down'){ mtf='日线上涨 + 60分钟下跌 → 判定为<b>上涨趋势里的回调</b>，不是反转；大周期支撑小周期，回调至日线支撑区缩量企稳后仍偏多对待。'; cls='var(--warn)'; }
+    else if(dT===hT&&dT!=='range'){ mtf=dT==='up'?'日线与60分钟同向向上 → <b>多周期共振偏多</b>，顺势回踩做多胜率更高，注意不追高。':'日线与60分钟同向向下 → <b>多周期共振偏空</b>，反弹至压力位承压做空胜率更高，注意不追空。'; cls='var(--ok)'; }
+    else if(dT==='range'){ mtf=`日线震荡${hT==='up'?'、60分钟偏强':hT==='down'?'、60分钟偏弱':''} → 以<b>区间思路</b>对待：下沿支撑试多、上沿压力试空，突破区间并放量确认才升级为趋势单。`; cls='var(--dim)'; }
+    else { mtf='60分钟震荡、日线有方向 → <b>小周期等待大周期方向确认</b>，此时信号质量一般，建议降仓位或观望。'; cls='var(--dim)'; }
+    $('mtfBody').innerHTML=`<span style="color:${cls}">⇅ 多周期解读：</span>${mtf}`;
+  }
   /* 分数 */
   $('s_trend').textContent=A.scoreTrend+'/25'; $('f_trend').style.width=A.scoreTrend/25*100+'%';
   $('s_vol').textContent=A.scoreVol+'/25'; $('f_vol').style.width=A.scoreVol/25*100+'%';
   $('s_spot').textContent=(A.spotMissing?A.scoreSpot+'/25 [待输入]':A.scoreSpot+'/25'); $('f_spot').style.width=A.scoreSpot/25*100+'%';
+  /* k2-4 基本面解读提示：远月提示 + 可信度提示 + 补充因子解读 */
+  {
+    const hen=parseFloat($('fHenRatio').value), prof=parseFloat($('fProfit').value), cull=parseFloat($('fCull').value), feed=parseFloat($('fFeed').value);
+    const hasExt=!(isNaN(hen)&&isNaN(prof)&&isNaN(cull)&&isNaN(feed));
+    const tips=[];
+    tips.push('⏳ <b>JD2611 属于远月合约</b>，重点看补栏周期与存栏预期，现货价格仅构成短期扰动。');
+    if(A.spotMissing) tips.push('⚠ <b>现货价格未录入</b>：基本面得分可信度低（当前按保底 12/25 计），<b>总分仅作技术面参考</b>，请补录现货均价后再参考基本面结论。');
+    else if(!hasExt) tips.push('提示：已录入现货价，可继续补充存栏/利润/淘汰鸡/饲料成本，获得更完整的基本面解读（不影响打分公式）。');
+    if(!isNaN(hen)){ if(hen>=3) tips.push(`🐤 在产蛋鸡存栏同比 <b>+${hen}%</b>：供给偏宽松，中期压制蛋价上方空间（偏空）；若连续走低则利多远月。`); else if(hen<=-3) tips.push(`🐤 在产蛋鸡存栏同比 <b>${hen}%</b>：供给偏紧，支撑远月估值（偏多）。`); else tips.push(`🐤 在产蛋鸡存栏同比 <b>${hen}%</b>：供给中性，对盘面指引有限。`); }
+    if(!isNaN(prof)){ if(prof>=0.6) tips.push(`💰 养殖利润 <b>+${prof}</b> 元/斤：补栏积极性趋于上升，利于远月新增供给（利空远月）；高利润期警惕补栏过热。`); else if(prof<=0) tips.push(`💰 养殖利润 <b>${prof}</b> 元/斤：处于亏损/微利区间，淘汰预期增强、补栏放缓，中期利多远月估值。`); else tips.push(`💰 养殖利润 <b>+${prof}</b> 元/斤：微利状态，供给节奏平稳。`); }
+    if(!isNaN(cull)&&!isNaN(feed)&&cull-feed>=2.5) tips.push('🐔 淘汰鸡价格显著高于饲料成本折算价：延淘意愿强，短期在栏量偏大，压制近月；关注老鸡集中淘汰时点对远月的传导。');
+    if(!isNaN(feed)) tips.push(`🌽 饲料成本 <b>${feed}</b> 元/斤蛋：构成价格底部的锚，${prof!=null&&!isNaN(prof)?`当前单斤利润 ${prof>=0?'+':''}${prof} 元/斤`:''}，成本抬升将压缩利润并强化挺价意愿。`);
+    $('spotHint').style.display='block';
+    $('spotHint').innerHTML=tips.join('<br>');
+  }
   $('s_risk').textContent=A.scoreRisk+'/25'; $('f_risk').style.width=A.scoreRisk/25*100+'%';
   $('totalnum').textContent=A.total;
   $('totalnum').style.color = A.veto.length? 'var(--risk)' : (A.total>=70?'var(--ok)':A.total>=45?'var(--gold)':'var(--dim)');
@@ -1609,6 +1692,19 @@ function renderPanels(){
     $('vetobox').style.display='block';
     $('vetolist').innerHTML=A.veto.map(v=>'<li>'+v+'</li>').join('');
   } else $('vetobox').style.display='none';
+  /* 评级横幅卡片（k1-3）：页面顶部展示综合得分 / 机会评级 / 一票否决状态，带颜色区分 */
+  {
+    const gr=A.grade?A.grade.grade:'--';
+    const grC={'A':'var(--ok)','B':'var(--gold)','C':'var(--dim)','D':'var(--risk)'};
+    $('gradeBanner').style.display='block';
+    $('gbScore').textContent=A.total;
+    $('gbScore').style.color=A.veto.length?'var(--risk)':(A.total>=70?'var(--ok)':A.total>=45?'var(--gold)':'var(--dim)');
+    $('gbGrade').textContent=gr;
+    $('gbGrade').style.color=grC[gr]||'var(--dim)';
+    $('gbVeto').innerHTML = A.veto.length
+      ? `<b style="color:var(--risk)">⛔ 一票否决已触发（${A.veto.length}项）</b>：硬阻断，优先级高于打分，总分已按 ×0.65 折算并封顶 45 分，不视为交易机会。<br><span style="color:var(--risk)">${A.veto[0]}${A.veto.length>1?' 等':''}</span>`
+      : `<b style="color:var(--ok)">✔ 未触发一票否决</b>${A.riskFlags.length?`（另有异动风险提示 ${A.riskFlags.length} 项，见风险提示卡片）`:''}。评级规则：A≥80 · B≥65 · C≥45 · D&lt;45。`;
+  }
   /* 现货/基差 */
   const st=parseFloat(S.spot.today);
   if(st>0){
@@ -1722,12 +1818,19 @@ function renderTrack(){
   tag.style.color = on ? (T.risk?'var(--risk)':'var(--ok)') : '';
   if(!T){ $('trackBody').innerHTML='<div class="sec">分析数据加载中…</div>'; return; }
   if(!on){
-    $('trackBody').innerHTML='<div class="sec">未持仓。录入持仓方向与开仓价后，自动监测结构破位、量仓异动与移动止损参考（仅供风险提示，执行由人工决定）。'+(A&&A.grade?`当前机会评级 <b>${A.grade.grade}</b> 级，评级未达标（C/D）不建议开仓。`:'')+'</div>';
+    $('trackBody').innerHTML='<div class="sec">未持仓。录入持仓方向与开仓价后，自动监测结构破位、量仓异动与移动止损参考（仅供风险提示，执行由人工决定）。<br><span style="color:var(--faint)">提示：止损价可留空，系统自动按 2×ATR（日线）估算参考止损；建议入场前仍手动设定一个明确价位。</span>'+(A&&A.grade?`当前机会评级 <b>${A.grade.grade}</b> 级，评级未达标（C/D）不建议开仓。`:'')+'</div>';
     return;
   }
   const lines=(T.lines||[]).map(l=>'<div style="margin-bottom:4px">'+l+'</div>').join('');
+  /* k3-3 持仓扩展字段展示（止盈/开仓时间/手数/交易笔记） */
+  const ext=[];
+  if(p.tp) ext.push('止盈参考 <b class="num">'+p.tp+'</b>（触及后人工评估，离场由人工决定）');
+  if(p.time) ext.push('开仓时间 <b>'+p.time+'</b>');
+  if(p.lots) ext.push('手数 <b class="num">'+p.lots+'</b>');
+  if(p.note) ext.push('交易笔记：'+p.note);
   $('trackBody').innerHTML='<div class="sec">'+(lines||'监测中…')+
     (T.stopRef!=null?`<br>止损参考 <b class="num">${T.stopRef.toFixed(0)}</b>${T.stopIsEst?'（2×ATR日估算，建议人工设定明确止损价）':'（人工设定）'}`:'')+
+    (ext.length?'<br><span style="color:var(--dim)">'+ext.join(' · ')+'</span>':'')+
     '<br><span style="color:var(--faint)">框架红线：禁止扛单、重仓、浮亏加仓、不带止损；离场与止损执行由人工决定。</span></div>';
 }
 
@@ -1740,10 +1843,10 @@ function renderRecap(){
   const lvlCls={b:'var(--res)',s:'var(--sup)',w:'var(--warn)',n:'var(--faint)'};
   $('recapBody').innerHTML=
    `<div class="recaph">① 全天行情</div><div class="sec">开 <b class="num">${rc.o.toFixed(0)}</b> / 高 <b class="num" style="color:${C.up}">${rc.h.toFixed(0)}</b> / 低 <b class="num" style="color:${C.dn}">${rc.l.toFixed(0)}</b> / 收 <b class="num" style="color:${cls}">${rc.c.toFixed(0)}</b>${rc.chgPct!=null?`（<b style="color:${cls}">${rc.chg>0?'+':''}${rc.chg.toFixed(0)} / ${rc.chgPct>0?'+':''}${rc.chgPct.toFixed(2)}%</b>）`:''}，振幅 <b class="num">${rc.rngPct.toFixed(1)}%</b>，量 <b class="num">${fmtN(rc.vol)}</b> 手，收盘持仓 <b class="num">${fmtN(rc.oiEnd)}</b>${rc.oiDelta!=null?`（仓差 <b class="num" style="color:${rc.oiDelta>=0?C.up:C.dn}">${rc.oiDelta>0?'+':''}${fmtN(rc.oiDelta)}</b>）`:''}。<br>${rc.walk.map(w=>`${w.nm}${w.txt}`).join('；')}。</div>`+
-   `<div class="recaph">② 关键价位验证</div><table class="lvl"><tr><th>价位</th><th>类型</th><th>结果</th></tr>${rc.levelTest.map(l=>`<tr><td><b class="num">${l.p.toFixed(0)}</b></td><td>${l.tag}</td><td style="color:${lvlCls[l.cls]}">${l.res}</td></tr>`).join('')}</table>`+
-   `<div class="recaph">③ 资金异动 / 假突破事件</div><div class="sec">${rc.events.length?rc.events.map(e=>`${fmtT(e.t)} ${e.dir==='up'?'放量上攻':'放量下杀'}（z=${e.z.toFixed(1)}${e.dOI?'，仓'+(e.dOI>0?'+':'')+fmtN(e.dOI):''}）`).join('；')+'。':'全天无显著放量异动。'}${rc.falseN?`<br><span style="color:var(--risk)">假突破 ${rc.falseN} 次${(rc.falseL||rc.falseS)?`：诱多假突破×${rc.falseL||0}（向上假信号，警惕冲高派发）+ 诱空假突破×${rc.falseS||0}（向下假信号，警惕杀跌洗盘）`:''}（详见风险提示）</span>`:''}</div>`+
+   `<div class="recaph">② 关键价位验证</div><div class="lvlwrap"><table class="lvl"><tr><th>价位</th><th>类型</th><th>结果</th></tr>${rc.levelTest.map(l=>`<tr><td><b class="num">${l.p.toFixed(0)}</b></td><td>${l.tag}</td><td style="color:${lvlCls[l.cls]}">${l.res}</td></tr>`).join('')}</table></div>`+
+   `<div class="recaph">③ 资金异动 / 假突破事件</div><div class="sec">${rc.events.length?rc.events.map(e=>`${fmtT(e.t)} ${e.dir==='up'?'放量上攻':'放量下杀'}（z=${e.z.toFixed(1)}${e.dOI?'，仓'+(e.dOI>0?'+':'')+fmtN(e.dOI):''}）`).join('；')+'。':'全天无显著放量异动。'}${rc.falseN?`<br><span style="color:var(--risk)">假突破 ${rc.falseN} 次${rc.falseTxt?`（${rc.falseTxt}）`:''}${(rc.falseL||rc.falseS)?`：诱多假突破×${rc.falseL||0}（向上假信号，警惕冲高派发）+ 诱空假突破×${rc.falseS||0}（向下假信号，警惕杀跌洗盘）`:''}（详见风险提示）</span>`:''}</div>`+
    `<div class="recaph">④ 信号有效性</div><div class="sec">${rc.sigEffect.length?rc.sigEffect.map(s=>`${fmtT(s.t)} 放量${s.dir==='up'?'上攻':'下杀'} → <b>${s.verdict}</b>`).join('；')+'。':'当日无待验证信号事件。'}</div>`+
-   `<div class="recaph">⑤ 下一交易日观察</div><div class="sec">上方关注：<b class="num" style="color:var(--res)">${rc.watchRes.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；下方关注：<b class="num" style="color:var(--sup)">${rc.watchSup.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；昨结算 <b class="num">${rc.settle!=null?rc.settle.toFixed(0):'--'}</b> 为短线多空参照。<br>风险点：${(S.A&&S.A.riskFlags.length)?S.A.riskFlags.map(f=>f.tag).join('、'):'常规——注意开盘巨量换手与压力位量能配合情况'}。现货端请持续跟踪主产区报价变化（人工输入区）。</div>`+
+   `<div class="recaph">⑤ 下一交易日观察</div><div class="sec"><b>短线多空分界线</b>：<b class="num" style="color:var(--gold)">${rc.watchDiv!=null?rc.watchDiv.toFixed(0):'--'}</b>（昨结算${rc.settle==null?'，无数据时用当日均价代替':' '+rc.settle.toFixed(0)}）——明日收盘站上视为短线偏多，收于其下视为短线偏空。<br>上方关注：<b class="num" style="color:var(--res)">${rc.watchRes.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；下方关注：<b class="num" style="color:var(--sup)">${rc.watchSup.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>。<br><b>向上突破压力位需同时满足</b>：①放量（量比明显抬升）②仓差配合（增仓上行更佳）——无量上冲容易假突破，冲高缩量回落的先当诱多对待。<br><b>跌破支撑位代表</b>：多头防线失守，短线结构转坏，原支撑转为新的压力；若跌破时放量增仓，说明主动卖盘坚决，反弹先看修复再看反转。<br>风险点：${(S.A&&S.A.riskFlags.length)?S.A.riskFlags.map(f=>f.tag).join('、'):'常规——注意开盘巨量换手与压力位量能配合情况'}。现货端请持续跟踪主产区报价变化（人工输入区）。</div>`+
    `<div class="recaph">⑥ 免责声明</div><div class="sec" style="color:var(--faint)">本复盘仅为盘面数据整理与规则化打分输出，不构成任何期货投资建议；期货杠杆交易风险极高，所有交易决策与盈亏由使用者自行承担。</div>`;
 }
 
@@ -1783,7 +1886,9 @@ function accumulateCase(){
   }
   saveUserCase({d:rc.day, x:rc.chgPct!=null?Math.round(rc.chgPct*100)/100:null, r:Math.round(rc.rngPct*100)/100,
                 v:L.volRatio?Math.round(L.volRatio*100)/100:null, o:oiPct,
-                b:eg&&eg.ok?eg.behavior:(S.A&&S.A.wy?S.A.wy.behavior:''), t:tags, src:'本机'});
+                b:eg&&eg.ok?eg.behavior:(S.A&&S.A.wy?S.A.wy.behavior:''), t:tags, src:'本机',
+                sc:(S.A&&S.A.total!=null)?S.A.total:null, gd:(S.A&&S.A.grade)?S.A.grade.grade:null,
+                vt:(S.A&&S.A.veto&&S.A.veto.length)?S.A.veto.length:0}); /* k2-6 配套：当年综合得分/机会评级/一票否决 */
 }
 /* JD0主连日线缓存 → 案例库"次日走势"参考（真实数据计算，缺失则不显示，绝不编造） */
 let _jd0Map=null, _jd0Tried=false;
@@ -1839,10 +1944,11 @@ function renderCases(){
   /* 列表 */
   const nxOf=d=>(_jd0Map&&_jd0Map.get(d)!=null)?_jd0Map.get(d):null;
   const all=[
-    ...uc.map(c=>({d:c.d,x:c.x,r:c.r,v:c.v,o:c.o,b:c.b,t:c.t||[],src:'本机',nx:nxOf(c.d)})),
-    ...CASE_LIB.D.map(c=>({d:c[0],x:c[1],r:c[2],v:c[3],o:c[4],b:c[5],t:c[6]||[],src:'主连',nx:nxOf(c[0])})),
-    ...CASE_LIB.I.map(c=>({d:c[0],x:c[1],r:null,v:null,o:null,b:'',t:c[2]||[],src:'日内',nx:nxOf(c[0])}))
+    ...uc.map(c=>({d:c.d,x:c.x,r:c.r,v:c.v,o:c.o,b:c.b,t:c.t||[],src:'本机',nx:nxOf(c.d),sc:c.sc,gd:c.gd,vt:c.vt||0})),
+    ...CASE_LIB.D.map(c=>({d:c[0],x:c[1],r:c[2],v:c[3],o:c[4],b:c[5],t:c[6]||[],src:'主连',nx:nxOf(c[0]),sc:null,gd:null,vt:(c[6]||[]).indexOf('一票否决')>=0?1:0})),
+    ...CASE_LIB.I.map(c=>({d:c[0],x:c[1],r:null,v:null,o:null,b:'',t:c[2]||[],src:'日内',nx:nxOf(c[0]),sc:null,gd:null,vt:0}))
   ];
+  const grC={'A':'var(--ok)','B':'var(--gold)','C':'var(--dim)','D':'var(--risk)'};
   const f=caseFilter;
   let rows=all.filter(c=> f==='全部' || (f==='本机'&&c.src==='本机') || c.t.indexOf(f)>=0 || c.b===f);
   rows.sort((a,b2)=>a.d<b2.d?1:-1);
@@ -1853,6 +1959,9 @@ function renderCases(){
     (c.r!=null?` 振幅${c.r}%`:'')+(c.v!=null?` 量比${c.v}`:'')+(c.o!=null?` 仓差${c.o>0?'+':''}${c.o}%`:'')+
     (c.b?` <span class="pill oi" style="font-size:10px">${c.b}</span>`:'')+
     (c.t.length?` ${c.t.map(t=>`<span class="tag" style="font-size:10px">${t}</span>`).join(' ')}`:'')+
+    (c.sc!=null?` <span style="font-size:10px;color:var(--faint)">当年评分</span><b style="font-size:10px;color:${c.sc>=70?'var(--ok)':c.sc>=45?'var(--gold)':'var(--dim)'}">${c.sc}</b>`:'')+
+    (c.gd?` <span style="font-size:10px">评级</span><b style="font-size:10px;color:${grC[c.gd]||'var(--dim)'}">${c.gd}</b>`:'')+
+    (c.vt?` <span class="tag" style="font-size:10px;color:var(--risk)">⛔否决×${c.vt}</span>`:'')+
     (c.nx!=null?` <span style="font-size:10px">次日</span><b style="font-size:10px;color:${c.nx>=0?'var(--up)':'var(--dn)'}">${c.nx>0?'+':''}${c.nx}%</b>`:'')+
     `</div>`).join('') || '<div class="sec">无匹配案例。</div>';
 }
@@ -1949,21 +2058,37 @@ function bindUI(){
   /* ---- 持仓录入（第五步：录入后自动监测；方向=none 即平仓清空） ---- */
   const posChange=()=>{
     const v=$('posDir').value;
-    if(v==='none'){ S.pos={on:false,dir:'多',entry:$('posEntry').value,sl:$('posStop').value}; }
+    const tp=$('posTP').value, tm=$('posTime').value, lots=$('posLots').value, note=$('posNote').value;
+    if(v==='none'){ S.pos={on:false,dir:'多',entry:$('posEntry').value,sl:$('posStop').value,tp,tm,lots,note}; }
     else{
-      S.pos={on:true, dir:(v==='long'?'多':'空'), entry:$('posEntry').value, sl:$('posStop').value};
+      /* k3-3：新开仓且时间留空 → 自动记录当前北京时间（仅HH:MM） */
+      const autoTm = tm || (S.pos.on ? S.pos.time : bjStr(bj()).slice(5)+' '+fmtT(bj()));
+      S.pos={on:true, dir:(v==='long'?'多':'空'), entry:$('posEntry').value, sl:$('posStop').value, tp, time:autoTm, lots, note};
       if(!S.losses.date) S.losses.date=bjStr(bj());
     }
     LS.set('posOn',S.pos.on); LS.set('posDir',S.pos.dir);
     LS.set('posEntry',S.pos.entry); LS.set('posSL',S.pos.sl);
+    LS.set('posTP',S.pos.tp||''); LS.set('posTime',S.pos.time||''); LS.set('posLots',S.pos.lots||''); LS.set('posNote',S.pos.note||'');
     analyze(); if(S.mode==='close'&&S.recap) S.recap=buildRecap();
     renderPanels(); renderHeader();
   };
   $('posDir').addEventListener('change',posChange);
   $('posEntry').addEventListener('input',posChange);
   $('posStop').addEventListener('input',posChange);
+  ['posTP','posTime','posLots','posNote'].forEach(id=>$(id).addEventListener('input',posChange));
   /* ---- 当日连亏计数（纪律模块：2笔仓位减半，3笔锁仓停新单）+ 历史最大连亏 + 简易回撤 ---- */
-  const lossRender=()=>{ $('lossCnt').textContent=S.losses.n; $('lossCnt').style.color=S.losses.n>=3?'var(--risk)':(S.losses.n===2?'var(--gold)':'var(--warn)'); $('maxLossCnt').textContent=S.losses.maxLossN||0; };
+  const lossRender=()=>{
+    const n=S.losses.n;
+    $('lossCnt').textContent=n;
+    $('lossCnt').style.color=n>=2?'var(--risk)':(n===1?'var(--gold)':'var(--warn)');
+    $('maxLossCnt').textContent=S.losses.maxLossN||0;
+    /* k1-6 连亏风控警告：≥2笔红色警告，达3笔提示当日停止交易 */
+    const w=$('lossWarn');
+    if(n>=3){ w.style.display='block'; w.innerHTML='⛔ 当日连亏已达 <b>'+n+'</b> 笔：按纪律今日停止开新仓，先强制复盘再决定次日是否交易。'; }
+    else if(n===2){ w.style.display='block'; w.innerHTML='⚠ 连亏 <b>2</b> 笔（红色警告）：下一次开仓仓位必须减半，并重新核对开仓理由。'; }
+    else if(n===1){ w.style.display='block'; w.innerHTML='⚠ 已亏 1 笔：收紧入场标准，避免情绪化补仓。'; }
+    else w.style.display='none';
+  };
   const ddRender=()=>{
     const el=$('ddInfo');
     if(S.dd.peak==null&&S.dd.last==null){ el.textContent='回撤: --（录入累计盈亏后自动跟踪峰值与最大回撤）'; return; }
@@ -1977,6 +2102,19 @@ function bindUI(){
     lossRender();
     if(S.losses.n>=3){ analyze(); renderPanels(); }
     else { S.A=analyze(); renderPanels(); }
+  };
+  /* k3-1 复盘一键复制（clipboard API + 降级方案） */
+  $('recapCopy').onclick=()=>{
+    const txt='【JD2611 半量化研判 · 收盘复盘 '+$('recapdate').textContent+'】\n'+$('recapBody').innerText;
+    const done=()=>{ const b=$('recapCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复制复盘',1500); };
+    const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ alert('复制失败，请手动全选复制'); } document.body.removeChild(ta); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
+  };
+  /* k3-5 折叠面板预留：默认折叠案例库，复盘卡片默认展开 */
+  $('caseFoldBtn').onclick=()=>{
+    const f=$('caseFold'), open=f.style.display!=='none';
+    f.style.display=open?'none':'block';
+    $('caseFoldBtn').textContent=open?'▸ 展开':'▾ 收起';
   };
   $('lossReset').onclick=()=>{
     S.losses.n=0; S.losses.date=bjStr(bj());
@@ -2004,6 +2142,7 @@ function bindUI(){
   /* 恢复持仓录入与连亏计数显示 */
   $('posDir').value = S.pos.on ? (S.pos.dir==='空'?'short':'long') : 'none';
   $('posEntry').value=S.pos.entry||''; $('posStop').value=S.pos.sl||'';
+  $('posTP').value=S.pos.tp||''; $('posTime').value=S.pos.time||''; $('posLots').value=S.pos.lots||''; $('posNote').value=S.pos.note||'';
   lossRender(); ddRender();
 }
 
