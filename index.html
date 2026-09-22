@@ -1,0 +1,1836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>JD2611 鸡蛋期货 · AI半量化研判系统</title>
+<style>
+:root{
+  --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
+  --txt:#cfd8e6; --dim:#8391a8; --faint:#5a6b85;
+  --up:#ef5350; --dn:#26a69a; --warn:#e6a23c; --risk:#e6483d; --ok:#3fb984;
+  --res:#ef5350; --sup:#26a69a; --gold:#f0b90b; --blue:#4f9cf9; --purple:#b07af5;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+body{padding-bottom:56px}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--blue)}
+/* ---------- header ---------- */
+header{position:sticky;top:0;z-index:50;background:rgba(11,14,20,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:8px 12px}
+.hrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.logo{font-weight:700;font-size:15px;letter-spacing:.5px;white-space:nowrap}
+.logo small{color:var(--faint);font-weight:400;margin-left:6px;font-size:11px}
+#contract{width:86px;background:var(--card2);border:1px solid var(--line);color:var(--gold);border-radius:6px;padding:4px 6px;font-size:13px;text-transform:uppercase;font-weight:600}
+.badge{font-size:11px;padding:3px 8px;border-radius:99px;border:1px solid;font-weight:600;white-space:nowrap}
+.badge.live{color:var(--ok);border-color:rgba(63,185,132,.4);background:rgba(63,185,132,.08)}
+.badge.close{color:var(--dim);border-color:rgba(131,145,168,.35);background:rgba(131,145,168,.06)}
+.badge.rest{color:var(--warn);border-color:rgba(230,162,60,.4);background:rgba(230,162,60,.08)}
+.pricebox{display:flex;align-items:baseline;gap:8px;margin-left:auto}
+#bigprice{font-size:26px;font-weight:700}
+#bigchg{font-size:13px}
+#clock{font-size:11px;color:var(--dim)}
+#dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:4px;box-shadow:0 0 6px rgba(63,185,132,.6)}
+#dot.err{background:var(--risk);box-shadow:0 0 6px rgba(230,72,61,.6)}
+#dot.stale{background:var(--warn);box-shadow:0 0 6px rgba(230,162,60,.6)}
+/* ---------- chips ---------- */
+#chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px 0}
+.chip{background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--dim);white-space:nowrap}
+.chip b{color:var(--txt);font-weight:600;margin-left:4px}
+.chip u{text-decoration:none;color:var(--up);font-weight:700;margin-left:4px}
+.chip d{text-decoration:none;color:var(--dn);font-weight:700;margin-left:4px}
+/* ---------- layout ---------- */
+main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;padding:10px 12px;max-width:1500px;margin:0 auto}
+@media(max-width:960px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
+.card h3{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card h3 .tag{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--faint);font-weight:400}
+/* ---------- chart ---------- */
+#chartcard{display:flex;flex-direction:column;min-height:480px}
+.tftabs{display:flex;gap:6px;margin-left:auto}
+.tftabs button,.zbtn{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+.tftabs button.on{color:var(--gold);border-color:rgba(240,185,11,.45);background:rgba(240,185,11,.08);font-weight:700}
+.zbtn{padding:2px 9px;font-size:13px}
+#chartwrap{position:relative;flex:1;min-height:400px}
+#chart{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+#tip{position:absolute;pointer-events:none;background:rgba(14,19,29,.95);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.7;color:var(--dim);display:none;z-index:5;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+#tip b{color:var(--txt)}
+#chartfoot{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--faint);padding-top:6px;border-top:1px solid var(--line);margin-top:6px}
+.maleg{display:inline-flex;gap:4px;align-items:center}
+.maleg i{width:14px;height:2px;display:inline-block;border-radius:2px}
+/* ---------- score ---------- */
+#scoretotal{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+#totalnum{font-size:38px;font-weight:800;line-height:1}
+#totalwrap{position:relative}
+#totallabel{font-size:11px;color:var(--dim);margin-top:2px;text-align:center}
+.sbar{margin-bottom:8px}
+.sbar .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:3px}
+.sbar .lab b{color:var(--txt)}
+.sbar .track{height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.sbar .fill{height:100%;border-radius:4px;transition:width .5s}
+#vetobox{display:none;background:rgba(230,72,61,.1);border:1px solid rgba(230,72,61,.45);color:var(--risk);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;margin-top:8px;font-weight:600}
+#vetobox .vt{font-size:13px;margin-bottom:2px}
+#vetobox ul{margin-left:16px;font-weight:400;color:#f0a8a2}
+/* ---------- panels ---------- */
+.sec{font-size:12px;line-height:1.75;color:var(--dim)}
+.sec b{color:var(--txt)}
+.sec .hl{color:var(--gold)}
+.lvlrow{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.05);font-size:12px}
+.lvlrow:last-child{border-bottom:none}
+.lv{display:inline-block;min-width:52px;font-weight:700}
+#events{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.ev{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;background:var(--card2)}
+.ev .et{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--txt);font-weight:600}
+.ev .ed{color:var(--dim);margin-top:2px;line-height:1.5}
+.ev .tm{color:var(--faint);font-size:10px;margin-left:auto}
+.pill{font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600}
+.pill.demand{background:rgba(239,83,80,.15);color:var(--up)}
+.pill.supply{background:rgba(38,166,154,.15);color:var(--dn)}
+.pill.wide{background:rgba(230,162,60,.15);color:var(--warn)}
+.pill.neutral{background:rgba(255,255,255,.07);color:var(--dim)}
+.pill.veto{background:rgba(230,72,61,.18);color:var(--risk)}
+.pill.oi{background:rgba(79,156,249,.15);color:var(--blue)}
+.pill.dist{background:rgba(176,122,245,.15);color:var(--purple)}
+/* ---------- 鹰眼资金风控专项检测器 ---------- */
+.erow{padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.05);font-size:12px;line-height:1.8;color:var(--dim)}
+.erow:last-child{border-bottom:none}
+.erow b{color:var(--txt)}
+/* ---------- 历史案例库 ---------- */
+#caseFilters{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}
+.fbtn{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:2px 9px;font-size:11px;cursor:pointer}
+.fbtn.on{color:var(--gold);border-color:rgba(240,185,11,.45);background:rgba(240,185,11,.08)}
+.clrow{border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin-bottom:6px;background:var(--card2);font-size:12px}
+.clrow .ct{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--txt);font-weight:600}
+.clrow .cd{color:var(--dim);margin-top:2px;line-height:1.5;font-weight:400}
+.simrow{background:rgba(240,185,11,.05);border:1px solid rgba(240,185,11,.25);border-radius:8px;padding:6px 8px;margin-bottom:8px;font-size:12px;line-height:1.8;color:var(--dim)}
+/* spot input */
+.inp{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.inp label{font-size:11px;color:var(--faint);display:block;margin-bottom:3px}
+.inp input,.inp select{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:6px 8px;font-size:13px}
+.inp input:focus,.inp select:focus{outline:none;border-color:var(--blue)}
+.basisbox{margin-top:8px;font-size:12px;color:var(--dim);line-height:1.8}
+.basisbox b{color:var(--txt)}
+/* footer */
+footer{position:fixed;bottom:0;left:0;right:0;background:rgba(11,14,20,.97);border-top:1px solid var(--line);padding:7px 14px;font-size:11px;color:var(--faint);z-index:60;line-height:1.5}
+footer b{color:var(--warn)}
+/* settings */
+#settings{position:fixed;right:12px;bottom:64px;z-index:70;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;display:none;width:240px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#settings .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--dim)}
+#gear{position:fixed;right:14px;bottom:64px;z-index:69;width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--line);color:var(--dim);cursor:pointer;font-size:16px}
+select,button{font-family:inherit}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#2a3348;border-radius:3px}
+.errbox{display:none;background:rgba(230,72,61,.08);border:1px solid rgba(230,72,61,.35);color:#f0a8a2;font-size:12px;border-radius:8px;padding:8px 10px;margin:10px 12px 0}
+.recaph{font-size:13px;color:var(--txt);font-weight:700;margin:10px 0 6px;padding-left:8px;border-left:3px solid var(--gold)}
+table.lvl{width:100%;border-collapse:collapse;font-size:12px}
+table.lvl th{color:var(--faint);font-weight:400;text-align:left;padding:4px 4px;border-bottom:1px solid var(--line)}
+table.lvl td{padding:4px;border-bottom:1px dashed rgba(255,255,255,.05);color:var(--dim)}
+table.lvl td b{color:var(--txt)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <div class="logo">🥚 JD2611 半量化研判系统<small>傅海棠供需 + 势位态 + 威科夫鹰眼</small></div>
+    <input id="contract" value="JD2611" maxlength="8" title="合约代码（回车切换）">
+    <span id="modebadge" class="badge close">收盘复盘模式</span>
+    <div class="pricebox">
+      <span><span id="dot"></span><span id="bigprice" class="num">--</span></span>
+      <span id="bigchg" class="num">--</span>
+      <span id="clock" class="num">--:--:--</span>
+    </div>
+  </div>
+</header>
+
+<div id="chips"></div>
+<div class="errbox" id="errbox"></div>
+
+<main>
+  <!-- 左：图表 -->
+  <section class="card" id="chartcard">
+    <h3>
+      <span id="charttitle">鸡蛋JD2611</span><span class="tag" id="datatime">数据: --</span>
+      <div class="tftabs">
+        <button data-tf="m5" class="on">5分</button><button data-tf="h1">60分</button><button data-tf="d">日线</button>
+      </div>
+    </h3>
+    <div id="chartwrap">
+      <canvas id="chart"></canvas>
+      <div id="tip"></div>
+    </div>
+    <div id="chartfoot">
+      <span class="maleg"><i style="background:#f0b90b"></i>MA5</span>
+      <span class="maleg"><i style="background:#4f9cf9"></i>MA10</span>
+      <span class="maleg"><i style="background:#b07af5"></i>MA20</span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <button class="zbtn" id="zoomout">−</button><button class="zbtn" id="zoomin">+</button>
+        <button class="zbtn" id="resetview">复位</button>
+      </span>
+    </div>
+  </section>
+
+  <!-- 右：分析面板 -->
+  <aside style="display:flex;flex-direction:column;gap:10px;min-width:0">
+
+    <div class="card">
+      <h3>四项打分 <span class="tag">规则引擎 · 每项0~25</span></h3>
+      <div id="scoretotal">
+        <div id="totalwrap">
+          <div id="totalnum" class="num">--</div>
+          <div id="totallabel">综合总分</div>
+        </div>
+        <div style="flex:1;min-width:180px">
+          <div class="sbar"><div class="lab"><span>① 趋势结构</span><b class="num" id="s_trend">--</b></div><div class="track"><div class="fill" id="f_trend" style="background:var(--gold);width:0"></div></div></div>
+          <div class="sbar"><div class="lab"><span>② 量仓资金</span><b class="num" id="s_vol">--</b></div><div class="track"><div class="fill" id="f_vol" style="background:var(--blue);width:0"></div></div></div>
+          <div class="sbar"><div class="lab"><span>③ 现货基本面</span><b class="num" id="s_spot">--</b></div><div class="track"><div class="fill" id="f_spot" style="background:var(--purple);width:0"></div></div></div>
+          <div class="sbar"><div class="lab"><span>④ 异动风险</span><b class="num" id="s_risk">--</b></div><div class="track"><div class="fill" id="f_risk" style="background:var(--ok);width:0"></div></div></div>
+        </div>
+      </div>
+      <div id="vetobox"><div class="vt">⛔ 一票否决触发：【高风险 · 观望 · 不视为交易机会】</div><ul id="vetolist"></ul></div>
+    </div>
+
+    <div class="card" id="shiweiCard">
+      <h3>势 · 位 · 态 <span class="tag" id="swtag">--</span></h3>
+      <div class="sec" id="shiBody">加载中…</div>
+    </div>
+
+    <div class="card">
+      <h3>位 · 关键价位 <span class="tag">仅保留重要波段点</span></h3>
+      <div id="levelsBody"></div>
+    </div>
+
+    <div class="card">
+      <h3>资金鹰眼 · 威科夫量仓 <span class="tag" id="wytag">--</span></h3>
+      <div class="sec" id="wyBody" style="margin-bottom:8px">加载中…</div>
+      <div id="events"></div>
+    </div>
+
+    <div class="card" id="eagleCard">
+      <h3>🦅 研判输出 · 固定模板 <span class="tag">傅海棠供需→势位态→威科夫鹰眼</span><span class="tag">盘中11项/收盘6项</span><span class="tag" id="eagleTag">--</span></h3>
+      <div class="sec" id="eagleBody">加载中…</div>
+    </div>
+
+    <div class="card" id="trackCard">
+      <h3>持仓跟踪 · 人工录入 <span class="tag">第五步 · 持仓后自动监测</span><span class="tag" id="trackTag">未持仓</span></h3>
+      <div class="inp">
+        <div><label>持仓方向</label><select id="posDir"><option value="none">无持仓</option><option value="long">持多</option><option value="short">持空</option></select></div>
+        <div><label>开仓价</label><input id="posEntry" type="number" step="1" placeholder="如 4600"></div>
+        <div><label>止损价（留空按2×ATR日估算）</label><input id="posStop" type="number" step="1" placeholder="如 4520"></div>
+      </div>
+      <div class="sec" id="trackBody">未持仓。录入持仓方向与开仓价后，自动监测结构破位、量仓异动与移动止损参考（仅供风险提示，执行由人工决定）。</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;font-size:11px;color:var(--dim)">
+        <span>当日连亏计数（纪律：3笔停止当日交易）：<b id="lossCnt" class="num" style="color:var(--warn)">0</b> 笔</span>
+        <button class="fbtn" id="lossAdd">亏一笔 +1</button>
+        <button class="fbtn" id="lossReset">重置</button>
+      </div>
+    </div>
+
+    <div class="card" id="caseCard">
+      <h3>📚 历史案例库 <span class="tag" id="caseCount">--</span></h3>
+      <div id="caseSim"></div>
+      <div id="caseFilters"></div>
+      <div id="caseList" style="max-height:300px;overflow-y:auto"></div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">内置案例取自2013-2026主连日线与2026年4-9月5分钟全样本；此后每日收盘自动积累。仅供盘面复盘对照，不构成投资建议。</div>
+    </div>
+
+    <div class="card" id="recapCard" style="display:none">
+      <h3>收盘复盘 <span class="tag" id="recapdate">--</span></h3>
+      <div id="recapBody"></div>
+    </div>
+
+    <div class="card">
+      <h3>现货基本面 · 人工输入 <span class="tag">半量化人工因子</span></h3>
+      <div class="inp">
+        <div><label>今日现货均价（元/斤）</label><input id="spotToday" type="number" step="0.01" placeholder="如 5.27"></div>
+        <div><label>昨日现货均价（元/斤）</label><input id="spotYest" type="number" step="0.01" placeholder="如 5.65"></div>
+        <div style="grid-column:1/-1"><label>基本面倾向（人工修正 ±4 分）</label>
+          <select id="biasSel"><option value="0">自动（不修正）</option><option value="4">偏多（+4）</option><option value="-4">偏空（−4）</option></select>
+        </div>
+      </div>
+      <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。</div>
+    </div>
+
+    <div class="card">
+      <h3>风险提示 <span class="tag" id="risktag">--</span></h3>
+      <div class="sec" id="riskBody">--</div>
+    </div>
+  </aside>
+</main>
+
+<button id="gear" title="设置">⚙</button>
+<div id="settings">
+  <div class="row"><span>实时刷新频率</span>
+    <select id="freqSel">
+      <option value="1000">1 秒</option><option value="3000">3 秒</option>
+      <option value="5000">5 秒</option><option value="10000">10 秒</option>
+    </select>
+  </div>
+  <div class="row"><span>K线均线</span>
+    <select id="maSel"><option value="1">显示</option><option value="0">隐藏</option></select>
+  </div>
+  <div class="row" style="margin-bottom:0"><span>数据源</span><span style="color:var(--faint);font-size:10px">新浪财经公开接口</span></div>
+</div>
+
+<footer><b>免责声明：</b>本内容仅为盘面数据复盘参考，不构成任何期货投资建议，期货杠杆风险极高，所有交易盈亏由使用者自行承担。本系统为规则化半量化工具，所有打分与标注均为算法估算，不预测未来涨跌，不提供任何做多/做空交易指令。</footer>
+
+<script>
+/* =====================================================================
+ *  JD2611 鸡蛋期货 AI 半量化研判系统
+ *  框架：势（趋势）/ 位（关键位）/ 态（结构·真假突破）
+ *       + 威科夫量仓（资金鹰眼）+ 四项打分 + 一票否决
+ *  数据：新浪财经期货JSONP公开接口（K线自带每根持仓量）
+ *  纪律：只做客观盘面解析，不预测涨跌，不给交易指令
+ * ===================================================================== */
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const fmtN = (v,d=0) => (v==null||isNaN(v)) ? '--' : Number(v).toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtT = ms => { const d=new Date(ms); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); };
+const fmtDT = ms => { const d=new Date(ms); return (d.getMonth()+1)+'/'+d.getDate()+' '+fmtT(ms); };
+
+/* ---------------- 北京时间 ---------------- */
+function bj(){ const n=new Date(); return new Date(n.getTime()+(n.getTimezoneOffset()+480)*60000); }
+function bjStr(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function bjHM(){ const d=bj(); return d.getHours()*100+d.getMinutes(); }
+function isWeekday(){ const w=bj().getDay(); return w>=1&&w<=5; }
+/* 交易时段：周一~周五 09:00-15:00（含午休，蛋无夜盘） */
+function inSession(){ return isWeekday() && bjHM()>=900 && bjHM()<1500; }
+
+/* ---------------- 持久化 ---------------- */
+const LS = {
+  get(k,d){ try{ const v=localStorage.getItem('jdq_'+k); return v==null?d:JSON.parse(v);}catch(e){return d;} },
+  set(k,v){ try{ localStorage.setItem('jdq_'+k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------------- 状态 ---------------- */
+const S = {
+  contract: LS.get('contract','JD2611'),
+  tf:'m5',
+  bars:{ m5:[], h1:[], d:[] },
+  m1:[],               // 1分钟K线（420根≈一个交易日，供微观资金脉冲/诱多诱空识别）
+  live:null,           // {price,dayH,dayL,dayOpen,prevSettle,prevOI,oi,oiDelta,dayVol,volRatio,t,srcDate}
+  spot:{ today:LS.get('spotToday',''), yest:LS.get('spotYest',''), bias:LS.get('bias',0) },
+  freq: LS.get('freq',1000),
+  showMA: LS.get('showMA',1),
+  mode:'close',
+  sessionDate:null,
+  A:null,               // 最新分析结果
+  pos:{ on:LS.get('posOn',false), dir:LS.get('posDir','多'), entry:LS.get('posEntry',''), sl:LS.get('posSL','') },  // 持仓跟踪
+  losses:{ date:LS.get('lossDate',''), n:LS.get('lossN',0) },   // 当日连亏计数（人工点击累计，3笔停交易）
+  view:{ n:100, off:0 },
+  lastOK:0, errStreak:0, busy:{m1:false}
+};
+
+/* =====================================================================
+ *  数据引擎（新浪JSONP，script标签注入，无CORS问题）
+ * ===================================================================== */
+let _sq = 0;
+function jsonp(service, params, timeoutMs=9000){
+  return new Promise((resolve,reject)=>{
+    const name = '_sq'+(++_sq);
+    const qs = Object.keys(params).map(k=>k+'='+encodeURIComponent(params[k])).join('&') + '&_=' + Date.now();
+    const s = document.createElement('script');
+    s.src = 'https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20'+name+'=/'+service+'?'+qs;
+    const to = setTimeout(()=>{ cleanup(); reject(new Error('timeout')); }, timeoutMs);
+    function cleanup(){ clearTimeout(to); try{ delete window[name]; }catch(e){ window[name]=undefined; } s.remove(); }
+    s.onload = ()=>{
+      const d = window[name];
+      cleanup();
+      if(d && d.__ERROR){ reject(new Error('svc: '+d.__ERRORMSG)); return; }
+      if(Array.isArray(d) && d.length) { resolve(d); }
+      else if(Array.isArray(d)) { resolve(d); }   // 空数组也放行
+      else reject(new Error('bad payload'));
+    };
+    s.onerror = ()=>{ cleanup(); reject(new Error('network')); };
+    window[name] = undefined;
+    document.head.appendChild(s);
+  });
+}
+/* 原始条目 → 标准bar（日期串兼容"2025-11-26"与"2026-08-20 10:05:00"两种格式） */
+function toBars(raw, cap){
+  const out=[];
+  for(const r of raw){
+    const ds=String(r.d);
+    const iso = ds.indexOf(' ')>=0 ? ds.replace(' ','T') : ds+'T00:00:00';
+    const t = Date.parse(iso+'+08:00');
+    if(isNaN(t)) continue;
+    const b = { t, o:+r.o, h:+r.h, l:+r.l, c:+r.c, v:+r.v, oi:+(r.p||0) };
+    if(r.s>0) b.s = +r.s;
+    if(b.h>0 && b.l>0) out.push(b);
+  }
+  out.sort((a,b)=>a.t-b.t);
+  /* 时间戳去重（保留后到的） */
+  const map = new Map(out.map(b=>[b.t,b]));
+  const arr = [...map.values()].sort((a,b)=>a.t-b.t);
+  return cap ? arr.slice(-cap) : arr;
+}
+async function fetchAllKlines(){
+  const sym = S.contract;
+  const [m5,h1,d] = await Promise.all([
+    jsonp('InnerFuturesNewService.getFewMinLine',{symbol:sym,type:5}).catch(()=>[]),
+    jsonp('InnerFuturesNewService.getFewMinLine',{symbol:sym,type:60}).catch(()=>[]),
+    jsonp('InnerFuturesNewService.getDailyKLine',{symbol:sym}).catch(()=>[])
+  ]);
+  if(m5.length) S.bars.m5 = toBars(m5, 720);   /* ~16交易日：分时段量能基准需要 */
+  if(h1.length) S.bars.h1 = toBars(h1, 200);
+  if(d.length)  S.bars.d  = toBars(d, null);
+}
+async function fetchM1(){
+  if(S.busy.m1) return;
+  S.busy.m1 = true;
+  try{
+    const raw = await jsonp('InnerFuturesNewService.getFewMinLine',{symbol:S.contract,type:1}, 6000);
+    if(raw.length){ S.m1 = toBars(raw, 420); S.lastOK = Date.now(); S.errStreak = 0; }  /* 420根≈一个交易日1分钟：微观资金脉冲/诱多诱空识别用 */
+  }catch(e){ S.errStreak++; }
+  finally{ S.busy.m1 = false; }
+}
+
+/* 由K线推导实时行情快照 */
+function deriveLive(){
+  const d = S.bars.d;
+  const today = bjStr(bj());
+  const m5today = S.bars.m5.filter(b=>bjStr(new Date(b.t))===today);
+  const m1last = S.m1[S.m1.length-1];
+  let srcDate = null, price=null, oi=null, srcTime=null;
+  if(m1last){ srcDate = bjStr(new Date(m1last.t)); price = m1last.c; oi = m1last.oi; srcTime = m1last.t; }
+  const isTradingDay = d.length && bjStr(new Date(d[d.length-1].t))===today;   // 当日是否有日线（盘中未生成时也可用m5判断）
+  const hasTodayBars = m5today.length>0 || (m1last && srcDate===today);
+  const day = hasTodayBars ? today : (d.length? bjStr(new Date(d[d.length-1].t)) : null);
+  if(!day) return;
+  const dRows = d.filter(b=>bjStr(new Date(b.t))===day);
+  const prevRows = d.filter(b=>bjStr(new Date(b.t))<day);
+  const dayBar = dRows[dRows.length-1] || null;
+  const prevBar = prevRows[prevRows.length-1] || null;
+  /* 当日bar集：优先m5（盘中日线未生成时），否则日线 */
+  let session = m5today.length ? m5today : (dayBar? [dayBar]:[]);
+  if(!session.length) session = S.bars.m5.filter(b=>bjStr(new Date(b.t))===day);
+  if(m1last && srcDate===day && m1last.t >= (session.length? session[session.length-1].t:0)){
+    price = m1last.c; oi = m1last.oi;   // m1更新鲜
+  } else if(session.length){
+    const lastM5 = session[session.length-1];
+    price = price!=null && srcDate===day ? price : lastM5.c;
+    if(oi==null || srcDate!==day) oi = lastM5.oi;
+  }
+  const o = session.length? session[0].o : (dayBar?dayBar.o:price);
+  const hi = Math.max(...session.map(b=>b.h), price||-1e9);
+  const lo = Math.min(...session.map(b=>b.l), price==null?1e9:price);
+  const vol = dayBar? dayBar.v : session.reduce((s,b)=>s+b.v,0);
+  const prevSettle = prevBar? prevBar.s : (dayBar? (dayBar.s||o) : null);
+  const prevOI = prevBar? prevBar.oi : null;
+  /* 量比：当日量 / 前5日均量 */
+  let vr=null;
+  const p5 = prevRows.slice(-5);
+  if(p5.length>=3 && vol){ vr = vol / (p5.reduce((s,b)=>s+b.v,0)/p5.length); }
+  S.live = {
+    date: day, price, dayOpen:o, dayH:hi, dayL:lo, dayVol:vol,
+    prevSettle, prevOI, oi, oiDelta: (prevOI&&oi!=null)? oi-prevOI : null,
+    volRatio: vr, t: srcTime || (session.length? session[session.length-1].t : Date.now()),
+    isToday: day===today
+  };
+}
+
+/* =====================================================================
+ *  指标引擎（纯函数）
+ * ===================================================================== */
+function sma(vals,n){ const out=new Array(vals.length).fill(null); let s=0;
+  for(let i=0;i<vals.length;i++){ s+=vals[i]; if(i>=n) s-=vals[i-n]; if(i>=n-1) out[i]=s/n; } return out; }
+function rsi(closes,n=14){
+  if(closes.length<n+1) return null;
+  let g=0,l=0;
+  for(let i=1;i<=n;i++){ const d=closes[i]-closes[i-1]; if(d>0)g+=d; else l-=d; }
+  let ag=g/n, al=l/n;
+  for(let i=n+1;i<closes.length;i++){ const d=closes[i]-closes[i-1];
+    ag=(ag*(n-1)+Math.max(d,0))/n; al=(al*(n-1)+Math.max(-d,0))/n; }
+  return al===0?100: 100-100/(1+ag/al);
+}
+function atr(bars,n=14){
+  if(bars.length<n+1) return null;
+  const tr=[bars[0].h-bars[0].l];
+  for(let i=1;i<bars.length;i++) tr.push(Math.max(bars[i].h-bars[i].l, Math.abs(bars[i].h-bars[i-1].c), Math.abs(bars[i].l-bars[i-1].c)));
+  let a=tr.slice(0,n).reduce((x,y)=>x+y,0)/n;
+  for(let i=n;i<tr.length;i++) a=(a*(n-1)+tr[i])/n;
+  return a;
+}
+function volZ(bars,i,look=40){
+  const st=Math.max(0,i-look), seg=bars.slice(st,i);
+  if(seg.length<10) return 0;
+  const m=seg.reduce((s,b)=>s+b.v,0)/seg.length;
+  const sd=Math.sqrt(seg.reduce((s,b)=>s+(b.v-m)*(b.v-m),0)/seg.length)||1;
+  return (bars[i].v-m)/sd;
+}
+function swings(bars,w=3){
+  const out=[];
+  for(let i=w;i<bars.length-w;i++){
+    let isH=true,isL=true;
+    for(let j=1;j<=w;j++){
+      if(bars[i].h<bars[i-j].h||bars[i].h<bars[i+j].h) isH=false;
+      if(bars[i].l>bars[i-j].l||bars[i].l>bars[i+j].l) isL=false;
+      if(!isH&&!isL) break;
+    }
+    if(isH) out.push({i,t:bars[i].t,price:bars[i].h,high:true});
+    if(isL) out.push({i,t:bars[i].t,price:bars[i].l,high:false});
+  }
+  return out;
+}
+/* 趋势分类：结合长窗口波段结构（高位降低/低位抬高判断"下跌中反弹"等） */
+function classifyTrend(sw, atrRef){
+  const hs=sw.filter(s=>s.high), ls=sw.filter(s=>!s.high);
+  if(hs.length<2||ls.length<2) return {trend:'range',sub:''};
+  const allH=hs.slice(-12), allL=ls.slice(-12);
+  const recentH=allH[allH.length-1].price, recentL=allL[allL.length-1].price;
+  const olderH=allH.length>6? allH.slice(0,-6):allH.slice(0,Math.max(1,allH.length-1));
+  const olderL=allL.length>6? allL.slice(0,-6):allL.slice(0,Math.max(1,allL.length-1));
+  const topOld=Math.max(...olderH.map(x=>x.price)), botOld=Math.min(...olderL.map(x=>x.price));
+  const th=1.2*atrRef;
+  const hDesc = topOld-recentH > th;
+  const lAsc  = recentL-botOld > th;
+  const hAsc  = recentH-topOld > th;
+  const lDesc = botOld-recentL > th;
+  if(hDesc&&lAsc) return {trend:'down',sub:'反弹'};
+  if(hDesc&&lDesc) return {trend:'down',sub:''};
+  if(hAsc&&lAsc) return {trend:'up',sub:''};
+  if(hAsc&&lDesc) return {trend:'up',sub:'冲高'};
+  return {trend:'range',sub:''};
+}
+/* 关键价位：日线波段点聚类，仅保留重要位置 */
+function keyLevels(dBars, price, atrD){
+  const sw=swings(dBars,3);
+  const hs=sw.filter(s=>s.high).map(s=>s.price).filter(p=>p>price+3);
+  const ls=sw.filter(s=>!s.high).map(s=>s.price).filter(p=>p<price-3);
+  function cluster(arr,isRes){
+    const out=[];
+    arr.sort((a,b)=>isRes?a-b:b-a);
+    for(const p of arr){
+      const last=out[out.length-1];
+      if(last && Math.abs(p-last.price)<=0.8*atrD){ last.price=isRes?Math.max(last.price,p):Math.min(last.price,p); last.n++; }
+      else out.push({price:p,n:1});
+    }
+    return out;
+  }
+  return { res: cluster(hs,true).slice(0,3), sup: cluster(ls,false).slice(0,3) };
+}
+function positionInRange(price,sup1,res1){
+  if(sup1==null||res1==null) return '中间';
+  const rng=res1-sup1; if(rng<=0) return '中间';
+  const p=(price-sup1)/rng;
+  if(p>=0.72) return '靠近压力';
+  if(p<=0.28) return '靠近支撑';
+  return '中间';
+}
+
+/* ---------------- 态：K线形态与真假突破 ---------------- */
+function detectPatterns(m5, atr5){
+  const out=[]; const n=m5.length;
+  for(let i=Math.max(0,n-3);i<n;i++){
+    const b=m5[i], body=Math.abs(b.c-b.o), rng=b.h-b.l||1;
+    if(body>1.1*atr5 && b.c>=b.o) out.push({t:b.t,name:'长阳',dir:'up',note:'实体 '+body.toFixed(0)+' 点'});
+    if(body>1.1*atr5 && b.c<b.o) out.push({t:b.t,name:'长阴',dir:'down',note:'实体 '+body.toFixed(0)+' 点'});
+    if(body<0.22*rng) out.push({t:b.t,name:'十字星',dir:'flat',note:'多空僵持'});
+  }
+  if(n>=2){
+    const a=m5[n-2],b=m5[n-1];
+    if(b.c>b.o && a.c<a.o && b.c>a.o && b.o<a.c) out.push({t:b.t,name:'阳包阴',dir:'up',note:''});
+    if(b.c<b.o && a.c>a.o && b.c<a.o && b.o>a.c) out.push({t:b.t,name:'阴包阳',dir:'down',note:''});
+  }
+  return out.slice(-4);
+}
+function detectFalseBreak(m5, levels, atr5){
+  const out=[]; if(!m5.length) return out;
+  const avgV = arr => { const s=arr.slice(-40); return s.reduce((x,b)=>x+b.v,0)/Math.max(1,s.length); };
+  const n=m5.length, st=Math.max(0,n-50);
+  for(const L of levels){
+    if(L==null) continue;
+    for(let i=st;i<n;i++){
+      const b=m5[i], z=volZ(m5,i);
+      /* 上破未站稳：盘中越过压力但收回下方，且量能不足 */
+      if(b.h>L+1 && b.c<L && z<1.2){
+        let back=true;
+        for(let k=i+1;k<Math.min(n,i+5);k++) if(m5[k].c>L){ back=false; break; }
+        if(back) out.push({type:'诱多假突破',level:L,t:b.t,volz:z});
+      }
+      if(b.l<L-1 && b.c>L && z<1.2){
+        let back=true;
+        for(let k=i+1;k<Math.min(n,i+5);k++) if(m5[k].c<L){ back=false; break; }
+        if(back) out.push({type:'诱空假突破',level:L,t:b.t,volz:z});
+      }
+    }
+  }
+  return out;
+}
+function detectValidBreak(m5, levels, atr5){
+  const out=[]; if(!m5.length) return out;
+  const n=m5.length;
+  for(const L of levels){
+    if(L==null) continue;
+    let crossed=false, crossedT=null;
+    for(let i=Math.max(0,n-50);i<n;i++){
+      const b=m5[i];
+      if(b.c>L+0.3*atr5 && b.v>1.5*avgVB(m5,i) && b.c>b.o){ crossed=true; crossedT=b.t; break; }
+      if(b.c<L-0.3*atr5 && b.v>1.5*avgVB(m5,i) && b.c<b.o){ crossed=true; crossedT=b.t; break; }
+    }
+    if(crossed){ out.push({level:L,t:crossedT}); }
+  }
+  return out;
+}
+function avgVB(m5,i){ const st=Math.max(0,i-40),seg=m5.slice(st,i); return seg.length? seg.reduce((s,b)=>s+b.v,0)/seg.length : 1; }
+
+/* ---------------- 威科夫量仓 ---------------- */
+function wyckoff(m5, live){
+  const n=m5.length; if(n<15) return {supplyDemand:'数据不足',events:[],effortNoResult:false,oiState:'--',behavior:'--'};
+  const events=[];
+  for(let i=Math.max(0,n-60);i<n;i++){
+    const z=volZ(m5,i);
+    if(z>=2){
+      const b=m5[i], dir=b.c>=b.o?'up':'down';
+      const dOI = i>0? b.oi-m5[i-1].oi : 0;
+      events.push({t:b.t, dir, v:b.v, z, dOI, closePos: (b.c-b.l)/((b.h-b.l)||1)});
+    }
+  }
+  const seg=m5.slice(-12);
+  const upV=seg.filter(b=>b.c>=b.o).reduce((s,b)=>s+b.v,0);
+  const dnV=seg.filter(b=>b.c<b.o).reduce((s,b)=>s+b.v,0);
+  const supplyDemand = upV>dnV*1.15?'需求占优':(dnV>upV*1.15?'供应占优':'供需均衡');
+  /* 努力与结果：巨量但价格几乎不动 */
+  let effortNoResult=false, effortBar=null;
+  const a5=atr(m5,14)||15;
+  for(let i=Math.max(0,n-24);i<n;i++){
+    if(m5[i].v>=2.2*avgVB(m5,i) && Math.abs(m5[i].c-m5[i].o)<=0.35*a5){ effortNoResult=true; effortBar=m5[i]; break; }
+  }
+  /* 盘中OI变化（最近12根）与当日仓差 */
+  const ois=m5.slice(-13).map(b=>b.oi).filter(x=>x>0);
+  let intraOI=0; if(ois.length>=2) intraOI=ois[ois.length-1]-ois[0];
+  const oiDeltaPct = live.oiDelta!=null && live.prevOI ? live.oiDelta/live.prevOI*100 : null;
+  let oiState='持仓平稳';
+  if(oiDeltaPct!=null){ if(oiDeltaPct>1.5) oiState='快速增仓'; else if(oiDeltaPct<-1.5) oiState='快速减仓'; }
+  /* 四类资金行为（规则估算） */
+  const lastC=m5[n-1].c, refC=m5[Math.max(0,n-31)].c;
+  const drift=(lastC-refC)/Math.max(1,a5*6);
+  let behavior='--', behNote='';
+  if(Math.abs(drift)<0.5 && intraOI>0){ behavior='吸筹倾向'; behNote='横盘+持仓增加'; }
+  else if(Math.abs(drift)<0.5 && intraOI<0){ behavior='派发倾向'; behNote='横盘+持仓减少'; }
+  else if(drift>0 && intraOI>0){ behavior='拉升行为'; behNote='价涨+增仓'; }
+  else if(drift>0 && intraOI<0){ behavior='空头回补'; behNote='价涨+减仓'; }
+  else if(drift<0 && intraOI>0){ behavior='砸盘行为'; behNote='价跌+增仓'; }
+  else if(drift<0 && intraOI<0){ behavior='多头离场'; behNote='价跌+减仓'; }
+  return {supplyDemand,events:events.slice(-8),effortNoResult,effortBar,oiState,intraOI,oiDeltaPct,behavior,behNote};
+}
+
+/* =====================================================================
+ *  鹰眼资金风控专项检测器（专项模块）
+ *  输入仅5分钟K线量价仓；只做资金异动识别与风险判定；
+ *  严禁预测涨跌，严禁做多做空指令。
+ * ===================================================================== */
+/* 分时段量能基准 v2（2026-09 三合约回归校定 JD2605/JD2609/JD2611）：
+ * 基准档案取「近8个活跃交易日」同一时刻bar的【相对量比 rv = bar量/滚动40bar均量】：
+ * ① rv口径天然免疫合约激活/交割期量级切换（原始量基准在主力换月期全盘失真）；
+ * ② 活跃日过滤（日量≥max(2万手, 前10日中位量一半)）防濒死合约日污染基准与评估；
+ * ③ sd下限=0.3×均值：日内量能节律极规律的时段sd极小，小偏差会被放大成巨z；
+ * ④ gate()返回今日量能/基准同期预期之比，<30% 视为流动性枯竭日，不做异动判定。 */
+function slotProf(m5, today){
+  const hm=ms=>{const d=new Date(ms);return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);};
+  const av40=i=>{const st=Math.max(0,i-40),seg=m5.slice(st,i);return seg.length>=10? seg.reduce((s,b)=>s+b.v,0)/seg.length : null;};
+  const days=[]; let cur=null;
+  for(let i=0;i<m5.length;i++){
+    const ds=bjStr(new Date(m5[i].t));
+    if(ds===today) continue;
+    if(!cur||cur.d!==ds){ cur={d:ds,vol:0,items:[]}; days.push(cur); }
+    cur.items.push({b:m5[i],i}); cur.vol+=m5[i].v;
+  }
+  const active=[];
+  for(let j=days.length-1;j>=0;j--){
+    const pv=days.slice(Math.max(0,j-10),j).map(x=>x.vol);
+    const pm=pv.length? pv.slice().sort((a,b)=>a-b)[Math.floor(pv.length/2)] : 0;
+    if(days[j].vol<Math.max(20000,pm*0.5)) continue;
+    active.unshift(days[j]);
+    if(active.length>=8) break;
+  }
+  if(active.length<5) return null;
+  const prof=new Map(), profV=new Map();
+  for(const d of active) for(const it of d.items){
+    const av=av40(it.i); if(!av||av<=0) continue;
+    const k=hm(it.b.t);
+    if(!prof.has(k)) prof.set(k,{arr:[]});
+    prof.get(k).arr.push(it.b.v/av);
+    if(!profV.has(k)) profV.set(k,{arr:[]});
+    profV.get(k).arr.push(it.b.v);
+  }
+  for(const e of prof.values()){
+    if(e.arr.length<5){ e.ok=false; continue; }
+    e.m=e.arr.reduce((a,b)=>a+b,0)/e.arr.length;
+    const sd=Math.sqrt(e.arr.reduce((s,x)=>s+(x-e.m)*(x-e.m),0)/e.arr.length);
+    e.sd=Math.max(sd,e.m*0.3)||e.m*0.3; e.ok=true;
+  }
+  for(const e of profV.values()) e.mv=e.arr.reduce((a,b)=>a+b,0)/e.arr.length;
+  return { days:active.length,
+           gate(bs){ let exp=0,got=0;
+             for(const b of bs){ const e=profV.get(hm(b.t)); if(!e) continue; exp+=e.mv; got+=b.v; }
+             return exp>0? got/exp : 1; },
+           z(b,i){ const e=prof.get(hm(b.t)); if(!e||!e.ok) return null;
+                   const av=av40(i); if(!av||av<=0) return null;
+                   const rv=b.v/av; return {z:(rv-e.m)/e.sd, rv}; } };
+}
+function eagleEye(m5, live, A){
+  const n=m5.length;
+  if(n<15||!live) return {ok:false};
+  const atr5=atr(m5,14)||15;
+  const avg=avgVB(m5,n);
+  /* 今日bar集 + 分时段基准z（基准不足时回退滚动z原始口径） */
+  const firstIdx=m5.findIndex(b=>bjStr(new Date(b.t))===live.date);
+  const start = firstIdx>=0 ? firstIdx : Math.max(0,n-45);
+  const prof = firstIdx>=0 ? slotProf(m5, live.date) : null;
+  const cal = prof? 'slot':'roll';
+  /* 活跃度门槛：今日量能不足基准同期预期30%（流动性枯竭/濒死合约日）→ 不做异动判定 */
+  if(prof && prof.gate(m5.slice(start))<0.3){
+    return {ok:true, cal, profDays:prof.days, supplyDemand:'供需均衡',
+            enrs:[], enr:false, intraOI:0, oiPct:null, oiP90:null, oiThr:3, oiFlag:null,
+            shocks:[], midZ:[], openShock:null,
+            behavior:'无明显异动', behNote:'流动性不足/非活跃交易日，量价异动信号不判定',
+            behWarn:'', anomalyE:[], anomaly:false, vetoes:[], level:'低'};
+  }
+  const Z=[];
+  const avOf=i=>{const st=Math.max(0,i-40),seg=m5.slice(st,i);return seg.length>=10? seg.reduce((s,b)=>s+b.v,0)/seg.length : 1;};
+  for(let i=start;i<n;i++){
+    const b=m5[i];
+    if(prof){ const r=prof.z(b,i); Z.push({b, z:r?r.z:null, rv:r?r.rv:0}); }
+    else Z.push({b, z:volZ(m5,i), rv:b.v/avOf(i)});
+  }
+  /* 规则1 供求：放量上涨=需求强 / 放量下跌=供应强 */
+  const seg=m5.slice(-12);
+  const upB=seg.filter(b=>b.c>=b.o), dnB=seg.filter(b=>b.c<b.o);
+  const upV=upB.reduce((s,b)=>s+b.v,0), dnV=dnB.reduce((s,b)=>s+b.v,0);
+  const upAvg=upB.length?upV/upB.length:0, dnAvg=dnB.length?dnV/dnB.length:0;
+  let supplyDemand='供需均衡';
+  if(upV>=dnV*1.15&&upAvg>=avg*0.9) supplyDemand='需求强';
+  else if(dnV>=upV*1.15&&dnAvg>=avg*0.9) supplyDemand='供应强';
+  /* 一票否决①：剧烈放量砸/拉 —— slot基准：时段z≥5 且 量比rv≥2×滚动均量 且 bar振幅≥1.2×ATR5
+   *（三合约回归：成熟期触发5-17%、合约激活期41%，每例均有实证冲击bar；
+   *  rv下限过滤"安静时段相对突起"假信号——如rv仅1.2的尾盘bar不再误报）
+   * roll回退：滚动z≥3 且 振幅≥1.2×ATR5（原始口径） */
+  const shocks= prof
+    ? Z.filter(x=>x.z!=null&&x.z>=5&&x.rv>=2.0&&(x.b.h-x.b.l)>=1.2*atr5)
+    : Z.filter(x=>x.z>=3&&(x.b.h-x.b.l)>=1.2*atr5);
+  /* 开盘冲击：首根 slot z≥3且rv≥2.5 / roll z≥2.5；均要求 波幅≥1.8×ATR5 */
+  const b0=Z[0];
+  const openShock=(b0&&((prof&&b0.z!=null&&b0.z>=3&&b0.rv>=2.5)||(!prof&&b0.z>=2.5))&&(b0.b.h-b0.b.l)>=1.8*atr5)
+    ? {z:prof?(b0.z||0):b0.z, t:b0.b.t, dir:b0.b.c>=b0.b.o?'拉':'砸'} : null;
+  /* 中档异动（未达否决）：slot z≥3且rv≥1.5 / roll z≥2 */
+  const midZ= prof
+    ? Z.filter(x=>x.z!=null&&x.z>=3&&x.rv>=1.5)
+    : Z.filter(x=>x.z>=2);
+  /* 一票否决③：量大价不动 —— 近24根内 slot z≥3.5且rv≥1.8 且 振幅≤0.5×ATR5 / roll z≥3 */
+  const enrs= prof
+    ? Z.slice(-24).filter(x=>x.z!=null&&x.z>=3.5&&x.rv>=1.8&&(x.b.h-x.b.l)<=0.5*atr5)
+    : Z.slice(-24).filter(x=>x.z>=3&&(x.b.h-x.b.l)<=0.5*atr5);
+  const enr=enrs.length>0;
+  /* 规则3 持仓监控：快速增/减仓 —— |当日仓差%| ≥ max(3%, 近15日|仓差%|P90)（剔除>12%交割/换月异常） */
+  const ois=m5.slice(-13).map(b=>b.oi).filter(x=>x>0);
+  const intraOI=ois.length>=2? ois[ois.length-1]-ois[0] : 0;
+  const oiPct=(live.oiDelta!=null&&live.prevOI)? live.oiDelta/live.prevOI*100 : null;
+  let oiFlag=null, oiP90=null;
+  {
+    const dBars=S.bars.d, hist=[];
+    for(let i=1;i<dBars.length;i++){
+      if(bjStr(new Date(dBars[i].t))>=live.date) break;
+      const a=dBars[i].oi, b=dBars[i-1].oi;
+      if(a>0&&b>0){ const p=(a-b)/b*100; if(Math.abs(p)<12) hist.push(Math.abs(p)); }
+    }
+    const h15=hist.slice(-15);
+    if(h15.length>=8){ h15.sort((x,y)=>x-y); oiP90=h15[Math.round(0.9*(h15.length-1))]; }
+  }
+  const oiThr=Math.max(3, oiP90!=null?oiP90:3);
+  if(oiPct!=null && Math.abs(oiPct)<=12 && Math.abs(oiPct)>=oiThr) oiFlag = oiPct>0?'快速增仓':'快速减仓';
+  /* 规则4 四类资金行为 */
+  const lastC=m5[n-1].c, refC=m5[Math.max(0,n-31)].c;
+  const drift=(lastC-refC)/Math.max(1,atr5*6);
+  let behavior='无明显异动', behNote='';
+  if(Math.abs(drift)<0.5&&intraOI>0){ behavior='吸筹'; behNote='近1小时横盘+持仓增'+fmtN(intraOI)+'手'; }
+  else if(Math.abs(drift)<0.5&&intraOI<0){ behavior='派发'; behNote='近1小时横盘+持仓减'+fmtN(-intraOI)+'手'; }
+  else if(Math.abs(drift)<0.5){ behavior='无明显异动'; behNote='横盘且持仓平稳'; }
+  else if(drift>0&&intraOI>0){ behavior='拉升'; behNote='价涨+持仓增，主动买盘推涨'; }
+  else if(drift>0){ behavior='无明显异动'; behNote='价涨但持仓未增（空头回补性质，无主动吸筹/拉升资金）'; }
+  else if(drift<0&&intraOI>0){ behavior='砸盘'; behNote='价跌+持仓增，主动卖压砸盘'; }
+  else { behavior='无明显异动'; behNote='价跌但持仓未增（多头离场性质，无主动砸盘资金）'; }
+  let behWarn='';
+  if(behavior==='拉升'&&supplyDemand==='供应强') behWarn='（注意：量能呈供应强，上涨缺乏量能配合）';
+  if(behavior==='砸盘'&&supplyDemand==='需求强') behWarn='（注意：量能呈需求强，下杀遭遇承接）';
+  /* 资金异动判定 */
+  const zName = prof? '时段z':'滚动z';
+  const anomalyE=[];
+  if(shocks.length){
+    const s=shocks[shocks.length-1];
+    anomalyE.push('突发巨量 '+zName+'='+s.z.toFixed(1)+'、量比'+(prof?s.rv.toFixed(1):'—')+'×滚动均量 ×'+shocks.length+'（最近 '+fmtT(s.b.t)+'，量 '+fmtN(s.b.v)+' 手）');
+  } else if(midZ.length){
+    const m=midZ[midZ.length-1];
+    anomalyE.push('异常放量 '+zName+'='+m.z.toFixed(1)+'、量比'+(prof?m.rv.toFixed(1):'—')+'× ×'+midZ.length+'（最近 '+fmtT(m.b.t)+'）');
+  }
+  if(oiFlag) anomalyE.push(oiFlag+'（当日仓差 '+(oiPct>0?'+':'')+oiPct.toFixed(1)+'%，超出近15日常态上限'+oiThr.toFixed(1)+'%）');
+  if(enr) anomalyE.push('量大价不动（'+fmtT(enrs[enrs.length-1].b.t)+' '+zName+'≥'+(prof?'3.5':'3')+'且量比≥'+(prof?'1.8':'—')+'×但振幅≤0.5×ATR，力量衰竭）');
+  if(openShock) anomalyE.push('开盘巨量冲击（'+zName+'='+openShock.z.toFixed(1)+'，波幅≥1.8×ATR）');
+  if(A.falseBreaks.length) anomalyE.push('假突破/诱多诱空 ×'+A.falseBreaks.length+'（'+A.falseBreaks.slice(-2).map(f=>fmtT(f.t)).join('、')+'）');
+  const anomaly=anomalyE.length>0;
+  /* 一票否决：①剧烈放量砸/拉（含开盘冲击）②假突破 ③量大价不动 */
+  const vetoes=[];
+  if(shocks.length){
+    const s=shocks[shocks.length-1];
+    vetoes.push('① 突发大额资金冲击——剧烈放量'+(s.b.c>=s.b.o?'拉盘':'砸盘')+'（'+fmtT(s.b.t)+' '+zName+'='+s.z.toFixed(1)+'≥5'+(prof?'、量比'+s.rv.toFixed(1)+'×≥2':'')+'且振幅≥1.2×ATR，量 '+fmtN(s.b.v)+' 手）'+(shocks.length>1?'，全天共×'+shocks.length:''));
+  } else if(openShock){
+    vetoes.push('① 突发大额资金冲击——开盘巨量'+(openShock.dir==='拉'?'拉盘':'砸盘')+'（'+zName+'='+openShock.z.toFixed(1)+'，波幅≥1.8×ATR）');
+  }
+  if(A.falseBreaks.length){
+    vetoes.push('② 假突破（诱多/诱空）——价格短暂突破支撑/压力、量能不配合、快速收回区间，×'+A.falseBreaks.length+'次');
+  }
+  if(enr){
+    vetoes.push('③ 量价背离——大量成交价格走不动（'+fmtT(enrs[enrs.length-1].b.t)+' '+zName+'≥'+(prof?'3.5':'3')+(prof?'且量比≥1.8×':'')+'但振幅≤0.5×ATR，努力与结果背离）');
+  }
+  const level=vetoes.length?'高':(anomaly?'中':'低');
+  return {ok:true, cal, profDays:prof?prof.days:0, supplyDemand, enrs, enr, intraOI,
+          oiPct, oiP90, oiThr, oiFlag, shocks, midZ, openShock,
+          behavior, behNote, behWarn, anomalyE, anomaly, vetoes, level};
+}
+
+/* =====================================================================
+ *  四项打分 + 一票否决
+ * ===================================================================== */
+function seasonBonus(){
+  const d=bj(), m=d.getMonth()+1, day=d.getDate();
+  if((m===9&&day<=24)||(m===8&&day>=25)) return 5;   // 中秋备货
+  if((m===9&&day>=25)||(m===10&&day<=10)) return 2;  // 节后回落
+  if((m===12&&day>=15)||(m===1&&day<=15)) return 5;  // 春节备货
+  return 3;
+}
+function analyze(){
+  const d=S.bars.d, h1=S.bars.h1, m5=S.bars.m5, live=S.live;
+  if(!d.length||!m5.length||!live) return null;
+  const A={ ts:Date.now(), mode:S.mode };
+  const price=live.price;
+  const closesD=d.map(b=>b.c);
+  const atrD=atr(d,14)||50, atr5=atr(m5,14)||15;
+  const swD=swings(d,3), swH=swings(h1,2);
+  A.d={ trend:classifyTrend(swD,atrD), rsi:rsi(closesD,14), atr:atrD };
+  A.h1={ trend:classifyTrend(swH, atr(h1,14)||atr(m5,14)||15), rsi:rsi(h1.map(b=>b.c),14) };
+  A.m5={ rsi:rsi(m5.map(b=>b.c),14) };
+  const lv=keyLevels(d,price,atrD);
+  A.res=lv.res; A.sup=lv.sup;
+  A.pos=positionInRange(price, A.sup[0]?A.sup[0].price:null, A.res[0]?A.res[0].price:null);
+  const h1Lows=swH.filter(s=>!s.high);
+  A.structIntact = h1Lows.length? price>h1Lows[h1Lows.length-1].price-0.5*atr5 : false;
+  A.patterns=detectPatterns(m5,atr5);
+  const lvAll=[A.res[0]&&A.res[0].price, A.res[1]&&A.res[1].price, A.sup[0]&&A.sup[0].price, A.sup[1]&&A.sup[1].price, live.prevSettle].filter(x=>x!=null);
+  A.falseBreaks=detectFalseBreak(m5,lvAll,atr5);
+  A.validBreaks=detectValidBreak(m5,lvAll,atr5);
+  A.wy=wyckoff(m5,live);
+  A.eagle=eagleEye(m5,live,A);
+  /* 日线5日涨跌量对比（按结算价口径） */
+  const dRows=d.slice(-6,-1);
+  let upV=0,dnV=0;
+  for(let i=1;i<dRows.length;i++){ const chg=dRows[i].c-(dRows[i-1].s||dRows[i-1].c); if(chg>=0) upV+=dRows[i].v; else dnV+=dRows[i].v; }
+  A.upVol5=upV; A.downVol5=dnV;
+  const dayUp = live.prevSettle!=null && price>=live.prevSettle;
+  A.dayUp=dayUp;
+
+  /* ---- ① 趋势结构 ---- */
+  {
+    let s=0;
+    s += A.d.trend.trend==='up'?8 : A.d.trend.trend==='down'?2 : 5;
+    s += A.h1.trend.trend==='range'?4 : (A.h1.trend.trend===A.d.trend.trend?6:3);
+    const r=A.d.rsi==null?50:A.d.rsi;
+    s += (r>=50&&r<65)?5 : (r>=65&&r<75)?4 : (r>=40&&r<50)?4 : r>=75?3 : (r>=30?2:1);
+    s += A.pos==='中间'?4 : A.pos==='靠近支撑'?5 : 2;
+    s += A.structIntact?2:0;
+    A.scoreTrend=clamp(Math.round(s),0,25);
+  }
+  /* ---- ② 量仓资金 ---- */
+  {
+    let s=0;
+    const vr=live.volRatio;
+    if(vr!=null){
+      if(vr>=1.5) s+= dayUp?7:4;
+      else if(vr>=1.0) s+= dayUp?6:3;
+      else if(vr>=0.7) s+= dayUp?4:2;
+      else s+=2;
+    } else s+=3;
+    s += (upV>=dnV)?4:2;
+    const oid=live.oiDelta;
+    if(oid!=null) s += oid>0 ? (dayUp?6:4) : (dayUp?5:2);
+    else s+=3;
+    const tail=m5.slice(-6);
+    const tailUp = tail.length>=3 && tail[tail.length-1].c>=tail[0].o && !A.wy.effortNoResult;
+    s += tailUp?4:2;
+    s += A.wy.effortNoResult?0:3;
+    if(dayUp && oid!=null && live.dayVol && oid < live.dayVol*0.004) s-=2;  // 增仓远小于成交量→回补特征
+    A.scoreVol=clamp(Math.round(s),0,25);
+  }
+  /* ---- ③ 现货基本面 ---- */
+  {
+    const st=parseFloat(S.spot.today), sy=parseFloat(S.spot.yest);
+    A.spotMissing = !(st>0);
+    if(!A.spotMissing){
+      const chg = sy>0 ? (st-sy)/sy*100 : null;
+      let s=0;
+      s += chg==null?5 : chg>0.5?8 : chg>0?6 : chg>-1?5 : chg>-3?3 : 1;
+      const basis = st*1000 - price;           // 元/500千克
+      const bp = basis/price*100;
+      A.basis=basis; A.basisPct=bp; A.spotChgPct=chg;
+      s += bp>25?8 : bp>10?6 : bp>0?4 : 2;
+      s += seasonBonus();
+      s += Number(S.spot.bias)||0;
+      A.scoreSpot=clamp(Math.round(s),0,25);
+    } else A.scoreSpot=12;
+  }
+  /* ---- ④ 异动风险（扣分制，阈值与鹰眼校准版同步） ---- */
+  {
+    let s=25; A.riskFlags=[];
+    const push=(tag,w,desc)=>{ s-=w; A.riskFlags.push({tag,w,desc}); };
+    if(A.falseBreaks.length) push('假突破', 6, '近50根5分钟出现'+A.falseBreaks.length+'次诱多/诱空假突破');
+    const eg=A.eagle;
+    if(eg&&eg.ok){
+      if(eg.shocks.length){
+        const s0=eg.shocks[eg.shocks.length-1];
+        push('突发巨量', 4, '基准z='+s0.z.toFixed(1)+'且振幅≥1.2×ATR ×'+eg.shocks.length+'（历史触发率约12%交易日）');
+      } else if(eg.midZ.length){
+        push('异常放量', 2, '基准z≥3的放量bar ×'+eg.midZ.length+'（约21%交易日出现，未达否决档）');
+      }
+      if(eg.enr) push('量大价不动', 3, '基准z≥3.5但振幅≤0.5×ATR，力量衰竭（历史触发率约3%交易日）');
+      if(eg.openShock) push('开盘巨量冲击', 4, '开盘首根基准z='+eg.openShock.z.toFixed(1)+'且波幅≥1.8×ATR（约13%交易日）');
+      if(eg.oiFlag) push('持仓异动', 3, eg.oiFlag+'：当日仓差'+(eg.oiPct>0?'+':'')+eg.oiPct.toFixed(1)+'% ≥ 近15日常态上限'+eg.oiThr.toFixed(1)+'%');
+    }
+    if(!A.spotMissing && A.spotChgPct!=null && A.spotChgPct<-2 && dayUp) push('期现背离', 3, '现货单日跌'+A.spotChgPct.toFixed(1)+'%而期货收涨');
+    if(A.res[0] && live.dayH>0 && (A.res[0].price-live.dayH)<0.3*atrD && price<live.dayH-0.2*atrD) push('压力带滞涨', 2, '盘中逼近压力后回落');
+    A.scoreRisk=clamp(Math.round(s),0,25);
+  }
+  /* ---- 一票否决 ---- */
+  A.veto=[];
+  const egv=A.eagle;
+  if(A.falseBreaks.length) A.veto.push('出现假突破（诱多/诱空）');
+  if(egv&&egv.ok&&egv.enr) A.veto.push('量价背离：大量成交价格走不动');
+  if(egv&&egv.ok&&(egv.shocks.length||egv.openShock)) A.veto.push('突发大额资金冲击/剧烈放量');
+  let total=A.scoreTrend+A.scoreVol+A.scoreSpot+A.scoreRisk;
+  if(A.veto.length){ A.capped=true; total=Math.min(45,Math.round(total*0.65)); }
+  A.total=clamp(total,0,100);
+  /* ---- 新框架五步链条（固定顺序）：①基本面定性 ②多周期校验 ④盈亏比 → 评级 ---- */
+  A.fu=fuFundamental(A);
+  A.mtfRes=mtfFilter(A);        /* 写入 A.mtf / A.m1p，硬性过滤矛盾→观望（结论存 A.mtfRes） */
+  A.rr=rrCalc(A);
+  A.grade=gradeABCD(A);
+  A.track=trackPosition(A);
+  S.A=A;
+  return A;
+}
+
+/* =====================================================================
+ *  新框架分析层：固定五步顺序的支撑函数
+ *  ①傅海棠基本面（定性：利多/利空/供需平衡）
+ *  ②多周期校验+势位态（小周期必须与大周期一致，矛盾→观望）
+ *  ⑤持仓跟踪监测（结构破位/量仓异动/移动止损参考）
+ * ===================================================================== */
+
+/* ---- ① 傅海棠基本面定性评估：利多/利空/供需平衡 ---- */
+function fuFundamental(A){
+  const live=S.live, out={ verdict:'供需平衡', reasons:[], align:null };
+  if(!A||!live) return out;
+  const bull=[], bear=[], flat=[];
+  /* 现货蛋价变动（第一依据：蛋价是供需的结果与领先信号） */
+  if(A.spotChgPct!=null){
+    if(A.spotChgPct>0.5) bull.push('现货蛋价单日涨'+A.spotChgPct.toFixed(1)+'%（产区走快，供需偏紧）');
+    else if(A.spotChgPct>0) bull.push('现货蛋价微涨'+A.spotChgPct.toFixed(1)+'%');
+    else if(A.spotChgPct>-0.5) flat.push('现货蛋价基本持稳（'+A.spotChgPct.toFixed(1)+'%）');
+    else if(A.spotChgPct>-3) bear.push('现货蛋价回落'+A.spotChgPct.toFixed(1)+'%');
+    else bear.push('现货蛋价大跌'+A.spotChgPct.toFixed(1)+'%（供应压力显现）');
+  } else flat.push('今日现货价未录入，基本面评估降权');
+  /* 基差：期货相对现货的锚 */
+  if(A.basisPct!=null){
+    if(A.basisPct>20) bull.push('期货深贴水现货'+A.basisPct.toFixed(1)+'%（向下有现货锚）');
+    else if(A.basisPct<-15) bear.push('期货升水现货'+Math.abs(A.basisPct).toFixed(1)+'%（估值偏高，靠预期支撑）');
+    else flat.push('基差处于常态区间（'+A.basisPct.toFixed(1)+'%）');
+  }
+  /* 期现背离：现货弱而期货强（或反之）＝供需与盘面矛盾 */
+  if(A.spotChgPct!=null && live.prevSettle){
+    const chg=(live.price-live.prevSettle)/live.prevSettle*100;
+    if(A.spotChgPct<-1.5&&chg>0.5) bear.push('期现背离：现货跌'+A.spotChgPct.toFixed(1)+'%而期货涨'+chg.toFixed(1)+'%，警惕补跌');
+    if(A.spotChgPct>1.5&&chg<-0.5) bull.push('期现背离：现货涨'+A.spotChgPct.toFixed(1)+'%而期货跌'+chg.toFixed(1)+'%，存在补涨需求');
+  }
+  /* 季节性淡旺季 */
+  const sb=seasonBonus();
+  if(sb>=5) bull.push('季节性旺季（节日备货期，需求端支撑）');
+  else if(sb<=2) bear.push('季节性淡季（节后需求回落期）');
+  /* 日线量仓反映的供需 */
+  if(A.upVol5>A.downVol5*1.3&&A.d.trend.trend==='up') bull.push('近5日上涨日成交量明显大于下跌日（多头供需占优）');
+  if(A.downVol5>A.upVol5*1.3&&A.d.trend.trend==='down') bear.push('近5日下跌日成交量明显大于上涨日（空头供需占优）');
+  out.bull=bull; out.bear=bear; out.flat=flat;
+  const nB=bull.length, nR=bear.length;
+  if(nB>=2&&nB-nR>=2) out.verdict='利多';
+  else if(nR>=2&&nR-nB>=2) out.verdict='利空';
+  else if(nB>=1&&nR>=1) out.verdict='供需矛盾拉锯';
+  else out.verdict= (nB>nR)?'偏多但矛盾不突出':(nR>nB?'偏空但矛盾不突出':'供需平衡');
+  /* 基本面方向 vs 期货价格方向：一致才有趋势行情 */
+  const dayUp=live.prevSettle? live.price>=live.prevSettle : null;
+  if(out.verdict==='利多'&&dayUp===true) out.align='基本面利多+盘面上行，供需与价格共振';
+  else if(out.verdict==='利空'&&dayUp===false) out.align='基本面利空+盘面下行，供需与价格共振';
+  else if(out.verdict==='利多'||out.verdict==='利空') out.align='基本面方向与盘面暂不一致，趋势级别机会待确认';
+  else out.align='无显著供需矛盾，判定为震荡市，减少交易、优先观望';
+  return out;
+}
+
+/* ---- ② 多周期校验 + 1分钟微观脉冲（诱多/诱空识别） ---- */
+function m1Pulse(){
+  const m1=S.m1, out={ n:m1.length, sig:null, notes:[] };
+  if(m1.length<60) return out;
+  const atr1=atr(m1,14)||4;
+  const last=m1[m1.length-1];
+  /* 尾部脉冲：最近6根1分钟里找单根振幅≥2×ATR1的脉冲bar，看量能与后续走向 */
+  const tail=m1.slice(-8);
+  for(let i=tail.length-2;i>=Math.max(0,tail.length-6);i--){
+    const b=tail[i], amp=b.h-b.l;
+    if(amp<2*atr1) continue;
+    const idx=m1.length-tail.length+i;
+    const z=(()=>{ const s=m1.slice(Math.max(0,idx-40),idx); if(s.length<10) return null; const avg=s.reduce((x,y)=>x+y.v,0)/s.length; return avg>0? b.v/avg : null; })();
+    const after=m1.slice(idx+1);
+    const dir=b.c>=b.o?'拉':'砸';
+    const rev=after.length>=2&&after[after.length-1].c<last.c;
+    const retr=(after.length&&(Math.abs(after[after.length-1].c-b.c)<=0.3*amp));
+    if(z!=null&&z>=2.0&&retr){
+      out.sig = dir==='拉' ? '疑似1分钟诱多脉冲（'+fmtT(b.t)+' 急拉'+(z!=null?z.toFixed(1):'')+'×量后快速回吐，注意假突破）'
+                           : '疑似1分钟诱空脉冲（'+fmtT(b.t)+' 急砸后快速收回，注意空头陷阱）';
+      out.notes.push('脉冲量能'+z.toFixed(1)+'×近期均量、振幅'+(amp/atr1).toFixed(1)+'×ATR1，回吐/收回'+(retr?'已发生':'未发生'));
+      return out;
+    }
+  }
+  /* 微观资金方向：近30根1分钟涨跌量对比 */
+  const w=m1.slice(-30);
+  let uv=0,dv=0;
+  for(const b of w){ if(b.c>=b.o) uv+=b.v; else dv+=b.v; }
+  if(uv>dv*1.6) out.sig='1分钟微观资金偏多（近30分钟买入量'+(uv/dv).toFixed(1)+'×卖出量）';
+  else if(dv>uv*1.6) out.sig='1分钟微观资金偏空（近30分钟卖出量'+(dv/uv).toFixed(1)+'×买入量）';
+  else out.sig='1分钟微观资金均衡，无脉冲异动';
+  return out;
+}
+
+/* 多周期硬性过滤：小周期方向必须与大周期一致，矛盾→观望 */
+function mtfFilter(A){
+  if(!A) return { pass:false, why:'无分析数据' };
+  const dt=A.d.trend.trend, ht=A.h1.trend.trend;
+  const m5c=S.bars.m5.slice(-12);
+  const m5dir = m5c.length>=6 ? (m5c[m5c.length-1].c>=m5c[0].o?'up':(m5c[m5c.length-1].c<=m5c[0].o?'down':'range')) : 'range';
+  const p=m1Pulse();
+  A.m1p=p;
+  const m1dir = p.sig&&p.sig.indexOf('偏多')>=0?'up':(p.sig&&p.sig.indexOf('偏空')>=0?'down':'range');
+  A.mtf={ d:dt, h1:ht, m5:m5dir, m1:m1dir };
+  if(dt==='range') return { pass:false, why:'日线为震荡（高低点反复、无方向）：按框架判定震荡市，直接减少开仓机会、不追单、优先观望' };
+  if(ht!==dt&&(ht==='range'||ht!==dt)) return { pass:false, why:'1小时方向（'+tname(ht)+'）与日线（'+tname(dt)+'）不一致：大小周期矛盾，标记观望，不做逆势单' };
+  if(m5dir!=='range'&&m5dir!==dt) return { pass:false, why:'5分钟短线方向（'+tname(m5dir)+'）与日线趋势（'+tname(dt)+'）相反：小周期信号未与大周期共振，不追逆势单' };
+  return { pass:true, why:'日线'+tname(dt)+'、1小时同向、5分钟'+(m5dir==='range'?'回调中':'同向')+'，多周期一致' };
+}
+function tname(t){ return t==='up'?'上涨':(t==='down'?'下跌':'震荡'); }
+
+/* ---- ④ 盈亏比评估（预期盈亏比≥1.5R才过滤通过） ---- */
+function rrCalc(A){
+  const out={ rr:null, pass:false, entry:null, stop:null, target:null, note:'' };
+  if(!A||!S.live) return out;
+  const price=S.live.price, atrD=A.d.atr||50;
+  const sup=A.sup[0]?A.sup[0].price:null, res=A.res[0]?A.res[0].price:null;
+  if(sup==null||res==null||res<=sup){ out.note='支撑压力区间不完整，盈亏比无法评估'; return out; }
+  const stopW=Math.max(0.8*atrD,0.35*(res-sup));      /* 止损缓冲：0.8×ATR日，且不超过区间的35% */
+  /* 多头视角：现价接近支撑才有多头盈亏比；空头视角：现价接近压力才有空头盈亏比 */
+  const longRR  = price<res ? (res-price)/Math.max(price-sup+stopW*0.5, stopW*0.5) : 0;
+  const shortRR = price>sup ? (price-sup)/Math.max(res-price+stopW*0.5, stopW*0.5) : 0;
+  out.longRR=clamp(longRR,0,9); out.shortRR=clamp(shortRR,0,9);
+  out.rr=Math.max(out.longRR,out.shortRR);
+  const isLong=out.longRR>=out.shortRR;
+  out.side=isLong?'多':'空';
+  out.entry=price;
+  out.stop =isLong? Math.min(sup-0.3*atrD, price-stopW) : Math.max(res+0.3*atrD, price+stopW);
+  out.target=isLong? res : sup;
+  out.pass=out.rr>=1.5;
+  out.note='按'+(isLong?'多':'空')+'向评估：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.pass?'（≥1.5R达标）':'（<1.5R，按框架直接过滤，不推荐开仓）');
+  return out;
+}
+
+/* ---- 机会评级 A/B/C/D ---- */
+function gradeABCD(A){
+  const g={ grade:'C', why:[] };
+  if(!A){ g.grade='C'; g.why.push('无有效分析数据'); return g; }
+  /* 连亏计数跨日清零：非当日日期 → 归零并持久化（单日连亏3笔停止当日交易） */
+  if(S.losses && S.losses.date!==bjStr(bj())){
+    S.losses.date=bjStr(bj()); S.losses.n=0;
+    LS.set('lossDate',S.losses.date); LS.set('lossN',0);
+  }
+  /* D：触发风控 → 禁止开仓 */
+  if(A.veto.length){ g.grade='D'; g.why.push('触发一票否决风控（'+A.veto[0]+'），禁止开仓'); return g; }
+  if(S.losses&&S.losses.n>=3){ g.grade='D'; g.why.push('当日连亏已达'+S.losses.n+'笔：按纪律停止当日交易，空仓休息'); return g; }
+  const mtf=A.mtf, rr=rrCalc(A), fu=A.fu||fuFundamental(A);
+  A.rr=rr;
+  const resCount=[mtf.pass, rr.pass, fu.verdict==='利多'||fu.verdict==='利空', A.wy.behavior!=='--'&&A.wy.behavior!=='派发'&&A.wy.behavior!=='砸盘'].filter(Boolean).length;
+  const aligned = fu.align&&fu.align.indexOf('共振')>=0;
+  if(mtf.pass&&rr.pass&&(fu.verdict==='利多'||fu.verdict==='利空')&&resCount>=4){
+    g.grade='A'; g.why.push('多周期共振＋量仓确认＋基本面配合（'+fu.verdict+'）＋盈亏比'+rr.rr.toFixed(1)+'R达标：优质机会，仍由人工决策');
+  } else if(mtf.pass&&rr.pass&&resCount>=3){
+    g.grade='B'; g.why.push('多周期一致＋盈亏比达标，但'+(aligned?'':'基本面方向与盘面尚待确认或')+'量仓确认不完全：可轻仓试单，严格执行止损');
+  } else if(!mtf.pass){
+    g.grade='C'; g.why.push(mtf.why);
+    if(!rr.pass) g.why.push(rr.note);
+  } else if(!rr.pass){
+    g.grade='C'; g.why.push('位置或入场空间不理想：'+rr.note);
+  } else {
+    g.grade='C'; g.why.push('基本面与量仓信号模棱两可，按框架尽量放弃');
+  }
+  return g;
+}
+
+/* ---- ⑤ 持仓跟踪监测（人工录入后自动监测） ---- */
+function trackPosition(A){
+  const p=S.pos, out={ on:!!(p&&p.on), lines:[], risk:false };
+  if(!out.on||!A||!S.live) return out;
+  const price=S.live.price, atrD=A.d.atr||50;
+  const dir=p.dir;
+  const entry=parseFloat(p.entry), sl=parseFloat(p.sl);
+  /* 止损参考：未录入则按2×ATR日估算 */
+  const stopRef = !isNaN(sl)&&sl>0 ? sl : (dir==='多'? price-2*atrD : price+2*atrD);
+  out.stopRef=stopRef; out.stopIsEst=isNaN(sl)||!sl;
+  const dist=price-stopRef, rMul=dist!==0?Math.abs(dist)/(2*atrD):0;
+  out.rMul = dir==='多'? (price-stopRef)/(2*atrD) : (stopRef-price)/(2*atrD);
+  /* 浮盈亏（R倍数口径） */
+  if(!isNaN(entry)&&entry>0){
+    out.pnlR = dir==='多'? (price-entry)/(2*atrD) : (entry-price)/(2*atrD);
+    out.lines.push('现价'+price.toFixed(0)+' vs 开仓'+entry.toFixed(0)+'（'+dir+'），浮动'+(out.pnlR>=0?'+':'')+out.pnlR.toFixed(2)+'R（1R=2×ATR日≈'+(2*atrD).toFixed(0)+'点）');
+  }
+  /* 结构破位判断：区分正常回调与趋势反转破位 */
+  const broke = dir==='多' ? price<stopRef : price>stopRef;
+  const m5=S.bars.m5.slice(-24);
+  const swBreak = dir==='多' ? m5.length>=12&&m5[m5.length-1].c<m5.slice(-12).reduce((a,b)=>Math.min(a,b.l),1e9)+0.2*atrD
+                             : m5.length>=12&&m5[m5.length-1].c>m5.slice(-12).reduce((a,b)=>Math.max(a,b.h),0)-0.2*atrD;
+  if(broke){
+    out.risk=true;
+    out.lines.push('⚠ 价格已触及/跌破止损参考位 '+stopRef.toFixed(0)+(out.stopIsEst?'（估算值）':'（人工设定）')+'：结构破位风险，是否离场由人工决定（框架禁止扛单）');
+  } else if(swBreak){
+    out.lines.push('5分钟短线结构走坏（最近高低点被破坏），但未到止损位：区分正常回调与反转需结合量仓，暂观察');
+  } else {
+    out.lines.push('结构完好：价格在止损参考 '+stopRef.toFixed(0)+' 上方安全区内（'+(dir==='多'?'距止损':'距止损')+' '+Math.abs(dist).toFixed(0)+'点≈'+Math.abs(out.rMul).toFixed(1)+'R）');
+  }
+  /* 移动止损参考：浮盈超过1R后建议抬升止损至成本线 */
+  if(out.pnlR!=null&&out.pnlR>=1&&!broke) out.lines.push('浮盈≥1R：移动止损可参考抬升至成本线'+entry.toFixed(0)+'附近（保本损），是否执行由人工决定');
+  /* 量仓异动提醒 */
+  const eg=A.eagle;
+  if(eg&&eg.ok){
+    if(eg.shocks.length) out.lines.push('⚠ 持仓期间出现突发巨量冲击（'+fmtT(eg.shocks[eg.shocks.length-1].b.t)+'），主力资金异动，警惕（'+(dir==='多'?'砸盘出货':'拉盘诱多')+'可能）');
+    if(eg.enr) out.lines.push('⚠ 出现量大价不动（力量衰竭）：持仓浮盈时可考虑部分止盈，人工决定');
+    if(A.falseBreaks.length) out.lines.push('⚠ 出现假突破×'+A.falseBreaks.length+'：'+(dir==='多'&&A.falseBreaks.some(f=>f.type==='诱多假突破')?'诱多假突破针对多头，警惕派发':'诱空假突破出现，注意是否洗盘'));
+  }
+  return out;
+}
+
+/* ---------------- 复盘（收盘模式） ---------------- */
+function buildRecap(){
+  const d=S.bars.d, m5=S.bars.m5, live=S.live;
+  if(!live) return null;
+  const day=live.date;
+  const ses=m5.filter(b=>bjStr(new Date(b.t))===day);
+  if(ses.length<10) return null;
+  const dBar=d.find(b=>bjStr(new Date(b.t))===day) || d[d.length-1];
+  const prev=d.filter(b=>bjStr(new Date(b.t))<day).pop();
+  const R={day};
+  R.o=ses[0].o; R.c=ses[ses.length-1].c;
+  R.h=Math.max(...ses.map(b=>b.h)); R.l=Math.min(...ses.map(b=>b.l));
+  R.vol=ses.reduce((s,b)=>s+b.v,0); R.oiEnd=ses[ses.length-1].oi;
+  R.oiDelta=prev? R.oiEnd-prev.oi : null;
+  R.prevSettle=prev?prev.s:null; R.settle=dBar?dBar.s:null;
+  R.chg = R.prevSettle? R.c-R.prevSettle : null;
+  R.chgPct = R.prevSettle? (R.c-R.prevSettle)/R.prevSettle*100 : null;
+  R.rngPct = (R.h-R.l)/(R.prevSettle||R.c)*100;
+  /* 走势分段描述 */
+  const segs=[['早盘',9,1030],['上午',1030,1131],['午后',1330,1501]];
+  R.walk=segs.map(([nm,a,b])=>{
+    const s=ses.filter(x=>{const dt=new Date(x.t);const hm=dt.getHours()*100+dt.getMinutes();return hm>=a&&hm<b;});
+    if(!s.length) return {nm,txt:'无数据'};
+    const o=s[0].o,c=s[s.length-1].c,v=s.reduce((x,y)=>x+y.v,0);
+    const dirTxt=c>o?'上行':(c<o?'回落':'持平');
+    return {nm,txt:`${dirTxt}（${o}→${c}，量${fmtN(v)}手）`};
+  });
+  /* 关键价位验证（用前日收盘前的日线波段位 + 前日高低 + 昨结） */
+  const dBefore=d.filter(b=>bjStr(new Date(b.t))<day);
+  const priceBefore=prev?prev.c:R.o;
+  const lv=keyLevels(dBefore, priceBefore, atr(dBefore,14)||50);
+  const testLevels=[
+    ...lv.res.slice(0,2).map(x=>({p:x.price,tag:'波段压力'})),
+    ...lv.sup.slice(0,2).map(x=>({p:x.price,tag:'波段支撑'})),
+    ...(prev?[{p:prev.h,tag:'前日高点'},{p:prev.l,tag:'前日低点'}]:[]),
+    ...(R.prevSettle?[{p:R.prevSettle,tag:'昨结算'}]:[])
+  ].sort((a,b)=>b.p-a.p);
+  R.levelTest=testLevels.map(L=>{
+    let res;
+    if(R.h>L.p && R.c>L.p) res={k:'突破站稳',cls:'b'};
+    else if(R.h>L.p && R.c<L.p) res={k:'冲高未破',cls:'w'};
+    else if(R.l<L.p && R.c<L.p) res={k:'跌破',cls:'s'};
+    else if(R.h>=L.p) res={k:'触及回落',cls:'w'};
+    else res={k:'未触及',cls:'n'};
+    return {p:L.p,tag:L.tag,res:res.k,cls:res.cls};
+  });
+  /* 资金事件（当日5分钟z≥2） */
+  const withZ=ses.map((b,i)=>({b,i,z:volZ2(ses,b,i)}));
+  R.events=withZ.filter(x=>x.z>=2).map(x=>({
+    t:fmtT(x.b.t), dir:x.b.c>=x.b.o?'up':'down', v:x.b.v, z:x.z, close:x.b.c,
+    dOI: x.i>0? x.b.oi-ses[x.i-1].oi:0
+  }));
+  /* 信号有效性：放量事件 vs 当日最终收盘 */
+  R.sigEffect=R.events.map(e=>{
+    const ok = R.c > e.close;
+    return {t:e.t,dir:e.dir,verdict: e.dir==='up' ? (ok?'有效需求信号':'虚假冲高（冲高未站稳）') : (ok?'下杀被收复（洗盘特征）':'有效供应信号')};
+  });
+  R.falseN = S.A ? S.A.falseBreaks.filter(f=>bjStr(new Date(f.t))===day).length : 0;
+  /* 明日观察位 */
+  const lv2=keyLevels(d, R.c, atr(d,14)||50);
+  R.watchRes=lv2.res.slice(0,2).map(x=>x.price);
+  R.watchSup=lv2.sup.slice(0,2).map(x=>x.price);
+  return R;
+}
+function volZ2(ses,b,i){ /* 会话内量z */
+  const st=Math.max(0,i-40),seg=ses.slice(st,i);
+  if(seg.length<8) return 0;
+  const m=seg.reduce((s,x)=>s+x.v,0)/seg.length;
+  const sd=Math.sqrt(seg.reduce((s,x)=>s+(x.v-m)*(x.v-m),0)/seg.length)||1;
+  return (b.v-m)/sd;
+}
+
+/* =====================================================================
+ *  图表（canvas，暗色·5%白网格·极淡高低标记线）
+ * ===================================================================== */
+const C = {
+  bg:'#0d1017', grid:'rgba(255,255,255,0.05)', hl:'rgba(255,255,255,0.05)',
+  axis:'rgba(255,255,255,0.28)', txt:'#8391a8',
+  up:'#ef5350', dn:'#26a69a', upFill:'rgba(239,83,80,0.9)', dnFill:'rgba(38,166,154,0.9)',
+  volUp:'rgba(239,83,80,0.45)', volDn:'rgba(38,166,154,0.45)',
+  oiLine:'rgba(138,160,184,0.65)',
+  ma5:'#f0b90b', ma10:'#4f9cf9', ma20:'#b07af5',
+  resLine:'rgba(239,83,80,0.38)', supLine:'rgba(38,166,154,0.38)'
+};
+const chart = {
+  cv:null, ctx:null, w:0, h:0, dpr:1,
+  bars:[], tf:'m5', hover:null, drag:null,
+  init(){
+    this.cv=$('chart'); this.ctx=this.cv.getContext('2d');
+    const wrap=$('chartwrap');
+    const ro=new ResizeObserver(()=>this.resize());
+    ro.observe(wrap);
+    this.resize();
+    this.cv.addEventListener('mousemove',e=>{ const r=this.cv.getBoundingClientRect(); this.hover={x:e.clientX-r.left,y:e.clientY-r.top}; this.draw(); this.showTip(); });
+    this.cv.addEventListener('mouseleave',()=>{ this.hover=null; $('tip').style.display='none'; this.draw(); });
+    this.cv.addEventListener('wheel',e=>{ e.preventDefault(); const f=e.deltaY>0?1.15:0.87; S.view.n=clamp(Math.round(S.view.n*f),30,240); this.draw(); },{passive:false});
+    /* 触摸：拖动查看十字光标 */
+    this.cv.addEventListener('touchstart',e=>{ if(e.touches.length===1){ const r=this.cv.getBoundingClientRect(); this.hover={x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top}; this.draw(); this.showTip(); } },{passive:true});
+    this.cv.addEventListener('touchmove',e=>{ if(e.touches.length===1){ const r=this.cv.getBoundingClientRect(); this.hover={x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top}; this.draw(); this.showTip(); } },{passive:true});
+    this.cv.addEventListener('touchend',()=>{ /* 保留最后位置 */ });
+  },
+  resize(){
+    const wrap=$('chartwrap');
+    const w=wrap.clientWidth, h=wrap.clientHeight;
+    this.dpr=window.devicePixelRatio||1;
+    this.cv.width=w*this.dpr; this.cv.height=h*this.dpr;
+    this.w=w; this.h=h;
+    this.ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
+    this.draw();
+  },
+  setData(bars,tf){ this.bars=bars; this.tf=tf; this.draw(); },
+  layout(){
+    const padR=54, padB=20, padT=8;
+    const priceH=this.h*0.60, volH=this.h*0.15, oiH=this.h*0.18;
+    return {padR,padB,padT,priceH,volH,oiH,
+      x0:0, x1:this.w-padR,
+      pTop:padT, pBot:padT+priceH,
+      vTop:padT+priceH+6, vBot:padT+priceH+6+volH,
+      oTop:padT+priceH+12+volH, oBot:this.h-padB };
+  },
+  draw(){
+    const ctx=this.ctx; if(!ctx) return;
+    ctx.clearRect(0,0,this.w,this.h);
+    const L=this.layout();
+    ctx.fillStyle=C.bg; ctx.fillRect(0,0,this.w,this.h);
+    const bars=this.bars;
+    if(!bars.length){ ctx.fillStyle=C.txt; ctx.font='12px system-ui'; ctx.fillText('暂无数据',20,40); return; }
+    const n=Math.min(S.view.n,bars.length);
+    const off=clamp(S.view.off,0,bars.length-n);
+    const seg=bars.slice(bars.length-n-off, bars.length-off);
+    const A=S.A;
+    /* 价格范围 */
+    let hi=-1e9, lo=1e9;
+    for(const b of seg){ hi=Math.max(hi,b.h); lo=Math.min(lo,b.l); }
+    if(A){ if(A.res[0]) hi=Math.max(hi,Math.min(A.res[0].price, hi+ (hi-lo)*0.5)); if(A.sup[0]) lo=Math.min(lo,Math.max(A.sup[0].price, lo-(hi-lo)*0.5)); }
+    const pad=(hi-lo)*0.06||5; hi+=pad; lo-=pad;
+    const X=i=> L.x0 + (i+0.5)*(L.x1-L.x0)/seg.length;
+    const Y=p=> L.pBot - (p-lo)/(hi-lo)*(L.pBot-L.pTop);
+    const slotW=(L.x1-L.x0)/seg.length, bw=Math.max(1.5, slotW*0.62);
+    /* ---- 网格（5%白） ---- */
+    ctx.strokeStyle=C.grid; ctx.lineWidth=1;
+    ctx.font='10px system-ui';
+    for(let g=0;g<=4;g++){
+      const p=lo+(hi-lo)*g/4, y=Y(p);
+      ctx.beginPath(); ctx.moveTo(L.x0,y); ctx.lineTo(L.x1,y); ctx.stroke();
+      ctx.fillStyle=C.axis; ctx.textAlign='left';
+      ctx.fillText(p.toFixed(0), L.x1+6, y+3);
+    }
+    for(let i=0;i<seg.length;i+=Math.ceil(seg.length/6)){
+      const x=X(i);
+      ctx.strokeStyle=C.grid;
+      ctx.beginPath(); ctx.moveTo(x,L.pTop); ctx.lineTo(x,L.oBot); ctx.stroke();
+      ctx.fillStyle=C.axis; ctx.textAlign='center';
+      ctx.fillText(this.tf==='d'? new Date(seg[i].t).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}) : fmtT(seg[i].t), x, L.oBot+13);
+    }
+    /* ---- 盘面最高/最低标记线（5%白，用户偏好极淡） ---- */
+    let dHi=-1e9,dLo=1e9,dHiX=0,dLoX=0;
+    for(let i=0;i<seg.length;i++){ if(seg[i].h>dHi){dHi=seg[i].h;dHiX=X(i);} if(seg[i].l<dLo){dLo=seg[i].l;dLoX=X(i);} }
+    ctx.setLineDash([2,4]); ctx.strokeStyle=C.hl;
+    ctx.beginPath(); ctx.moveTo(L.x0,Y(dHi)); ctx.lineTo(L.x1,Y(dHi)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(L.x0,Y(dLo)); ctx.lineTo(L.x1,Y(dLo)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,255,255,0.30)'; ctx.font='9px system-ui'; ctx.textAlign='left';
+    ctx.fillText('高 '+dHi.toFixed(0), L.x0+4, Y(dHi)-3);
+    ctx.fillText('低 '+dLo.toFixed(0), L.x0+4, Y(dLo)+11);
+    /* ---- 关键位（仅2档支撑/压力） ---- */
+    if(A){
+      ctx.setLineDash([6,5]); ctx.font='10px system-ui';
+      (A.res||[]).slice(0,2).forEach((r,i)=>{
+        if(r.price<hi&&r.price>lo){ ctx.strokeStyle=C.resLine; ctx.beginPath(); ctx.moveTo(L.x0,Y(r.price)); ctx.lineTo(L.x1,Y(r.price)); ctx.stroke();
+          ctx.fillStyle=C.resLine; ctx.textAlign='left'; ctx.fillText('压'+(i+1)+' '+r.price.toFixed(0), L.x0+4, Y(r.price)-4); }
+      });
+      (A.sup||[]).slice(0,2).forEach((r,i)=>{
+        if(r.price<hi&&r.price>lo){ ctx.strokeStyle=C.supLine; ctx.beginPath(); ctx.moveTo(L.x0,Y(r.price)); ctx.lineTo(L.x1,Y(r.price)); ctx.stroke();
+          ctx.fillStyle=C.supLine; ctx.textAlign='left'; ctx.fillText('支'+(i+1)+' '+r.price.toFixed(0), L.x0+4, Y(r.price)+11); }
+      });
+      ctx.setLineDash([]);
+    }
+    /* ---- K线 ---- */
+    for(let i=0;i<seg.length;i++){
+      const b=seg[i], up=b.c>=b.o, col=up?C.up:C.dn;
+      ctx.strokeStyle=col; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(X(i),Y(b.h)); ctx.lineTo(X(i),Y(b.l)); ctx.stroke();
+      const y1=Y(Math.max(b.o,b.c)), y2=Y(Math.min(b.o,b.c));
+      ctx.fillStyle=up?C.upFill:C.dnFill;
+      ctx.fillRect(X(i)-bw/2, y1, bw, Math.max(1,y2-y1));
+    }
+    /* ---- 均线 ---- */
+    if(S.showMA && seg.length>20){
+      const closes=bars.map(b=>b.c);
+      const maN=[5,10,20], maC=[C.ma5,C.ma10,C.ma20];
+      maN.forEach((nn,k)=>{
+        const ma=sma(closes,nn);
+        const arr=[];
+        const startIdx=bars.length-n-off;
+        for(let i=startIdx;i<bars.length-off;i++){ if(ma[i]!=null) arr.push([X(i-startIdx),Y(ma[i])]); }
+        if(arr.length>1){ ctx.strokeStyle=maC[k]; ctx.lineWidth=1.2; ctx.beginPath(); arr.forEach((p,j)=>j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke(); }
+      });
+    }
+    /* ---- 现价线 ---- */
+    const last=seg[seg.length-1];
+    const lp=(S.live&&S.live.isToday)?S.live.price:last.c;
+    if(lp>=lo&&lp<=hi){
+      ctx.setLineDash([3,3]); ctx.strokeStyle='rgba(255,255,255,0.35)';
+      ctx.beginPath(); ctx.moveTo(L.x0,Y(lp)); ctx.lineTo(L.x1,Y(lp)); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle=lp>=(S.live?S.live.prevSettle||lp:lp)?C.up:C.dn;
+      ctx.fillRect(L.x1, Y(lp)-8, 50, 16);
+      ctx.fillStyle='#fff'; ctx.font='bold 10px system-ui'; ctx.textAlign='left';
+      ctx.fillText(lp.toFixed(0), L.x1+6, Y(lp)+3.5);
+    }
+    /* ---- 成交量 ---- */
+    let vMax=0; for(const b of seg) vMax=Math.max(vMax,b.v);
+    for(let i=0;i<seg.length;i++){
+      const b=seg[i], up=b.c>=b.o;
+      const hgt=(b.v/vMax)*(L.vBot-L.vTop);
+      ctx.fillStyle=up?C.volUp:C.volDn;
+      ctx.fillRect(X(i)-bw/2, L.vBot-hgt, bw, hgt);
+    }
+    ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.font='9px system-ui'; ctx.textAlign='left';
+    ctx.fillText('成交量', L.x0+4, L.vTop+9);
+    /* ---- 持仓量 ---- */
+    let oMax=-1e9,oMin=1e9;
+    for(const b of seg){ if(b.oi>0){oMax=Math.max(oMax,b.oi);oMin=Math.min(oMin,b.oi);} }
+    if(oMax>0){
+      const OY=v=> L.oBot-(v-oMin)/Math.max(1,(oMax-oMin))*(L.oBot-L.oTop-4)+2;
+      ctx.strokeStyle=C.oiLine; ctx.lineWidth=1.2; ctx.beginPath();
+      let started=false;
+      for(let i=0;i<seg.length;i++){ if(seg[i].oi>0){ const x=X(i),y=OY(seg[i].oi); if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y); } }
+      ctx.stroke();
+      ctx.fillStyle=C.oiLine; ctx.font='9px system-ui'; ctx.textAlign='left';
+      ctx.fillText('持仓 '+(oMax?fmtN(oMax):''), L.x0+4, L.oTop+9);
+    }
+    /* ---- 十字光标 ---- */
+    if(this.hover && this.hover.x>=L.x0 && this.hover.x<=L.x1){
+      const idx=clamp(Math.floor((this.hover.x-L.x0)/slotW),0,seg.length-1);
+      const b=seg[idx], x=X(idx);
+      ctx.setLineDash([3,3]); ctx.strokeStyle='rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.moveTo(x,L.pTop); ctx.lineTo(x,L.oBot); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(L.x0,this.hover.y); ctx.lineTo(L.x1,this.hover.y); ctx.stroke();
+      ctx.setLineDash([]);
+      if(this.hover.y>=L.pTop&&this.hover.y<=L.pBot){
+        const p=lo+(L.pBot-this.hover.y)/(L.pBot-L.pTop)*(hi-lo);
+        ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(L.x1,this.hover.y-8,50,16);
+        ctx.fillStyle='#fff'; ctx.font='10px system-ui'; ctx.textAlign='left';
+        ctx.fillText(p.toFixed(0),L.x1+6,this.hover.y+3.5);
+      }
+      this._hoverBar={b,tf:this.tf};
+    } else this._hoverBar=null;
+  },
+  showTip(){
+    if(!this._hoverBar) { $('tip').style.display='none'; return; }
+    const {b,tf}=this._hoverBar;
+    const up=b.c>=b.o;
+    const dt=tf==='d'? new Date(b.t).toLocaleDateString('zh-CN') : fmtDT(b.t);
+    $('tip').innerHTML =
+      `<b>${dt}</b><br>开 <b class="num">${b.o.toFixed(0)}</b> 高 <b class="num" style="color:${C.up}">${b.h.toFixed(0)}</b> 低 <b class="num" style="color:${C.dn}">${b.l.toFixed(0)}</b> 收 <b class="num">${b.c.toFixed(0)}</b><br>量 <b class="num">${fmtN(b.v)}</b> 持仓 <b class="num">${b.oi?fmtN(b.oi):'--'}</b>${up?' <span style="color:'+C.up+'">阳</span>':' <span style="color:'+C.dn+'">阴</span>'}`;
+    const tip=$('tip');
+    tip.style.display='block';
+    const maxX=this.w-tip.offsetWidth-10;
+    tip.style.left=clamp(this.hover.x+14,4,maxX)+'px';
+    tip.style.top=clamp(this.hover.y+14,4,this.h-tip.offsetHeight-10)+'px';
+  }
+};
+
+/* =====================================================================
+ *  UI 渲染
+ * ===================================================================== */
+function renderHeader(){
+  const L=S.live, A=S.A;
+  /* 模式 */
+  const b=$('modebadge');
+  const live = S.mode==='live';
+  b.textContent = live?'盘中实时研判模式':'收盘复盘模式';
+  b.className='badge '+(live?'live':'close');
+  /* 价格 */
+  if(L){
+    const el=$('bigprice'), ch=$('bigchg');
+    const chg=L.prevSettle!=null? L.price-L.prevSettle : null;
+    el.textContent=L.price.toFixed(0);
+    if(chg!=null){
+      const pct=chg/L.prevSettle*100;
+      el.style.color = chg>=0? C.up : C.dn;
+      ch.textContent=(chg>=0?'+':'')+chg.toFixed(0)+' ('+(pct>=0?'+':'')+pct.toFixed(2)+'%)';
+      ch.style.color=el.style.color;
+    }
+    $('datatime').textContent='数据: '+bjStr(new Date(L.t))+' '+fmtT(L.t)+(L.isToday?'':' · 已收盘');
+  }
+  const d=bj();
+  $('clock').textContent=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
+  const dot=$('dot');
+  if(S.errStreak>=3) dot.className='err';
+  else if(Date.now()-S.lastOK>30000) dot.className='stale';
+  else dot.className='';
+  /* chips */
+  const chips=[];
+  if(L){
+    chips.push(`<span class="chip">今开<b class="num">${L.dayOpen.toFixed(0)}</b></span>`);
+    chips.push(`<span class="chip">昨结<b class="num">${L.prevSettle!=null?L.prevSettle.toFixed(0):'--'}</b></span>`);
+    chips.push(`<span class="chip">最高<b class="num" style="color:${C.up}">${L.dayH.toFixed(0)}</b></span>`);
+    chips.push(`<span class="chip">最低<b class="num" style="color:${C.dn}">${L.dayL.toFixed(0)}</b></span>`);
+    chips.push(`<span class="chip">成交量<b class="num">${fmtN(L.dayVol)}</b></span>`);
+    chips.push(`<span class="chip">持仓<b class="num">${L.oi!=null?fmtN(L.oi):'--'}</b></span>`);
+    if(L.oiDelta!=null){
+      chips.push(`<span class="chip">仓差<b class="num" style="color:${L.oiDelta>=0?C.up:C.dn}">${L.oiDelta>0?'+':''}${fmtN(L.oiDelta)}</b></span>`);
+    }
+    if(L.volRatio!=null) chips.push(`<span class="chip">量比<b class="num">${L.volRatio.toFixed(2)}</b></span>`);
+    if(A){
+      chips.push(`<span class="chip">RSI日<b class="num">${A.d.rsi!=null?A.d.rsi.toFixed(1):'--'}</b></span>`);
+      chips.push(`<span class="chip">RSI60分<b class="num">${A.h1.rsi!=null?A.h1.rsi.toFixed(1):'--'}</b></span>`);
+      chips.push(`<span class="chip">RSI5分<b class="num">${A.m5.rsi!=null?A.m5.rsi.toFixed(1):'--'}</b></span>`);
+    }
+  }
+  $('chips').innerHTML=chips.join('');
+}
+
+function renderPanels(){
+  const A=S.A; if(!A) return;
+  const L=S.live;
+  const tTxt=t=>t.trend==='up'?'上涨趋势':t.trend==='down'?'下跌趋势':'震荡';
+  const dSub=A.d.trend.sub?'（'+A.d.trend.sub+'阶段）':'';
+  const hSub=A.h1.trend.sub?'（'+A.h1.trend.sub+'）':'';
+  /* 势·位·态 */
+  $('swtag').textContent=A.pos+' · '+tTxt(A.d.trend).replace('趋势','');
+  $('shiBody').innerHTML=
+   `<b>【势】</b>日线：<span class="hl">${tTxt(A.d.trend)}${dSub}</span>；60分钟：<span class="hl">${tTxt(A.h1.trend)}${hSub}</span>；5分钟：${A.m5.rsi!=null?'RSI '+A.m5.rsi.toFixed(1):'--'}。<br>`+
+   `<b>【位】</b>当前价 <b class="num hl">${L.price.toFixed(0)}</b> 处于 <b>${A.pos}</b>（支${A.sup[0]?A.sup[0].price.toFixed(0):'--'} ~ 压${A.res[0]?A.res[0].price.toFixed(0):'--'} 区间${A.res[0]&&A.sup[0]?' '+(((L.price-A.sup[0].price)/(A.res[0].price-A.sup[0].price)*100)||0).toFixed(0)+'% 处':'，数据不足'}）。<br>`+
+   `<b>【态】</b>${A.patterns.length?A.patterns.map(p=>p.name+(p.note?'（'+p.note+'）':'')).join('、'):'常规结构'}；${A.structIntact?'短线低点结构完好':'短线结构破坏'}${A.falseBreaks.length?`；<span style="color:var(--risk)">出现${A.falseBreaks.length}次假突破</span>`:''}${A.validBreaks.length?`；${A.validBreaks.length}个关键位放量有效突破`:''}。`;
+  /* 关键价位 */
+  let lv='';
+  (A.res||[]).slice(0,2).forEach((r,i)=>{ lv+=`<div class="lvlrow"><span><span class="lv" style="color:var(--res)">压力${i+1}</span>${r.n>1?`（${r.n}个波段点聚类）`:''}</span><b class="num">${r.price.toFixed(0)}</b></div>`; });
+  (A.sup||[]).slice(0,2).forEach((r,i)=>{ lv+=`<div class="lvlrow"><span><span class="lv" style="color:var(--sup)">支撑${i+1}</span>${r.n>1?`（${r.n}个波段点聚类）`:''}</span><b class="num">${r.price.toFixed(0)}</b></div>`; });
+  if(L.prevSettle!=null) lv+=`<div class="lvlrow"><span><span class="lv" style="color:var(--dim)">昨结算</span></span><b class="num">${L.prevSettle.toFixed(0)}</b></div>`;
+  $('levelsBody').innerHTML=lv||'<div class="sec">--</div>';
+  /* 威科夫 */
+  const wy=A.wy;
+  $('wytag').textContent=wy.behavior;
+  const sdCls=wy.supplyDemand==='需求占优'?'demand':(wy.supplyDemand==='供应占优'?'supply':'neutral');
+  $('wyBody').innerHTML=
+   `<span class="pill ${sdCls}">${wy.supplyDemand}</span> <span class="pill oi">${wy.oiState}${L.oiDelta!=null?' '+((L.oiDelta>0?'+':'')+fmtN(L.oiDelta))+'手':''}</span> <span class="pill ${wy.behavior.includes('砸')||wy.behavior.includes('派')?'supply':'neutral'}">${wy.behavior}${wy.behNote?'·'+wy.behNote:''}</span>`+
+   (wy.effortNoResult?`<br><span class="pill wide">⚠ 努力与结果背离：巨量滞涨，力量衰竭</span>`:'')+
+   `<br>近12根5分钟：上涨bar量 ${fmtN(m5UpV())} / 下跌bar量 ${fmtN(m5DnV())}。`;
+  /* 事件流 */
+  const evs=wy.events.map(e=>`<div class="ev"><div class="et">${e.dir==='up'?'<span class="pill demand">放量上攻</span>':'<span class="pill supply">放量下杀</span>'}<span>z=${e.z.toFixed(1)}</span>${e.dOI?`<span class="pill oi">仓${e.dOI>0?'+':''}${fmtN(e.dOI)}</span>`:''}<span class="tm">${fmtDT(e.t)}</span></div><div class="ed">${e.dir==='up'?'需求信号':'供应信号'}，收盘位于bar内 ${(e.closePos*100).toFixed(0)}% 位置。</div></div>`).join('');
+  $('events').innerHTML=evs||'<div class="sec">近60根无显著放量异动。</div>';
+  /* 分数 */
+  $('s_trend').textContent=A.scoreTrend+'/25'; $('f_trend').style.width=A.scoreTrend/25*100+'%';
+  $('s_vol').textContent=A.scoreVol+'/25'; $('f_vol').style.width=A.scoreVol/25*100+'%';
+  $('s_spot').textContent=(A.spotMissing?A.scoreSpot+'/25 [待输入]':A.scoreSpot+'/25'); $('f_spot').style.width=A.scoreSpot/25*100+'%';
+  $('s_risk').textContent=A.scoreRisk+'/25'; $('f_risk').style.width=A.scoreRisk/25*100+'%';
+  $('totalnum').textContent=A.total;
+  $('totalnum').style.color = A.veto.length? 'var(--risk)' : (A.total>=70?'var(--ok)':A.total>=45?'var(--gold)':'var(--dim)');
+  if(A.veto.length){
+    $('vetobox').style.display='block';
+    $('vetolist').innerHTML=A.veto.map(v=>'<li>'+v+'</li>').join('');
+  } else $('vetobox').style.display='none';
+  /* 现货/基差 */
+  const st=parseFloat(S.spot.today);
+  if(st>0){
+    const basis=st*1000-L.price, bp=basis/L.price*100;
+    $('basisbox').innerHTML=`现货 <b class="num">${st.toFixed(2)}</b> 元/斤 → 折盘 <b class="num">${(st*1000).toFixed(0)}</b> 元/500kg；基差 = 现货−期货 = <b class="num" style="color:${basis>=0?'var(--ok)':'var(--warn)'}">${basis.toFixed(0)}</b>（${bp.toFixed(1)}%${basis>=0?'，期货贴水':'，期货升水'}）${A.spotChgPct!=null?`；现货日环比 <b class="num" style="color:${A.spotChgPct>=0?'var(--up)':'var(--dn)'}">${A.spotChgPct>0?'+':''}${A.spotChgPct.toFixed(2)}%</b>`:''}。`;
+  }
+  /* 风险提示 */
+  $('risktag').textContent=A.veto.length?'⛔ 一票否决':'正常';
+  $('riskBody').innerHTML= A.riskFlags.length
+    ? A.riskFlags.map(f=>`<div style="margin-bottom:3px">⚠ <b>${f.tag}</b>（−${f.w}分）：${f.desc}</div>`).join('')
+    : '当前未触发异动风险规则。' +
+      (A.veto.length?'':'（注意：规则仅覆盖已知异动类型，不能穷尽所有风险。）');
+  renderEagle();
+  renderTrack();
+  renderRecap();
+  renderCases();
+}
+function m5UpV(){ const s=S.bars.m5.slice(-12); return s.filter(b=>b.c>=b.o).reduce((x,b)=>x+b.v,0); }
+function m5DnV(){ const s=S.bars.m5.slice(-12); return s.filter(b=>b.c<b.o).reduce((x,b)=>x+b.v,0); }
+
+/* ================= 研判输出 · 双模板自动切换 =================
+ * 盘中实时研判模式 → 11项固定模板（严格按框架顺序，不自由发挥）
+ * 收盘复盘模式 → 6项模板由「收盘复盘」卡片输出，本卡片给出指引
+ * ===================================================================== */
+function renderEagle(){
+  const A=S.A;
+  if(!A){ $('eagleTag').textContent='--'; $('eagleBody').innerHTML='<div class="sec">数据加载中…</div>'; return; }
+  if(S.mode!=='live'){
+    $('eagleTag').textContent='收盘时段 · 收盘6项模板';
+    $('eagleBody').innerHTML='<div class="sec">当前为收盘复盘时段：6项收盘模板（①全天行情总结+基本面回顾 ②关键价位验证 ③资金异动/假突破汇总 ④信号有效性评估 ⑤下一交易日观察价位与风险 ⑥免责声明）由下方 <b>收盘复盘</b> 卡片输出，不重复展示。盘中时段本卡片自动切回11项实时模板。</div>';
+    return;
+  }
+  /* ---- 盘中实时研判 · 11项固定模板 ---- */
+  const fu=A.fu||{}, mtf=A.mtfRes||{}, rr=A.rr||{}, gr=A.grade||{}, E=A.eagle, T=A.track||{};
+  const vetoList=A.veto||[];
+  /* 1. 基本面简要评估 */
+  const fuCls=({'利多':'demand','偏多但矛盾不突出':'demand','利空':'supply','偏空但矛盾不突出':'supply'})[fu.verdict]||'neutral';
+  const fuRsn=(fu.bull||[]).slice(0,2).concat((fu.bear||[]).slice(0,2)).join('；');
+  const item1=`<span class="pill ${fuCls}">${fu.verdict||'待评估'}</span> ${fu.align?('→ '+fu.align):(fuRsn?'（'+fuRsn+'）':'（现货价未录入，基本面评估降权——请在下方人工输入区录入产区现货价）')}`;
+  /* 2. 多周期势位态简述 */
+  const M=A.mtf||{d:'--',h1:'--',m5:'--'};
+  const m1p=A.m1p||{};
+  const item2=`<b>日线</b>${tname(M.d)} → <b>1小时</b>${tname(M.h1)} → <b>5分钟</b>${tname(M.m5)} → <b>1分钟</b>${m1p.sig||'--'}<br>区间位置：<b>${A.pos||'--'}</b>；多周期硬性校验：${mtf.pass?'<b style="color:var(--ok)">通过（小周期与大周期一致）</b>':'<b style="color:var(--warn)">未通过 → 观望（大小周期矛盾不做逆势单）</b>'}<br><span style="color:var(--dim)">${mtf.why||''}</span>`;
+  /* 3-6. 威科夫鹰眼资金风控 */
+  const behCls={'吸筹':'oi','拉升':'demand','派发':'dist','砸盘':'supply','无明显异动':'neutral'};
+  let item36;
+  if(E&&E.ok){
+    const anomalyHtml=E.anomaly?'<b style="color:var(--warn)">是</b>（'+E.anomalyE.join('；')+'）':'<b style="color:var(--ok)">否</b>';
+    const lvlColor=E.level==='高'?'var(--risk)':(E.level==='中'?'var(--warn)':'var(--ok)');
+    item36=
+     `<div class="erow"><b>3. 资金行为判定</b>：<span class="pill ${behCls[E.behavior]||'neutral'}">${E.behavior}</span> ${E.behNote||''}${E.behWarn||''}；供求：<b>${E.supplyDemand||'--'}</b>${E.supplyDemand==='需求强'?'（放量上涨）':E.supplyDemand==='供应强'?'（放量下跌）':''}。</div>`+
+     `<div class="erow"><b>4. 是否触发资金异动</b>：${anomalyHtml}。</div>`+
+     `<div class="erow"><b>5. 是否触发一票否决风险</b>：${vetoList.length?'<b style="color:var(--risk)">是</b> ⛔ '+vetoList.join('；'):'<b style="color:var(--ok)">否</b>'}</div>`+
+     `<div class="erow"><b>6. 风险等级</b>：<b style="color:${lvlColor}">${E.level}</b>${vetoList.length?'（一票否决生效：高风险，观望，不作为交易机会）':(E.anomaly?'（存在资金异动，未达否决阈值）':'（量仓结构正常）')}。</div>`;
+  }else{
+    item36=
+     `<div class="erow"><b>3. 资金行为判定</b>：5分钟量仓数据不足（需≥15根），暂无法判定。</div>`+
+     `<div class="erow"><b>4. 是否触发资金异动</b>：数据不足，暂无法检测。</div>`+
+     `<div class="erow"><b>5. 是否触发一票否决风险</b>：${vetoList.length?'<b style="color:var(--risk)">是</b> ⛔ '+vetoList.join('；'):'<b style="color:var(--ok)">否</b>'}</div>`+
+     `<div class="erow"><b>6. 风险等级</b>：${vetoList.length?'<b style="color:var(--risk)">高</b>':'<b style="color:var(--warn)">中（量仓数据不足，谨慎对待）</b>'}。</div>`;
+  }
+  /* 7. 机会评级 */
+  const grColor={'A':'var(--ok)','B':'var(--gold)','C':'var(--dim)','D':'var(--risk)'};
+  const item7=`<b style="color:${grColor[gr.grade]||'var(--dim)'};font-size:15px">${gr.grade||'C'}</b> 级 —— ${(gr.why||[]).join('；')}`;
+  /* 8. 预期盈亏比评估 */
+  const item8=rr.rr!=null?`多向≈${(rr.longRR||0).toFixed(2)}R / 空向≈${(rr.shortRR||0).toFixed(2)}R，取 <b style="color:${rr.pass?'var(--ok)':'var(--warn)'}">${rr.rr.toFixed(2)}R</b>（${rr.pass?'≥1.5R 达标':'<1.5R 不达标，按框架直接过滤，不推荐开仓'}）。${rr.note}`:(rr.note||'支撑压力区间不完整，盈亏比无法评估');
+  /* 9. 关键支撑/压力价位 */
+  const resTop=(A.res||[]).slice(0,2).map(r=>r.price.toFixed(0)).join(' / ')||'--';
+  const supTop=(A.sup||[]).slice(0,2).map(r=>r.price.toFixed(0)).join(' / ')||'--';
+  const ps=(S.live&&S.live.prevSettle!=null)?`；昨结算 <b class="num">${S.live.prevSettle.toFixed(0)}</b>`:'';
+  const item9=`压力：<b class="num" style="color:var(--res)">${resTop}</b>；支撑：<b class="num" style="color:var(--sup)">${supTop}</b>${ps}`;
+  /* 10. 交易提示 */
+  let tip;
+  if(vetoList.length) tip='⛔ 一票否决生效：标记【高风险，观望，不作为交易机会】，不参与。';
+  else if(S.losses&&S.losses.n>=3) tip='⛔ 当日连亏已达'+S.losses.n+'笔：按纪律停止当日交易，空仓休息。';
+  else if(gr.grade==='C') tip='条件模棱两可：按框架尽量放弃，耐心等待，大部分时间保持空仓，不频繁寻找机会。';
+  else if(gr.grade==='B') tip='条件大部分满足、存在小瑕疵：可轻仓试单（单笔最大亏损控制在账户1-2%以内，严格带止损）。是否开仓由人工决定。';
+  else if(gr.grade==='A') tip='多周期共振＋量仓确认＋基本面配合＋盈亏比达标：优质机会（本提示不构成交易指令，仓位与执行由人工决定），单笔风险≤1-2%。';
+  else tip='暂无符合框架的机会，空仓观望。';
+  if(T.on&&T.lines&&T.lines.length) tip+='<br>持仓中 → '+T.lines[0];
+  $('eagleTag').textContent='盘中实时研判 · 评级 '+(gr.grade||'C')+(vetoList.length?' · ⛔一票否决':'');
+  $('eagleBody').innerHTML=
+   `<div class="erow"><b>1. 基本面简要评估</b>：${item1}</div>`+
+   `<div class="erow"><b>2. 多周期势位态</b>：${item2}</div>`+
+   item36+
+   `<div class="erow"><b>7. 机会评级</b>：${item7}</div>`+
+   `<div class="erow"><b>8. 预期盈亏比评估</b>：${item8}</div>`+
+   `<div class="erow"><b>9. 关键支撑/压力价位</b>：${item9}</div>`+
+   `<div class="erow"><b>10. 交易提示</b>：${tip}</div>`+
+   `<div class="erow"><span style="color:var(--faint)"><b style="color:var(--dim)">11. 强制免责声明</b>：本内容仅盘面数据复盘参考，不构成任何期货投资建议，期货杠杆交易风险极高，所有交易盈亏由使用者自行承担。</span></div>`;
+}
+
+/* ---- 持仓跟踪渲染：trackTag + trackBody（第五步·人工录入后自动监测） ---- */
+function renderTrack(){
+  const A=S.A, T=A&&A.track, p=S.pos||{};
+  const on=!!(T&&T.on);
+  const tag=$('trackTag');
+  tag.textContent = on ? ('持仓中·'+(p.dir||'--')+(T.risk?' · ⚠破位风险':'')) : '未持仓';
+  tag.style.color = on ? (T.risk?'var(--risk)':'var(--ok)') : '';
+  if(!T){ $('trackBody').innerHTML='<div class="sec">分析数据加载中…</div>'; return; }
+  if(!on){
+    $('trackBody').innerHTML='<div class="sec">未持仓。录入持仓方向与开仓价后，自动监测结构破位、量仓异动与移动止损参考（仅供风险提示，执行由人工决定）。'+(A&&A.grade?`当前机会评级 <b>${A.grade.grade}</b> 级，评级未达标（C/D）不建议开仓。`:'')+'</div>';
+    return;
+  }
+  const lines=(T.lines||[]).map(l=>'<div style="margin-bottom:4px">'+l+'</div>').join('');
+  $('trackBody').innerHTML='<div class="sec">'+(lines||'监测中…')+
+    (T.stopRef!=null?`<br>止损参考 <b class="num">${T.stopRef.toFixed(0)}</b>${T.stopIsEst?'（2×ATR日估算，建议人工设定明确止损价）':'（人工设定）'}`:'')+
+    '<br><span style="color:var(--faint)">框架红线：禁止扛单、重仓、浮亏加仓、不带止损；离场与止损执行由人工决定。</span></div>';
+}
+
+function renderRecap(){
+  const rc=S.recap;
+  if(S.mode==='live'||!rc){ $('recapCard').style.display='none'; return; }
+  $('recapCard').style.display='block';
+  $('recapdate').textContent=rc.day;
+  const cls=(rc.chg>=0)?C.up:C.dn;
+  const lvlCls={b:'var(--res)',s:'var(--sup)',w:'var(--warn)',n:'var(--faint)'};
+  $('recapBody').innerHTML=
+   `<div class="recaph">① 全天行情</div><div class="sec">开 <b class="num">${rc.o.toFixed(0)}</b> / 高 <b class="num" style="color:${C.up}">${rc.h.toFixed(0)}</b> / 低 <b class="num" style="color:${C.dn}">${rc.l.toFixed(0)}</b> / 收 <b class="num" style="color:${cls}">${rc.c.toFixed(0)}</b>${rc.chgPct!=null?`（<b style="color:${cls}">${rc.chg>0?'+':''}${rc.chg.toFixed(0)} / ${rc.chgPct>0?'+':''}${rc.chgPct.toFixed(2)}%</b>）`:''}，振幅 <b class="num">${rc.rngPct.toFixed(1)}%</b>，量 <b class="num">${fmtN(rc.vol)}</b> 手，收盘持仓 <b class="num">${fmtN(rc.oiEnd)}</b>${rc.oiDelta!=null?`（仓差 <b class="num" style="color:${rc.oiDelta>=0?C.up:C.dn}">${rc.oiDelta>0?'+':''}${fmtN(rc.oiDelta)}</b>）`:''}。<br>${rc.walk.map(w=>`${w.nm}${w.txt}`).join('；')}。</div>`+
+   `<div class="recaph">② 关键价位验证</div><table class="lvl"><tr><th>价位</th><th>类型</th><th>结果</th></tr>${rc.levelTest.map(l=>`<tr><td><b class="num">${l.p.toFixed(0)}</b></td><td>${l.tag}</td><td style="color:${lvlCls[l.cls]}">${l.res}</td></tr>`).join('')}</table>`+
+   `<div class="recaph">③ 资金异动 / 假突破事件</div><div class="sec">${rc.events.length?rc.events.map(e=>`${fmtT(e.t)} ${e.dir==='up'?'放量上攻':'放量下杀'}（z=${e.z.toFixed(1)}${e.dOI?'，仓'+(e.dOI>0?'+':'')+fmtN(e.dOI):''}）`).join('；')+'。':'全天无显著放量异动。'}${rc.falseN?'<br><span style="color:var(--risk)">假突破 '+rc.falseN+' 次（详见风险提示）</span>':''}</div>`+
+   `<div class="recaph">④ 信号有效性</div><div class="sec">${rc.sigEffect.length?rc.sigEffect.map(s=>`${fmtT(s.t)} 放量${s.dir==='up'?'上攻':'下杀'} → <b>${s.verdict}</b>`).join('；')+'。':'当日无待验证信号事件。'}</div>`+
+   `<div class="recaph">⑤ 下一交易日观察</div><div class="sec">上方关注：<b class="num" style="color:var(--res)">${rc.watchRes.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；下方关注：<b class="num" style="color:var(--sup)">${rc.watchSup.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；昨结算 <b class="num">${rc.settle!=null?rc.settle.toFixed(0):'--'}</b> 为短线多空参照。<br>风险点：${(S.A&&S.A.riskFlags.length)?S.A.riskFlags.map(f=>f.tag).join('、'):'常规——注意开盘巨量换手与压力位量能配合情况'}。现货端请持续跟踪主产区报价变化（人工输入区）。</div>`;
+}
+
+/* =====================================================================
+ *  历史案例库
+ *  D=主连日线案例（2013-2026，涨跌≥3.5%/量比≥2.2/仓变≥4%/振幅≥3.2%筛选）
+ *  I=2026年4-9月日内异动日（时段巨量/开盘冲击/量大价不动）
+ *  收盘后每日自动积累本机案例（localStorage），案例仅用于盘面对照，不构成投资建议。
+ * ===================================================================== */
+const CASE_LIB={D:[["2023-01-03",-0.19,2.41,1.35,5.4,"吸筹",["仓变"]],["2023-01-05",1.46,1.69,1.52,6.5,"拉升",["仓变"]],["2023-01-20",-0.54,0.82,0.96,-5.5,"派发",["仓变"]],["2023-02-01",0.99,1.16,1.25,4.6,"拉升",["仓变"]],["2023-02-08",-1.32,1.43,1,4.1,"砸盘",["仓变"]],["2023-02-15",1.34,2.83,2.12,-4.1,"空头回补",["仓变"]],["2023-02-23",1.68,1.92,2.11,6.2,"拉升",["仓变"]],["2023-03-02",-1.32,1.93,1.65,4.5,"砸盘",["仓变"]],["2023-03-03",1.12,1.43,1.49,-5.2,"空头回补",["仓变"]],["2023-03-07",0.69,1.36,1.08,-6.9,"空头回补",["仓变"]],["2023-03-13",-0.21,1.12,1,5.3,"砸盘",["仓变"]],["2023-03-14",1.65,1.91,2.06,6.4,"拉升",["仓变"]],["2023-03-20",-1.75,2.59,1.56,-5.6,"多头离场",["仓变"]],["2023-03-23",-2.04,2.08,1.31,10.1,"砸盘",["仓变"]],["2023-03-28",0.98,2.06,1.17,-6.3,"空头回补",["仓变"]],["2023-03-30",0.28,1.37,0.88,-10.4,"派发",["仓变"]],["2023-04-07",0.26,0.89,0.78,-5.4,"空头回补",["仓变"]],["2023-04-10",0.65,1.04,1.41,-11.1,"派发",["仓变"]],["2023-04-11",0.3,0.97,0.8,-8.7,"空头回补",["仓变"]],["2023-04-17",3.83,3.67,2.74,2.9,"拉升",["涨跌停","巨量","宽幅"]],["2023-04-18",0.71,0.91,1.11,-5.9,"派发",["仓变"]],["2023-04-25",-1.31,1.64,0.99,4.1,"砸盘",["仓变"]],["2023-05-04",-0.52,1.05,0.88,4.1,"吸筹",["仓变"]],["2023-05-31",-1.01,1.38,1.1,-4.6,"多头离场",["仓变"]],["2023-06-13",-0.93,0.86,0.92,5.2,"砸盘",["仓变"]],["2023-06-14",-0.37,0.72,1.08,4.4,"吸筹",["仓变"]],["2023-06-19",1,1.53,1.75,-6.4,"空头回补",["仓变"]],["2023-06-30",0.05,0.92,0.93,-4.8,"派发",["仓变"]],["2023-07-03",2.2,2.42,2.33,13.9,"拉升",["巨量","仓变"]],["2023-07-28",0.7,1.04,0.9,-5.8,"空头回补",["仓变"]],["2023-07-31",0.26,0.9,0.86,-4.6,"派发",["仓变"]],["2023-08-01",1.34,2.05,1.12,-8,"空头回补",["仓变"]],["2023-08-02",1.67,1.56,1.38,-6.9,"空头回补",["仓变"]],["2023-08-03",-0.65,1.13,0.74,-6.2,"多头离场",["仓变"]],["2023-08-08",0.53,1.01,0.5,-6.4,"派发",["仓变"]],["2023-08-09",1.8,1.4,0.72,-7.3,"空头回补",["仓变"]],["2023-08-10",-0.66,2.2,0.82,-8.5,"多头离场",["仓变"]],["2023-08-14",-1.5,2.48,0.82,-10.7,"多头离场",["仓变"]],["2023-08-15",-0.6,0.68,0.49,-11.1,"派发",["仓变"]],["2023-08-18",2.1,2.55,2.04,4.7,"拉升",["仓变"]],["2023-08-23",0.19,4.07,1.4,2.8,"吸筹",["宽幅"]],["2023-08-24",-1.41,1.39,1.13,9.6,"砸盘",["仓变"]],["2023-08-25",0.98,1.89,1.32,-5.9,"空头回补",["仓变"]],["2023-08-29",2.28,2.99,1.8,6.7,"拉升",["仓变"]],["2023-09-15",6,5.53,5.43,30.2,"拉升",["涨跌停","巨量","仓变","宽幅"]],["2023-09-18",-0.54,1.8,1.12,-10.6,"多头离场",["仓变"]],["2023-09-19",-0.43,1.18,0.67,-4.9,"派发",["仓变"]],["2023-09-20",1.76,2.61,1.39,4.2,"拉升",["仓变"]],["2023-09-25",-1.71,1.1,0.6,-7.8,"派发",["仓变"]],["2023-09-27",0.61,0.92,0.56,-9.7,"派发",["仓变"]],["2023-10-09",-4.5,3.96,1.03,-28.6,"多头离场",["涨跌停","仓变","宽幅"]],["2023-10-16",-0.76,1.25,1.2,9.7,"砸盘",["仓变"]],["2023-10-24",-0.65,1.38,1.25,8.4,"砸盘",["仓变"]],["2023-10-30",0.49,2.18,1.38,4.7,"拉升",["仓变"]],["2023-11-01",-0.35,1.48,1.08,-4.7,"多头离场",["仓变"]],["2023-11-14",2.12,1.68,1.21,-11.4,"空头回补",["仓变"]],["2023-11-24",-1.51,1.58,1.23,-6.9,"多头离场",["仓变"]],["2023-11-28",-0.41,1.36,0.92,-9.2,"多头离场",["仓变"]],["2023-11-29",-2.85,2.96,1.58,-7.1,"多头离场",["仓变"]],["2023-11-30",-0.68,0.69,0.62,-8.6,"派发",["仓变"]],["2023-12-01",0.28,1.2,0.78,-5.5,"派发",["仓变"]],["2023-12-08",1.11,1.22,0.91,-11,"派发",["仓变"]],["2023-12-12",0.17,2.3,1.19,-12,"空头回补",["仓变"]],["2023-12-14",-0.37,1.14,0.52,-10.1,"派发",["仓变"]],["2023-12-15",-9.61,1.76,1.48,126.1,"吸筹",["涨跌停","仓变"]],["2023-12-18",-2.81,2.02,2.45,9.9,"砸盘",["巨量","仓变"]],["2023-12-21",0.92,2.24,1.28,-5,"派发",["仓变"]],["2023-12-27",0.27,0.76,0.81,-8.6,"派发",["仓变"]],["2023-12-28",-0.3,0.9,0.78,-8.7,"派发",["仓变"]],["2024-01-02",-1.27,2.09,0.93,5.3,"砸盘",["仓变"]],["2024-01-05",-1.48,2.3,1.09,-7.4,"多头离场",["仓变"]],["2024-01-09",0.26,0.98,0.76,-9.7,"派发",["仓变"]],["2024-01-10",-3.51,2.27,1.48,56.9,"砸盘",["涨跌停","仓变"]],["2024-01-11",-0.12,1.78,1.44,5.2,"拉升",["仓变"]],["2024-01-15",-0.15,1.1,0.95,5.9,"吸筹",["仓变"]],["2024-01-17",-0.54,2.46,1.53,10.5,"砸盘",["仓变"]],["2024-01-18",-2.55,1.52,1.57,9.9,"吸筹",["仓变"]],["2024-01-22",-1.89,2.08,1.5,5.3,"砸盘",["仓变"]],["2024-01-25",-0.95,1.89,1.01,8.7,"砸盘",["仓变"]],["2024-01-26",-0.43,2.71,1.08,-6.5,"空头回补",["仓变"]],["2024-01-29",1.45,1.61,1.13,-10.4,"空头回补",["仓变"]],["2024-01-31",0.55,1.19,0.81,-9.5,"派发",["仓变"]],["2024-02-02",-1.24,2.6,1.03,-6.7,"多头离场",["仓变"]],["2024-02-06",0,0.98,0.55,-6.1,"派发",["仓变"]],["2024-02-07",-0.61,2.03,0.54,-11.9,"多头离场",["仓变"]],["2024-02-21",6.63,1.14,1.26,82.7,"吸筹",["涨跌停","仓变"]],["2024-02-22",1.32,1.91,1.73,7.1,"拉升",["仓变"]],["2024-02-23",2.86,2.3,2.49,9.4,"拉升",["巨量","仓变"]],["2024-02-26",-0.11,1.83,1.59,5.4,"砸盘",["仓变"]],["2024-03-08",1.27,1.97,1.29,-5.9,"空头回补",["仓变"]],["2024-03-12",-0.36,0.81,0.86,-5.2,"派发",["仓变"]],["2024-03-13",-0.08,2.01,1.15,-5.4,"派发",["仓变"]],["2024-03-18",-1.94,1.71,1.1,6,"砸盘",["仓变"]],["2024-03-20",0.93,1.64,0.92,5.1,"拉升",["仓变"]],["2024-03-25",-3.8,2.63,1.62,3.9,"砸盘",["涨跌停"]],["2024-03-26",-0.77,1.1,0.97,-4.7,"派发",["仓变"]],["2024-03-27",0.81,1.13,0.79,-4.6,"空头回补",["仓变"]],["2024-03-28",0.12,1.19,0.71,-4.4,"多头离场",["仓变"]],["2024-03-29",-2.38,2.92,1.34,-4.2,"多头离场",["仓变"]],["2024-04-03",-0.99,1.5,1.11,-4.6,"多头离场",["仓变"]],["2024-04-09",1.42,1.87,0.9,-8.8,"空头回补",["仓变"]],["2024-04-10",0.09,1.95,0.87,-4.9,"多头离场",["仓变"]],["2024-04-11",19.51,1.15,1,81.3,"吸筹",["涨跌停","仓变"]],["2024-04-12",-0.7,1.34,1.25,5.7,"吸筹",["仓变"]],["2024-04-15",1.15,2.07,1.52,4.4,"拉升",["仓变"]],["2024-04-16",-1.97,3.83,1.87,7.3,"砸盘",["仓变","宽幅"]],["2024-04-17",-1.02,1.98,1.25,7.3,"吸筹",["仓变"]],["2024-04-18",0.53,1.87,1.27,4.8,"吸筹",["仓变"]],["2024-04-26",3.85,4.63,3.65,8.8,"拉升",["涨跌停","巨量","仓变","宽幅"]],["2024-05-06",-0.05,1.63,0.7,7.1,"吸筹",["仓变"]],["2024-05-07",4.18,3.3,1.67,1.7,"拉升",["涨跌停","宽幅"]],["2024-05-08",-0.17,3.54,1.98,-6.5,"多头离场",["仓变","宽幅"]],["2024-05-10",0.2,1.46,0.72,-4.8,"派发",["仓变"]],["2024-05-21",-1.56,1.91,1.52,6.8,"吸筹",["仓变"]],["2024-06-03",0.35,2.28,1.68,-4.1,"空头回补",["仓变"]],["2024-06-05",0.17,1.32,1.16,-6,"派发",["仓变"]],["2024-06-24",2.04,1.59,1.36,-4.5,"空头回补",["仓变"]],["2024-06-26",1.22,1.33,1.44,-4.2,"空头回补",["仓变"]],["2024-07-02",0.15,1.11,0.92,-5.1,"多头离场",["仓变"]],["2024-07-10",-0.32,1.75,1.22,-4.2,"多头离场",["仓变"]],["2024-07-15",1.18,2.3,1.01,-4.5,"空头回补",["仓变"]],["2024-07-16",-0.97,1.96,0.87,5.3,"砸盘",["仓变"]],["2024-08-01",1.01,0.88,0.76,-4.9,"派发",["仓变"]],["2024-08-02",2.04,1.7,1.4,-7.5,"空头回补",["仓变"]],["2024-08-09",-1.91,1.75,1.31,-5,"多头离场",["仓变"]],["2024-08-12",-0.33,0.96,0.64,-5,"空头回补",["仓变"]],["2024-08-14",0.21,1.59,0.72,-9.2,"空头回补",["仓变"]],["2024-08-15",3.27,2.47,1.23,-8.1,"空头回补",["仓变"]],["2024-08-16",-1.06,2.34,0.92,-6.2,"多头离场",["仓变"]],["2024-08-22",-9.53,1.67,0.83,31.9,"吸筹",["涨跌停","仓变"]],["2024-08-23",0.11,2.17,1.6,5.1,"吸筹",["仓变"]],["2024-08-26",0.97,2.82,1.98,5.8,"拉升",["仓变"]],["2024-08-28",-0.19,1.48,1.03,-4.7,"派发",["仓变"]],["2024-09-03",0.49,1.38,0.98,-5.3,"空头回补",["仓变"]],["2024-09-04",-0.25,1.53,0.98,-6.2,"派发",["仓变"]],["2024-09-05",0.16,1.15,0.73,-5.7,"派发",["仓变"]],["2024-09-09",-0.35,1.35,0.83,-7.9,"多头离场",["仓变"]],["2024-09-10",-5.31,2.71,1.6,95.1,"拉升",["涨跌停","仓变"]],["2024-09-12",0.97,1.78,1.07,4.6,"吸筹",["仓变"]],["2024-09-20",2.02,2.58,1.68,7.8,"拉升",["仓变"]],["2024-09-23",-1.99,3.39,2.05,3.1,"砸盘",["宽幅"]],["2024-09-25",-0.17,2.86,1.25,8.9,"砸盘",["仓变"]],["2024-09-27",0.03,0.94,0.59,-5.3,"派发",["仓变"]],["2024-09-30",0.8,1.84,0.88,-7.2,"派发",["仓变"]],["2024-10-08",-2.09,2.91,1.16,7.9,"砸盘",["仓变"]],["2024-10-09",-0.97,1.24,0.68,5.8,"吸筹",["仓变"]],["2024-10-11",-1.23,1.77,0.92,5.8,"砸盘",["仓变"]],["2024-10-17",-1.75,2.41,1.19,-7.7,"多头离场",["仓变"]],["2024-10-28",-0.48,1.78,1.25,-7.2,"多头离场",["仓变"]],["2024-11-04",2.48,3.42,3.64,13.1,"拉升",["巨量","仓变","宽幅"]],["2024-11-06",-0.94,1.77,0.76,-8.3,"多头离场",["仓变"]],["2024-11-08",1.72,1.55,1.05,4.3,"拉升",["仓变"]],["2024-11-14",-1.21,1.76,0.91,-9.2,"多头离场",["仓变"]],["2024-11-15",-1.12,1.3,0.76,-5.9,"多头离场",["仓变"]],["2024-11-26",0.96,0.78,1.07,-5.1,"空头回补",["仓变"]],["2024-11-28",-0.95,1.71,1.12,-7.4,"多头离场",["仓变"]],["2024-12-05",-0.88,1.59,1,-9.6,"多头离场",["仓变"]],["2024-12-06",-0.36,0.87,0.54,-4.8,"派发",["仓变"]],["2024-12-09",3.83,3.53,2.05,12.9,"拉升",["涨跌停","仓变","宽幅"]],["2024-12-10",0.88,2.17,1.5,-7.5,"多头离场",["仓变"]],["2024-12-11",0.24,1.29,0.77,-7.2,"空头回补",["仓变"]],["2024-12-13",-0.35,1.45,0.66,-10.5,"派发",["仓变"]],["2024-12-16",0,1.42,0.55,-5.8,"空头回补",["仓变"]],["2024-12-17",-5.29,1.04,0.88,62.3,"吸筹",["涨跌停","仓变"]],["2024-12-20",1.17,1.73,1.22,6.4,"拉升",["仓变"]],["2024-12-27",0.2,0.78,0.84,-5.6,"派发",["仓变"]],["2024-12-30",-2.65,2.7,1.76,-5.9,"多头离场",["仓变"]],["2025-01-02",0.06,0.98,0.63,-4.4,"派发",["仓变"]],["2025-01-03",-2.67,2.77,1.38,-7.9,"多头离场",["仓变"]],["2025-01-07",0.18,1.1,0.65,-5.8,"派发",["仓变"]],["2025-01-09",0.44,1.44,0.67,6.7,"吸筹",["仓变"]],["2025-01-10",-0.16,0.75,0.44,5.9,"吸筹",["仓变"]],["2025-01-16",-0.19,1.33,1.57,9.2,"砸盘",["仓变"]],["2025-01-17",1.27,2.88,3.28,-6.2,"空头回补",["巨量","仓变"]],["2025-01-20",-0.21,1.28,1.06,4.8,"拉升",["仓变"]],["2025-01-24",0.77,1.58,0.95,-8.6,"空头回补",["仓变"]],["2025-01-27",0.94,1.42,0.95,-5.1,"派发",["仓变"]],["2025-02-05",-0.12,1.72,1.01,8,"拉升",["仓变"]],["2025-02-17",-3.35,2.59,3.01,22.9,"砸盘",["巨量","仓变"]],["2025-02-18",-0.71,0.59,1.08,6.7,"吸筹",["仓变"]],["2025-02-24",0.22,1.61,1.1,-4.4,"空头回补",["仓变"]],["2025-03-10",-1.01,1.81,1.31,6.6,"砸盘",["仓变"]],["2025-03-13",-1.83,1.77,1.24,8.2,"砸盘",["仓变"]],["2025-03-20",0.2,1.98,1.44,-5.8,"空头回补",["仓变"]],["2025-03-24",-0.49,1.36,0.88,4.2,"拉升",["仓变"]],["2025-03-27",1.33,2.29,1.69,-6.6,"空头回补",["仓变"]],["2025-04-01",-0.37,0.91,0.63,-5,"派发",["仓变"]],["2025-04-02",0.27,0.71,0.56,-6,"派发",["仓变"]],["2025-04-07",-2.53,2.11,0.69,-5,"派发",["仓变"]],["2025-04-08",3.11,3.29,1.27,-10.3,"空头回补",["仓变","宽幅"]],["2025-04-10",-0.87,1.42,0.84,4.6,"吸筹",["仓变"]],["2025-04-14",0.6,1.8,1.03,5.8,"砸盘",["仓变"]],["2025-04-16",2.87,2.6,3.14,9.2,"拉升",["巨量","仓变"]],["2025-04-25",0.37,1.26,0.88,-4.8,"空头回补",["仓变"]],["2025-04-28",-0.73,1.31,0.79,-6.5,"派发",["仓变"]],["2025-04-29",0.03,1.17,0.91,-10.6,"派发",["仓变"]],["2025-05-08",0.17,1.04,0.86,-4.8,"派发",["仓变"]],["2025-05-09",4.87,0.82,0.28,9.6,"吸筹",["涨跌停","仓变"]],["2025-05-13",-0.49,1.22,0.62,6.4,"砸盘",["仓变"]],["2025-05-14",-0.2,0.86,0.85,5.5,"吸筹",["仓变"]],["2025-05-15",-0.63,1.07,1.17,7.2,"砸盘",["仓变"]],["2025-05-28",-0.59,1.35,0.97,-4.9,"派发",["仓变"]],["2025-05-29",1,2.54,1.37,-9.3,"空头回补",["仓变"]],["2025-06-03",21.9,1.62,0.51,32.7,"砸盘",["涨跌停","仓变"]],["2025-06-09",-1.35,1.71,1.42,4.1,"砸盘",["仓变"]],["2025-06-11",0.14,0.68,0.92,4.5,"吸筹",["仓变"]],["2025-06-12",-0.54,1.49,2.09,6.8,"吸筹",["仓变"]],["2025-06-16",1.39,1.59,1.64,5.1,"吸筹",["仓变"]],["2025-06-30",0.68,1.77,1.49,-10.8,"空头回补",["仓变"]],["2025-07-01",0.82,0.84,0.95,-4.1,"派发",["仓变"]],["2025-07-02",-0.67,1.66,1.02,-4.3,"派发",["仓变"]],["2025-07-10",-0.2,1.98,1.24,9.4,"砸盘",["仓变"]],["2025-07-18",0.03,1.56,2.65,6.6,"吸筹",["巨量","仓变"]],["2025-07-21",0.64,0.91,1.19,-5.1,"空头回补",["仓变"]],["2025-07-28",-1.49,1.99,1.61,4.8,"砸盘",["仓变"]],["2025-07-31",-1.45,1.53,1.4,-5.4,"多头离场",["仓变"]],["2025-08-01",-1.28,1.49,0.84,-4.3,"多头离场",["仓变"]],["2025-08-04",-4.03,2.86,1.72,2.6,"砸盘",["涨跌停"]],["2025-08-06",0.99,2.28,1.1,-8.5,"空头回补",["仓变"]],["2025-08-11",-5.6,2.04,0.87,24.6,"砸盘",["涨跌停","仓变"]],["2025-08-12",-0.47,1.19,0.79,4.2,"吸筹",["仓变"]],["2025-08-13",-0.38,1.1,0.86,7.9,"砸盘",["仓变"]],["2025-08-14",-0.34,1.66,1.89,8.9,"吸筹",["仓变"]],["2025-08-19",-2.2,1.34,1.59,7.7,"砸盘",["仓变"]],["2025-08-21",-2.21,2.06,1.51,10.9,"砸盘",["仓变"]],["2025-08-22",-0.07,1.71,1.21,-4.1,"空头回补",["仓变"]],["2025-08-25",-0.17,1.46,0.82,6.5,"吸筹",["仓变"]],["2025-08-27",-1.2,1.68,1.13,9.5,"砸盘",["仓变"]],["2025-08-29",-0.41,1.16,0.99,-6.7,"派发",["仓变"]],["2025-09-02",0.37,1.89,0.98,-8.8,"空头回补",["仓变"]],["2025-09-04",1.41,1.99,1.33,-5.1,"派发",["仓变"]],["2025-09-15",3.12,3.75,2.76,-8.4,"空头回补",["巨量","仓变","宽幅"]],["2025-09-16",-0.86,1.67,1.01,10.7,"砸盘",["仓变"]],["2025-09-17",-0.51,1.32,0.72,5.4,"吸筹",["仓变"]],["2025-09-18",0.71,1.28,0.87,-7.7,"空头回补",["仓变"]],["2025-09-23",-1,1.37,0.73,-5.6,"派发",["仓变"]],["2025-09-25",0.62,1.3,0.59,-4.5,"空头回补",["仓变"]],["2025-09-26",-1.2,1.19,0.83,-9,"多头离场",["仓变"]],["2025-09-29",-1.15,1.26,0.76,-9.9,"派发",["仓变"]],["2025-10-09",-4.87,2.96,1.36,-7.3,"多头离场",["涨跌停","仓变"]],["2025-10-10",-2.26,2.39,1.22,10,"砸盘",["仓变"]],["2025-10-13",-0.99,1.85,0.86,-4,"空头回补",["仓变"]],["2025-10-15",0.28,1.79,0.62,-5.6,"派发",["仓变"]],["2025-10-16",4.53,1.75,0.42,10.6,"砸盘",["涨跌停","仓变"]],["2025-10-20",-1.52,2.23,1.32,5.5,"吸筹",["仓变"]],["2025-10-21",1.03,1.6,1.19,7.9,"拉升",["仓变"]],["2025-10-23",3.24,3.77,2.54,-4.3,"空头回补",["巨量","仓变","宽幅"]],["2025-10-24",3.25,3.01,2.08,-5.4,"空头回补",["仓变"]],["2025-10-28",-0.42,1.52,0.9,-5.7,"多头离场",["仓变"]],["2025-10-29",2.06,3.13,1.62,-4.3,"空头回补",["仓变"]],["2025-10-30",0.13,1.11,0.61,-7.2,"派发",["仓变"]],["2025-11-04",-0.16,1.81,0.63,-5.7,"派发",["仓变"]],["2025-11-05",1.93,2.18,1.22,4.7,"拉升",["仓变"]],["2025-11-06",0.91,1.24,1,-4.7,"派发",["仓变"]],["2025-11-07",5.25,1.59,0.42,8.3,"拉升",["涨跌停","仓变"]],["2025-11-12",-1.92,2.05,0.86,11.3,"砸盘",["仓变"]],["2025-11-17",-0.68,1.27,1.11,5.2,"吸筹",["仓变"]],["2025-11-27",2.08,2.32,1.31,-9,"空头回补",["仓变"]],["2025-11-28",0.73,1,0.67,-6.7,"派发",["仓变"]],["2025-12-01",-2.47,3.41,1.18,-0.3,"多头离场",["宽幅"]],["2025-12-02",-1.11,2.15,1.1,-5.4,"派发",["仓变"]],["2025-12-03",-2.4,2.1,0.93,4.8,"砸盘",["仓变"]],["2025-12-04",-0.66,1.27,0.88,-4.8,"派发",["仓变"]],["2025-12-08",0.83,1.49,0.88,-8.8,"派发",["仓变"]],["2025-12-09",-5.58,2.45,0.39,5.9,"砸盘",["涨跌停","仓变"]],["2025-12-16",-0.24,0.65,0.8,4.5,"吸筹",["仓变"]],["2025-12-18",-0.48,1.17,1.7,7.1,"吸筹",["仓变"]],["2025-12-19",-1.03,1.56,1.47,4.7,"砸盘",["仓变"]],["2025-12-24",2.29,2.44,1.42,-11,"空头回补",["仓变"]],["2025-12-25",2.16,1.41,0.86,8.6,"吸筹",["仓变"]],["2025-12-30",-0.34,1.08,0.95,5.4,"吸筹",["仓变"]],["2026-01-06",0.03,1.13,1.25,5.5,"吸筹",["仓变"]],["2026-01-07",0.4,1.13,1.52,5.4,"吸筹",["仓变"]],["2026-01-12",-0.33,1.56,0.9,7.7,"砸盘",["仓变"]],["2026-01-15",2.23,2.38,2.2,-1.8,"空头回补",["巨量"]],["2026-01-29",-0.92,1.72,0.94,-7.1,"多头离场",["仓变"]],["2026-02-02",-1.13,1.28,0.75,-10,"空头回补",["仓变"]],["2026-02-09",8.29,0.98,0.54,22.8,"吸筹",["涨跌停","仓变"]],["2026-02-13",2.2,2.52,1.5,-11.5,"空头回补",["仓变"]],["2026-02-24",0.59,1.01,1.22,6.6,"吸筹",["仓变"]],["2026-02-26",-0.67,1.61,1.15,-6,"多头离场",["仓变"]],["2026-03-02",4.54,1.29,0.55,10.8,"砸盘",["涨跌停","仓变"]],["2026-03-03",-1.91,1.59,0.83,8.8,"砸盘",["仓变"]],["2026-03-04",0.15,1.07,0.64,5.3,"拉升",["仓变"]],["2026-03-09",1.24,2.89,2.89,-11,"派发",["巨量","仓变"]],["2026-03-23",1.41,1.07,0.84,-6.9,"空头回补",["仓变"]],["2026-03-26",3.02,3.13,2.9,15.9,"拉升",["巨量","仓变"]],["2026-03-31",-0.32,1.08,0.74,-11.1,"派发",["仓变"]],["2026-04-01",-6.48,1.46,0.38,19.2,"吸筹",["涨跌停","仓变"]],["2026-04-02",0.47,0.77,0.27,4.7,"吸筹",["仓变"]],["2026-04-09",0.5,1.83,2.17,6.8,"吸筹",["仓变"]],["2026-04-10",0.59,1.11,1.6,6,"吸筹",["仓变"]],["2026-04-13",1.21,1.25,1.67,10.1,"吸筹",["仓变"]],["2026-04-14",-0.83,1.36,1.05,4.1,"砸盘",["仓变"]],["2026-04-15",0.8,1.8,1.11,7.1,"拉升",["仓变"]],["2026-04-16",0.67,2.19,1.72,5.6,"吸筹",["仓变"]],["2026-04-22",1.27,1.73,1.08,-4.4,"空头回补",["仓变"]],["2026-04-27",0.42,1.7,0.82,-6.7,"空头回补",["仓变"]],["2026-04-28",0.57,1.37,0.84,-7.1,"派发",["仓变"]],["2026-04-29",1.25,1.32,0.88,-11,"空头回补",["仓变"]],["2026-05-06",24.47,2.19,0.41,18.3,"砸盘",["涨跌停","仓变"]],["2026-05-07",0.52,1.7,0.45,10.2,"吸筹",["仓变"]],["2026-05-11",1.78,1.93,0.8,9.2,"拉升",["仓变"]],["2026-05-13",-0.69,1.46,1.04,-4.4,"派发",["仓变"]],["2026-05-18",1.6,3.15,1.19,7,"拉升",["仓变"]],["2026-05-19",1.88,1.87,1.92,5.3,"吸筹",["仓变"]],["2026-05-20",1.96,2.21,1.57,4.2,"拉升",["仓变"]],["2026-05-22",0.42,1.66,1.17,4.8,"吸筹",["仓变"]],["2026-05-27",3.74,2.75,1.77,4.9,"拉升",["涨跌停","仓变"]],["2026-05-28",-1.25,2.49,1.54,-8.1,"多头离场",["仓变"]],["2026-06-01",4.72,3.36,2.34,7.5,"拉升",["涨跌停","巨量","仓变","宽幅"]],["2026-06-02",-1.79,3.4,1.55,-3.2,"多头离场",["宽幅"]],["2026-06-04",-1.06,2.8,1.05,-4.9,"多头离场",["仓变"]],["2026-06-11",-1.58,1.75,0.83,-4.8,"多头离场",["仓变"]],["2026-06-16",0.75,1.36,1.19,5.1,"吸筹",["仓变"]],["2026-06-18",-3.49,3.97,2.14,-8.3,"多头离场",["仓变","宽幅"]],["2026-06-22",-4.88,3.38,1.67,-0.6,"多头离场",["涨跌停","宽幅"]],["2026-06-23",-0.32,1.8,1.06,7.3,"拉升",["仓变"]],["2026-06-24",2.18,2.25,1.06,11.3,"拉升",["仓变"]],["2026-06-25",-0.41,2.07,0.97,-8.6,"多头离场",["仓变"]],["2026-06-26",-1.28,2.98,1.04,-8.6,"多头离场",["仓变"]],["2026-06-29",1.73,3.91,1.22,8.8,"拉升",["仓变","宽幅"]],["2026-07-01",0.47,1.54,0.77,-5,"派发",["仓变"]],["2026-07-06",4.21,2.23,0.93,1.3,"拉升",["涨跌停"]],["2026-07-08",0.17,1.02,0.78,-5.6,"派发",["仓变"]],["2026-07-13",-1.22,2.16,0.84,-4.1,"多头离场",["仓变"]],["2026-07-14",-3.94,3.8,1.15,-17.8,"多头离场",["涨跌停","仓变","宽幅"]],["2026-07-15",-0.25,2.26,1.05,4.6,"拉升",["仓变"]],["2026-07-17",-0.66,2.4,1.12,-5.8,"多头离场",["仓变"]],["2026-07-20",-3.54,4.18,1.19,-10.7,"多头离场",["涨跌停","仓变","宽幅"]],["2026-07-21",-2.44,1.61,0.88,-5.8,"派发",["仓变"]],["2026-07-30",-1.44,1.56,0.82,-4.6,"派发",["仓变"]],["2026-08-03",2.32,2.73,0.8,-8.7,"空头回补",["仓变"]],["2026-08-06",1.81,2.46,0.8,5,"拉升",["仓变"]],["2026-08-07",1.72,1.67,0.84,4.8,"吸筹",["仓变"]],["2026-08-11",-2.53,2.85,1.47,4.5,"砸盘",["仓变"]],["2026-08-17",-0.05,2.11,0.85,7.1,"砸盘",["仓变"]],["2026-08-20",0.18,2.35,0.89,-6.3,"空头回补",["仓变"]],["2026-08-24",-1.71,2.61,1.06,4.5,"砸盘",["仓变"]],["2026-08-25",-1.9,1.62,0.91,-6.8,"派发",["仓变"]],["2026-08-26",0.77,1.25,0.72,-4.1,"空头回补",["仓变"]],["2026-08-27",0.16,1.78,0.75,-7.1,"派发",["仓变"]],["2026-08-31",0.45,1.45,0.8,-11,"派发",["仓变"]],["2026-09-07",2.55,2.64,1.54,8,"拉升",["仓变"]],["2026-09-14",0.97,1.19,1.03,6.4,"吸筹",["仓变"]],["2026-09-18",1.85,2.64,1.42,4.6,"拉升",["仓变"]]],I:[["2026-08-20",1.12,["量大价不动"],0],["2026-08-21",-0.77,["量大价不动"],3.6],["2026-08-24",-2.41,["开盘冲击"],5.6],["2026-08-25",0.38,["开盘冲击","量大价不动"],8.4],["2026-08-27",-0.19,["时段巨量"],-0.2],["2026-09-01",-0.86,["时段巨量"],0.2],["2026-09-02",-0.68,["量大价不动"],-1.3],["2026-09-03",1.47,["时段巨量"],2.3],["2026-09-07",2.03,["时段巨量"],1.5],["2026-09-08",-0.55,["时段巨量","开盘冲击"],4.6],["2026-09-09",0.24,["时段巨量"],0.7],["2026-09-10",0.89,["时段巨量"],0.1],["2026-09-11",-0.16,["时段巨量"],0.8],["2026-09-16",0.26,["时段巨量"],0.5],["2026-09-18",1.79,["时段巨量","量大价不动"],-0.3],["2026-09-21",-0.05,["时段巨量"],2],["2026-08-07",0.68,["开盘冲击"],6.5],["2026-08-10",-1.22,["开盘冲击"],12.6],["2026-08-12",0.76,["开盘冲击","量大价不动"],4.7],["2026-08-13",0.36,["量大价不动"],-1.4],["2026-08-14",0.43,["量大价不动"],-0.3],["2026-08-17",-1.45,["量大价不动"],-1.2],["2026-08-19",-0.97,["量大价不动"],-0.7],["2026-08-21",-0.63,["量大价不动"],-1],["2026-09-07",0.02,["量大价不动"],-0.7],["2026-09-08",0.05,["量大价不动"],-0.6],["2026-09-18",1.38,["量大价不动"],-0.5],["2026-09-21",1.18,["量大价不动"],-0.5],["2026-04-09",0.32,["开盘冲击","量大价不动"],4.8],["2026-04-10",0.03,["开盘冲击"],17.3],["2026-04-13",-0.06,["开盘冲击"],19.4],["2026-04-14",-1.2,["开盘冲击"],9.8],["2026-04-16",0.26,["量大价不动"],-1.1],["2026-04-23",-0.68,["量大价不动"],-1.3],["2026-04-29",0.55,["量大价不动"],-1],["2026-04-30",-1.37,["量大价不动"],-1],["2026-05-07",1.16,["量大价不动"],-1],["2026-05-11",0.53,["量大价不动"],-0.9],["2026-05-18",2.74,["量大价不动"],-0.7],["2026-05-19",-3.41,["量大价不动"],-0.7],["2026-05-20",0.73,["量大价不动"],-0.7],["2026-05-22",1.31,["量大价不动"],-0.7],["2026-05-25",-1.75,["量大价不动"],-0.6]]};;
+function userCases(){ return LS.get('cases',[]); }
+function saveUserCase(c){
+  const arr=userCases();
+  if(arr.some(x=>x.d===c.d)) return;
+  arr.unshift(c);
+  LS.set('cases',arr.slice(0,500));
+}
+/* 收盘后把当日行情自动归档为案例 */
+function accumulateCase(){
+  if(S.mode!=='close'||!S.recap||!S.live) return;
+  const rc=S.recap, L=S.live;
+  const nowHM=bj().getHours()*100+bj().getMinutes();
+  if(rc.day===bjStr(bj()) && nowHM<1501) return;      /* 未到收盘时间不积累 */
+  if(userCases().some(x=>x.d===rc.day)) return;
+  const oiPct=(L.oiDelta!=null&&L.prevOI)? Math.round(L.oiDelta/L.prevOI*1000)/10 : null;
+  const tags=[];
+  if(rc.chgPct!=null&&Math.abs(rc.chgPct)>=3.5) tags.push('涨跌停');
+  if(L.volRatio&&L.volRatio>=2.2) tags.push('巨量');
+  if(oiPct!=null&&Math.abs(oiPct)>=4&&Math.abs(oiPct)<12) tags.push('仓变');
+  if(rc.rngPct>=3.2) tags.push('宽幅');
+  const eg=S.A&&S.A.eagle;
+  if(eg&&eg.ok){
+    if(eg.shocks.length) tags.push('时段巨量');
+    if(eg.openShock) tags.push('开盘冲击');
+    if(eg.enr) tags.push('量大价不动');
+    if(eg.vetoes.length) tags.push('一票否决');
+  }
+  saveUserCase({d:rc.day, x:rc.chgPct!=null?Math.round(rc.chgPct*100)/100:null, r:Math.round(rc.rngPct*100)/100,
+                v:L.volRatio?Math.round(L.volRatio*100)/100:null, o:oiPct,
+                b:eg&&eg.ok?eg.behavior:(S.A&&S.A.wy?S.A.wy.behavior:''), t:tags, src:'本机'});
+}
+/* 收盘模式：当日 vs 历史日线案例的相似度对照（欧氏距离加权） */
+function caseSimRows(){
+  if(S.mode!=='close'||!S.recap||!S.live) return null;
+  const rc=S.recap, L=S.live;
+  const x=rc.chgPct, r=rc.rngPct, v=L.volRatio;
+  const o=(L.oiDelta!=null&&L.prevOI)? L.oiDelta/L.prevOI*100 : null;
+  const b=(S.A&&S.A.eagle&&S.A.eagle.ok)?S.A.eagle.behavior:(S.A&&S.A.wy?S.A.wy.behavior:'');
+  const pool=[];
+  for(const c of CASE_LIB.D) pool.push({c, dist:
+    (x!=null?Math.abs(c[1]-x)/4:0.4)+(r!=null?Math.abs(c[2]-r)/2:0.3)+
+    ((v!=null&&c[3])?Math.abs(c[3]-v)/1:0.3)+(((o!=null&&c[4])!=null)?Math.abs(c[4]-o)/3:0.3)+
+    ((c[5]&&b&&c[5]!==b)?0.4:0)});
+  pool.sort((a,b2)=>a.dist-b2.dist);
+  return pool.slice(0,3);
+}
+let caseFilter='全部', caseKey='';
+const CASE_FILTERS=['全部','吸筹','拉升','派发','砸盘','空头回补','多头离场','涨跌停','巨量','仓变','宽幅','时段巨量','开盘冲击','量大价不动','一票否决','本机'];
+function renderCases(){
+  const uc=userCases();
+  const total=CASE_LIB.D.length+CASE_LIB.I.length+uc.length;
+  $('caseCount').textContent=total+' 条';
+  const key=[S.mode,caseFilter,uc.length,S.recap?S.recap.day:''].join('#');
+  if(key===caseKey) return;                        /* 内容未变不重绘（保留滚动位置） */
+  caseKey=key;
+  /* 相似对照 */
+  const sim=caseSimRows();
+  $('caseSim').innerHTML = sim
+    ? '<div class="sec" style="margin:4px 0"><b>相似案例对照</b>（收盘后按涨跌幅/振幅/量比/仓差/行为加权匹配）：<br>'+
+      sim.map(s=>{const c=s.c;const pct=clamp(Math.round(100/(1+s.dist)),5,99);
+        return `· <b>${c[0]}</b> 相似度 <b style="color:var(--gold)">${pct}%</b>｜涨跌${c[1]>0?'+':''}${c[1]}% 振幅${c[2]}%${c[3]!=null?' 量比'+c[3]:''}${c[4]!=null?' 仓差'+(c[4]>0?'+':'')+c[4]+'%':''}｜${c[5]}${c[6]&&c[6].length?'（'+c[6].join('·')+'）':''}`;}).join('<br>')+'</div>'
+    : '<div class="sec" style="margin:4px 0;color:var(--faint)">相似案例对照在收盘模式自动生成。</div>';
+  /* 筛选 */
+  $('caseFilters').innerHTML=CASE_FILTERS.map(f=>`<span class="fbtn${f===caseFilter?' on':''}" data-f="${f}">${f}</span>`).join('');
+  $('caseFilters').querySelectorAll('.fbtn').forEach(el=>{ el.onclick=()=>{ caseFilter=el.dataset.f; caseKey=''; renderCases(); }; });
+  /* 列表 */
+  const all=[
+    ...uc.map(c=>({d:c.d,x:c.x,r:c.r,v:c.v,o:c.o,b:c.b,t:c.t||[],src:'本机'})),
+    ...CASE_LIB.D.map(c=>({d:c[0],x:c[1],r:c[2],v:c[3],o:c[4],b:c[5],t:c[6]||[],src:'主连'})),
+    ...CASE_LIB.I.map(c=>({d:c[0],x:c[1],r:null,v:null,o:null,b:'',t:c[2]||[],src:'日内'}))
+  ];
+  const f=caseFilter;
+  let rows=all.filter(c=> f==='全部' || (f==='本机'&&c.src==='本机') || c.t.indexOf(f)>=0 || c.b===f);
+  rows.sort((a,b2)=>a.d<b2.d?1:-1);
+  rows=rows.slice(0,80);
+  $('caseList').innerHTML=rows.map(c=>
+    `<div class="clrow"><b>${c.d}</b> <span class="tag" style="font-size:10px">${c.src}</span>`+
+    (c.x!=null?` 涨跌 <b style="color:${c.x>=0?'var(--up)':'var(--dn)'}">${c.x>0?'+':''}${c.x}%</b>`:'')+
+    (c.r!=null?` 振幅${c.r}%`:'')+(c.v!=null?` 量比${c.v}`:'')+(c.o!=null?` 仓差${c.o>0?'+':''}${c.o}%`:'')+
+    (c.b?` <span class="pill oi" style="font-size:10px">${c.b}</span>`:'')+
+    (c.t.length?` ${c.t.map(t=>`<span class="tag" style="font-size:10px">${t}</span>`).join(' ')}`:'')+
+    `</div>`).join('') || '<div class="sec">无匹配案例。</div>';
+}
+
+/* =====================================================================
+ *  主循环 / 模式切换
+ * ===================================================================== */
+function detectMode(){
+  const today=bjStr(bj());
+  const live = inSession() && S.live && S.live.isToday;
+  S.mode = live? 'live':'close';
+}
+let lastBarT=0;
+function onTick(){
+  renderHeader();
+  if(S.A && (S.mode==='live')){
+    /* 实时轻更新：把最新价合入最后一根K线 */
+    chart.draw();
+    /* 持仓中：轻量刷新持仓监测行（浮盈亏/止损参考随最新价变动，不重跑 analyze） */
+    if(S.pos&&S.pos.on) renderTrack();
+  }
+}
+async function fullCycle(){
+  try{
+    await fetchM1();
+    await fetchAllKlines();
+    S.lastOK=Date.now();
+    deriveLive();
+    detectMode();
+    const bt=S.bars.m5.length? S.bars.m5[S.bars.m5.length-1].t:0;
+    analyze();
+    if(S.mode==='close') S.recap=buildRecap();
+    if(S.mode==='close') accumulateCase();
+    renderHeader(); renderPanels();
+    setChartData();
+    $('errbox').style.display='none';
+  }catch(e){
+    $('errbox').textContent='数据获取异常：'+e.message+'（自动重试中）';
+    $('errbox').style.display='block';
+  }
+}
+function setChartData(){
+  const bars = S.tf==='m5'? S.bars.m5 : (S.tf==='h1'? S.bars.h1 : S.bars.d);
+  chart.setData(bars, S.tf);
+  $('charttitle').textContent='鸡蛋'+S.contract;
+}
+/* 定时器管理 */
+let timerFast=null, timerSlow=null;
+function restartTimers(){
+  clearInterval(timerFast); clearInterval(timerSlow);
+  if(S.mode==='live'){
+    timerFast=setInterval(async()=>{
+      if(S.busy.m1) return;
+      await fetchM1();
+      deriveLive();
+      onTick();
+    }, S.freq);
+    timerSlow=setInterval(()=>{ fullCycle(); }, 60000);
+  }else{
+    timerFast=setInterval(()=>{ renderHeader(); }, 1000);   // 时钟
+    timerSlow=setInterval(()=>{ fullCycle(); }, 60000);     // 复盘数据低频刷新
+  }
+}
+
+/* ---------------- 交互绑定 ---------------- */
+function bindUI(){
+  document.querySelectorAll('.tftabs button').forEach(b=>{
+    b.onclick=()=>{ document.querySelectorAll('.tftabs button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); S.tf=b.dataset.tf; S.view={n:S.tf==='d'?90:100,off:0}; setChartData(); };
+  });
+  $('zoomin').onclick=()=>{ S.view.n=clamp(Math.round(S.view.n*0.8),30,240); chart.draw(); };
+  $('zoomout').onclick=()=>{ S.view.n=clamp(Math.round(S.view.n*1.25),30,240); chart.draw(); };
+  $('resetview').onclick=()=>{ S.view={n:S.tf==='d'?90:100,off:0}; chart.draw(); };
+  $('contract').addEventListener('change',async()=>{
+    const v=$('contract').value.trim().toUpperCase();
+    if(!/^[A-Z]{1,2}\d{4}$/.test(v)){ $('contract').value=S.contract; return; }
+    S.contract=v; LS.set('contract',v);
+    S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null;
+    await fullCycle();
+  });
+  const spotChange=()=>{
+    S.spot.today=$('spotToday').value; S.spot.yest=$('spotYest').value;
+    LS.set('spotToday',S.spot.today); LS.set('spotYest',S.spot.yest);
+    analyze(); if(S.mode==='close') S.recap=buildRecap();
+    renderPanels(); renderHeader();
+  };
+  $('spotToday').addEventListener('input',spotChange);
+  $('spotYest').addEventListener('input',spotChange);
+  $('biasSel').addEventListener('change',e=>{ S.spot.bias=+e.target.value; LS.set('bias',S.spot.bias); spotChange(); });
+  /* ---- 持仓录入（第五步：录入后自动监测；方向=none 即平仓清空） ---- */
+  const posChange=()=>{
+    const v=$('posDir').value;
+    if(v==='none'){ S.pos={on:false,dir:'多',entry:$('posEntry').value,sl:$('posStop').value}; }
+    else{
+      S.pos={on:true, dir:(v==='long'?'多':'空'), entry:$('posEntry').value, sl:$('posStop').value};
+      if(!S.losses.date) S.losses.date=bjStr(bj());
+    }
+    LS.set('posOn',S.pos.on); LS.set('posDir',S.pos.dir);
+    LS.set('posEntry',S.pos.entry); LS.set('posSL',S.pos.sl);
+    analyze(); if(S.mode==='close'&&S.recap) S.recap=buildRecap();
+    renderPanels(); renderHeader();
+  };
+  $('posDir').addEventListener('change',posChange);
+  $('posEntry').addEventListener('input',posChange);
+  $('posStop').addEventListener('input',posChange);
+  /* ---- 当日连亏计数（纪律模块：3笔停止当日交易） ---- */
+  const lossRender=()=>{ $('lossCnt').textContent=S.losses.n; $('lossCnt').style.color=S.losses.n>=3?'var(--risk)':'var(--warn)'; };
+  $('lossAdd').onclick=()=>{
+    if(S.losses.date!==bjStr(bj())){ S.losses.date=bjStr(bj()); S.losses.n=0; }
+    S.losses.n=Math.min(9,S.losses.n+1);
+    LS.set('lossDate',S.losses.date); LS.set('lossN',S.losses.n);
+    lossRender();
+    if(S.losses.n>=3){ analyze(); renderPanels(); }
+    else { S.A=analyze(); renderTrack(); }
+  };
+  $('lossReset').onclick=()=>{
+    S.losses.n=0; S.losses.date=bjStr(bj());
+    LS.set('lossDate',S.losses.date); LS.set('lossN',0);
+    lossRender(); S.A=analyze(); renderPanels();
+  };
+  $('gear').onclick=()=>{ const s=$('settings'); s.style.display = s.style.display==='block'?'none':'block'; };
+  $('freqSel').value=String(S.freq);
+  $('freqSel').addEventListener('change',e=>{ S.freq=+e.target.value; LS.set('freq',S.freq); restartTimers(); });
+  $('maSel').value=String(S.showMA);
+  $('maSel').addEventListener('change',e=>{ S.showMA=+e.target.value; LS.set('showMA',S.showMA); chart.draw(); });
+  /* 恢复已存现货输入 */
+  $('spotToday').value=S.spot.today||''; $('spotYest').value=S.spot.yest||'';
+  $('biasSel').value=String(S.spot.bias||0);
+  /* 恢复持仓录入与连亏计数显示 */
+  $('posDir').value = S.pos.on ? (S.pos.dir==='空'?'short':'long') : 'none';
+  $('posEntry').value=S.pos.entry||''; $('posStop').value=S.pos.sl||'';
+  $('lossCnt').textContent=S.losses.n;
+  $('lossCnt').style.color=S.losses.n>=3?'var(--risk)':'var(--warn)';
+}
+
+/* ---------------- 启动 ---------------- */
+(async function boot(){
+  $('contract').value=S.contract;
+  chart.init();
+  bindUI();
+  renderHeader();
+  await fullCycle();
+  restartTimers();
+  /* 模式可能在运行中切换（开盘/收盘跨越），每分钟检测 */
+  setInterval(()=>{ const m=S.mode; detectMode(); if(m!==S.mode) restartTimers(); }, 30000);
+})();
+</script>
+</body>
+</html>
