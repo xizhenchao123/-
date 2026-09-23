@@ -3,149 +3,231 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>JD2611 鸡蛋期货 · AI半量化研判系统</title>
+<title>JD2611 · 半量化研判系统 PRO</title>
+<meta name="theme-color" content="#07090f">
 <style>
+/* ================= v12 MASTER THEME · 大师级研判终端 ================= */
 :root{
-  --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
-  --txt:#cfd8e6; --dim:#8391a8; --faint:#5a6b85;
-  --up:#ef5350; --dn:#26a69a; --warn:#e6a23c; --risk:#e6483d; --ok:#3fb984;
-  --res:#ef5350; --sup:#26a69a; --gold:#f0b90b; --blue:#4f9cf9; --purple:#b07af5;
+  --bg:#07090f; --bg2:#0a0d15;
+  --card:rgba(17,22,33,.72); --card2:rgba(13,18,27,.85); --card3:#131a28;
+  --line:rgba(120,140,180,.14); --line2:rgba(120,140,180,.24);
+  --txt:#dbe4f3; --dim:#8d9ab3; --faint:#5d6d88;
+  --up:#ff5a52; --dn:#2dd4aa; --warn:#f0a832; --risk:#ff4d42; --ok:#3fd68f;
+  --res:#ff5a52; --sup:#2dd4aa; --gold:#e8b64c; --gold2:#f5d68a; --blue:#5aa2f7; --purple:#bb8cf7;
+  --serif:"Noto Serif SC","Songti SC",STSong,Georgia,"Times New Roman",serif;
+  --grad-gold:linear-gradient(135deg,#e8b64c 0%,#f5d68a 45%,#c89532 100%);
+  --grad-card:linear-gradient(160deg,rgba(24,31,46,.88) 0%,rgba(14,19,29,.92) 100%);
+  --shadow-lg:0 10px 40px rgba(0,0,0,.55);
+  --glow-gold:0 0 0 1px rgba(232,182,76,.28),0 0 24px rgba(232,182,76,.10);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+html{background:#05070b}
+html,body{background:
+  radial-gradient(1100px 500px at 85% -8%, rgba(232,182,76,.055), transparent 60%),
+  radial-gradient(900px 480px at -10% 8%, rgba(90,162,247,.05), transparent 55%),
+  radial-gradient(1000px 600px at 50% 115%, rgba(187,140,247,.045), transparent 60%),
+  var(--bg);
+  color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
 body{padding-bottom:56px}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:98;opacity:.5;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px)}
 .num{font-variant-numeric:tabular-nums}
 a{color:var(--blue)}
+::selection{background:rgba(232,182,76,.28)}
 /* ---------- header ---------- */
-header{position:sticky;top:0;z-index:50;background:rgba(11,14,20,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:8px 12px}
+header{position:sticky;top:0;z-index:50;border-bottom:1px solid var(--line2);padding:10px 14px 9px;
+  background:linear-gradient(180deg,rgba(9,12,19,.97),rgba(7,9,15,.92));backdrop-filter:blur(14px) saturate(1.3);
+  box-shadow:0 6px 24px rgba(0,0,0,.45)}
+header::before{content:"";position:absolute;left:0;right:0;top:-1px;height:2px;
+  background:linear-gradient(90deg,transparent 5%,rgba(232,182,76,.65) 30%,rgba(90,162,247,.5) 65%,transparent 95%)}
 .hrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.logo{font-weight:700;font-size:15px;letter-spacing:.5px;white-space:nowrap}
-.logo small{color:var(--faint);font-weight:400;margin-left:6px;font-size:11px}
-#contract{width:86px;background:var(--card2);border:1px solid var(--line);color:var(--gold);border-radius:6px;padding:4px 6px;font-size:13px;text-transform:uppercase;font-weight:600}
-.badge{font-size:11px;padding:3px 8px;border-radius:99px;border:1px solid;font-weight:600;white-space:nowrap}
-.badge.live{color:var(--ok);border-color:rgba(63,185,132,.4);background:rgba(63,185,132,.08)}
-.badge.close{color:var(--dim);border-color:rgba(131,145,168,.35);background:rgba(131,145,168,.06)}
-.badge.rest{color:var(--warn);border-color:rgba(230,162,60,.4);background:rgba(230,162,60,.08)}
+.brandwrap{display:flex;flex-direction:column;gap:1px}
+.eyebrow{font-size:9px;letter-spacing:.35em;color:var(--gold);text-transform:uppercase;opacity:.9;font-weight:600}
+.logo{font-weight:800;font-size:16px;letter-spacing:.5px;white-space:nowrap;color:#eef3fb;
+  text-shadow:0 1px 12px rgba(232,182,76,.14)}
+.logo .lg-mark{background:var(--grad-gold);-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo small{color:var(--faint);font-weight:400;margin-left:8px;font-size:10.5px;letter-spacing:.12em}
+#contract{width:92px;background:rgba(232,182,76,.07);border:1px solid rgba(232,182,76,.35);color:var(--gold2);
+  border-radius:7px;padding:4px 7px;font-size:13px;text-transform:uppercase;font-weight:700;letter-spacing:.08em;
+  font-family:var(--serif);box-shadow:inset 0 0 12px rgba(232,182,76,.06)}
+#contract:focus{outline:none;border-color:rgba(232,182,76,.6);box-shadow:var(--glow-gold)}
+.badge{font-size:11px;padding:3px 9px;border-radius:99px;border:1px solid;font-weight:600;white-space:nowrap}
+.badge.live{color:var(--ok);border-color:rgba(63,214,143,.4);background:rgba(63,214,143,.08)}
+.badge.close{color:var(--dim);border-color:rgba(141,154,179,.35);background:rgba(141,154,179,.06)}
+.badge.rest{color:var(--warn);border-color:rgba(240,168,50,.4);background:rgba(240,168,50,.08)}
 .pricebox{display:flex;align-items:baseline;gap:8px;margin-left:auto}
-#bigprice{font-size:26px;font-weight:700}
-#bigchg{font-size:13px}
+#bigprice{font-size:27px;font-weight:800;letter-spacing:.02em}
+#bigchg{font-size:13px;font-weight:600}
 #clock{font-size:11px;color:var(--dim)}
-#dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:4px;box-shadow:0 0 6px rgba(63,185,132,.6)}
-#dot.err{background:var(--risk);box-shadow:0 0 6px rgba(230,72,61,.6)}
-#dot.stale{background:var(--warn);box-shadow:0 0 6px rgba(230,162,60,.6)}
+#dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:4px;box-shadow:0 0 8px rgba(63,214,143,.7);animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+#dot.err{background:var(--risk);box-shadow:0 0 8px rgba(255,77,66,.7)}
+#dot.stale{background:var(--warn);box-shadow:0 0 8px rgba(240,168,50,.7)}
 /* ---------- chips ---------- */
-#chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px 0}
-.chip{background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--dim);white-space:nowrap}
+#chips{display:flex;gap:6px;flex-wrap:wrap;padding:9px 14px 0}
+.chip{background:var(--card2);border:1px solid var(--line);border-radius:7px;padding:3px 9px;font-size:11px;color:var(--dim);white-space:nowrap;transition:border-color .2s}
+.chip:hover{border-color:var(--line2)}
 .chip b{color:var(--txt);font-weight:600;margin-left:4px}
 .chip u{text-decoration:none;color:var(--up);font-weight:700;margin-left:4px}
 .chip d{text-decoration:none;color:var(--dn);font-weight:700;margin-left:4px}
 /* ---------- 评级横幅卡片（k1-3） ---------- */
-#gradeBanner{padding:8px 12px}
-#gbRow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.gbcell{text-align:center;min-width:78px}
-.gbnum{font-weight:800;line-height:1.15}
-.gblab{font-size:10px;color:var(--dim);margin-top:2px}
+#gradeBanner{padding:12px 14px;position:relative;overflow:hidden}
+#gradeBanner::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:linear-gradient(180deg,var(--gold),rgba(232,182,76,0));opacity:.75}
+#gbRow{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.gbcell{text-align:center;min-width:80px}
+.gbnum{font-weight:800;line-height:1.15;font-family:var(--serif)}
+.gblab{font-size:10px;color:var(--dim);margin-top:3px;letter-spacing:.18em}
 #gbVeto{flex:1;min-width:220px;font-size:12px;line-height:1.65}
-#vetobox .vtnote{margin-top:5px;font-weight:400;font-size:11px;color:rgba(240,168,162,.85);border-top:1px dashed rgba(230,72,61,.35);padding-top:4px;line-height:1.6}
+#vetobox .vtnote{margin-top:5px;font-weight:400;font-size:11px;color:rgba(240,168,162,.85);border-top:1px dashed rgba(255,77,66,.35);padding-top:4px;line-height:1.6}
 /* ---------- layout ---------- */
-main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;padding:10px 12px;max-width:1500px;margin:0 auto}
+main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px;padding:12px 14px;max-width:1560px;margin:0 auto}
 @media(max-width:960px){main{grid-template-columns:1fr}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
-.card h3{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.card h3 .tag{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--faint);font-weight:400}
+.card{background:var(--grad-card);border:1px solid var(--line);border-radius:14px;padding:12px;position:relative;
+  box-shadow:0 4px 22px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.035);transition:border-color .25s,box-shadow .25s}
+.card:hover{border-color:var(--line2)}
+.card h3{font-size:13px;color:var(--txt);font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;letter-spacing:.04em}
+.card h3::before{content:"";width:3px;height:13px;border-radius:2px;background:var(--grad-gold);box-shadow:0 0 8px rgba(232,182,76,.4)}
+.card h3 .tag{font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(120,140,180,.1);color:var(--faint);font-weight:400;border:1px solid rgba(120,140,180,.14)}
 /* ---------- chart ---------- */
 #chartcard{display:flex;flex-direction:column;min-height:480px}
 .tftabs{display:flex;gap:6px;margin-left:auto}
-.tftabs button,.zbtn{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
-.tftabs button.on{color:var(--gold);border-color:rgba(240,185,11,.45);background:rgba(240,185,11,.08);font-weight:700}
-.zbtn{padding:2px 9px;font-size:13px}
+.tftabs button,.zbtn{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:7px;padding:4px 11px;font-size:12px;cursor:pointer;transition:all .2s}
+.tftabs button:hover,.zbtn:hover{border-color:var(--line2);color:var(--txt)}
+.tftabs button.on{color:var(--gold2);border-color:rgba(232,182,76,.5);background:rgba(232,182,76,.09);font-weight:700;box-shadow:0 0 12px rgba(232,182,76,.12)}
+.zbtn{padding:2px 10px;font-size:13px}
 #chartwrap{position:relative;flex:1;min-height:400px}
 #chart{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
-#tip{position:absolute;pointer-events:none;background:rgba(14,19,29,.95);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.7;color:var(--dim);display:none;z-index:5;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+#tip{position:absolute;pointer-events:none;background:rgba(10,14,22,.96);border:1px solid var(--line2);border-radius:10px;padding:9px 11px;font-size:11px;line-height:1.7;color:var(--dim);display:none;z-index:5;white-space:nowrap;box-shadow:0 8px 28px rgba(0,0,0,.6)}
 #tip b{color:var(--txt)}
-#chartfoot{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--faint);padding-top:6px;border-top:1px solid var(--line);margin-top:6px}
+#chartfoot{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--faint);padding-top:7px;border-top:1px solid var(--line);margin-top:7px}
 .maleg{display:inline-flex;gap:4px;align-items:center}
 .maleg i{width:14px;height:2px;display:inline-block;border-radius:2px}
 /* ---------- score ---------- */
 #scoretotal{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px}
-#totalnum{font-size:38px;font-weight:800;line-height:1}
+#totalnum{font-size:42px;font-weight:800;line-height:1;font-family:var(--serif)}
 #totalwrap{position:relative}
-#totallabel{font-size:11px;color:var(--dim);margin-top:2px;text-align:center}
-.sbar{margin-bottom:8px}
-.sbar .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:3px}
+#totallabel{font-size:10px;color:var(--dim);margin-top:3px;text-align:center;letter-spacing:.2em}
+.sbar{margin-bottom:9px}
+.sbar .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:4px}
 .sbar .lab b{color:var(--txt)}
-.sbar .track{height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
-.sbar .fill{height:100%;border-radius:4px;transition:width .5s}
-#vetobox{display:none;background:rgba(230,72,61,.1);border:1px solid rgba(230,72,61,.45);color:var(--risk);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;margin-top:8px;font-weight:600}
+.sbar .track{height:6px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
+.sbar .fill{height:100%;border-radius:4px;transition:width .6s cubic-bezier(.2,.7,.3,1);position:relative}
+.sbar .fill::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);animation:sheen 2.8s linear infinite;background-size:200% 100%}
+@keyframes sheen{0%{background-position:200% 0}100%{background-position:-200% 0}}
+#vetobox{display:none;background:rgba(255,77,66,.1);border:1px solid rgba(255,77,66,.45);color:var(--risk);border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.6;margin-top:8px;font-weight:600;box-shadow:inset 0 0 24px rgba(255,77,66,.06)}
 #vetobox .vt{font-size:13px;margin-bottom:2px}
-#vetobox ul{margin-left:16px;font-weight:400;color:#f0a8a2}
-/* ---------- panels ---------- */
-.sec{font-size:12px;line-height:1.75;color:var(--dim)}
+#vetobox ul{margin-left:16px;font-weight:400;color:#f4b6b0}/* ---------- panels ---------- */
+.sec{font-size:12px;line-height:1.78;color:var(--dim)}
 .sec b{color:var(--txt)}
-.sec .hl{color:var(--gold)}
-.lvlrow{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.05);font-size:12px}
+.sec .hl{color:var(--gold2)}
+.lvlrow{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed rgba(120,140,180,.1);font-size:12px}
 .lvlrow:last-child{border-bottom:none}
 .lv{display:inline-block;min-width:52px;font-weight:700}
 #events{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
-.ev{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;background:var(--card2)}
+.ev{border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:12px;background:var(--card2)}
 .ev .et{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--txt);font-weight:600}
 .ev .ed{color:var(--dim);margin-top:2px;line-height:1.5}
 .ev .tm{color:var(--faint);font-size:10px;margin-left:auto}
-.pill{font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600}
-.pill.demand{background:rgba(239,83,80,.15);color:var(--up)}
-.pill.supply{background:rgba(38,166,154,.15);color:var(--dn)}
-.pill.wide{background:rgba(230,162,60,.15);color:var(--warn)}
+.pill{font-size:10px;padding:1px 7px;border-radius:4px;font-weight:600}
+.pill.demand{background:rgba(255,90,82,.15);color:var(--up)}
+.pill.supply{background:rgba(45,212,170,.15);color:var(--dn)}
+.pill.wide{background:rgba(240,168,50,.15);color:var(--warn)}
 .pill.neutral{background:rgba(255,255,255,.07);color:var(--dim)}
-.pill.veto{background:rgba(230,72,61,.18);color:var(--risk)}
-.pill.oi{background:rgba(79,156,249,.15);color:var(--blue)}
-.pill.dist{background:rgba(176,122,245,.15);color:var(--purple)}
-.pill.risk{background:rgba(230,72,61,.18);color:var(--risk)}   /* n10 交易日志 AI 复盘错误警示 */
+.pill.veto{background:rgba(255,77,66,.18);color:var(--risk)}
+.pill.oi{background:rgba(90,162,247,.15);color:var(--blue)}
+.pill.dist{background:rgba(187,140,247,.15);color:var(--purple)}
+.pill.risk{background:rgba(255,77,66,.18);color:var(--risk)}   /* n10 交易日志 AI 复盘错误警示 */
 /* ---------- 鹰眼资金风控专项检测器 ---------- */
-.erow{padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.05);font-size:12px;line-height:1.8;color:var(--dim)}
+.erow{padding:6px 0;border-bottom:1px dashed rgba(120,140,180,.1);font-size:12px;line-height:1.8;color:var(--dim)}
 .erow:last-child{border-bottom:none}
 .erow b{color:var(--txt)}
 /* ---------- 历史案例库 ---------- */
 #caseFilters{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}
-.fbtn{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:2px 9px;font-size:11px;cursor:pointer}
-.fbtn.on{color:var(--gold);border-color:rgba(240,185,11,.45);background:rgba(240,185,11,.08)}
-.clrow{border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin-bottom:6px;background:var(--card2);font-size:12px}
+.fbtn{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:2px 10px;font-size:11px;cursor:pointer;transition:all .2s}
+.fbtn.on{color:var(--gold2);border-color:rgba(232,182,76,.5);background:rgba(232,182,76,.09)}
+.clrow{border:1px solid var(--line);border-radius:10px;padding:7px 9px;margin-bottom:6px;background:var(--card2);font-size:12px}
 .clrow .ct{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--txt);font-weight:600}
 .clrow .cd{color:var(--dim);margin-top:2px;line-height:1.5;font-weight:400}
-.simrow{background:rgba(240,185,11,.05);border:1px solid rgba(240,185,11,.25);border-radius:8px;padding:6px 8px;margin-bottom:8px;font-size:12px;line-height:1.8;color:var(--dim)}
+.simrow{background:rgba(232,182,76,.05);border:1px solid rgba(232,182,76,.28);border-radius:10px;padding:7px 9px;margin-bottom:8px;font-size:12px;line-height:1.8;color:var(--dim)}
 /* spot input */
 .inp{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .inp label{font-size:11px;color:var(--faint);display:block;margin-bottom:3px}
-.inp input,.inp select{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:6px 8px;font-size:13px}
-.inp input:focus,.inp select:focus{outline:none;border-color:var(--blue)}
+.inp input,.inp select{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:6px 9px;font-size:13px;transition:border-color .2s}
+.inp input:focus,.inp select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px rgba(90,162,247,.12)}
 .basisbox{margin-top:8px;font-size:12px;color:var(--dim);line-height:1.8}
 .basisbox b{color:var(--txt)}
 /* footer */
-footer{position:fixed;bottom:0;left:0;right:0;background:rgba(11,14,20,.97);border-top:1px solid var(--line);padding:7px 14px;font-size:11px;color:var(--faint);z-index:60;line-height:1.5}
+footer{position:fixed;bottom:0;left:0;right:0;background:rgba(6,8,13,.97);border-top:1px solid var(--line);padding:7px 14px;font-size:11px;color:var(--faint);z-index:60;line-height:1.5;backdrop-filter:blur(10px)}
 footer b{color:var(--warn)}
 /* settings */
-#settings{position:fixed;right:12px;bottom:64px;z-index:70;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;display:none;width:240px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#settings{position:fixed;right:12px;bottom:64px;z-index:70;background:var(--card3);border:1px solid var(--line2);border-radius:12px;padding:12px;display:none;width:240px;box-shadow:var(--shadow-lg)}
 #settings .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--dim)}
-#gear{position:fixed;right:14px;bottom:64px;z-index:69;width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--line);color:var(--dim);cursor:pointer;font-size:16px}
+#gear{position:fixed;right:14px;bottom:64px;z-index:69;width:36px;height:36px;border-radius:50%;background:var(--card3);border:1px solid var(--line2);color:var(--dim);cursor:pointer;font-size:16px;transition:all .25s}
+#gear:hover{color:var(--gold2);border-color:rgba(232,182,76,.4);box-shadow:var(--glow-gold)}
 select,button{font-family:inherit}
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-thumb{background:#2a3348;border-radius:3px}
-.errbox{display:none;background:rgba(230,72,61,.08);border:1px solid rgba(230,72,61,.35);color:#f0a8a2;font-size:12px;border-radius:8px;padding:8px 10px;margin:10px 12px 0}
-.recaph{font-size:13px;color:var(--txt);font-weight:700;margin:10px 0 6px;padding-left:8px;border-left:3px solid var(--gold)}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#2a3348,#1c2333);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#3a4662}
+.errbox{display:none;background:rgba(255,77,66,.08);border:1px solid rgba(255,77,66,.35);color:#f4b6b0;font-size:12px;border-radius:10px;padding:8px 10px;margin:10px 14px 0}
+.recaph{font-size:13px;color:var(--txt);font-weight:700;margin:10px 0 6px;padding-left:9px;border-left:3px solid var(--gold)}
 table.lvl{width:100%;border-collapse:collapse;font-size:12px}
-table.lvl th{color:var(--faint);font-weight:400;text-align:left;padding:4px 4px;border-bottom:1px solid var(--line)}
-table.lvl td{padding:4px;border-bottom:1px dashed rgba(255,255,255,.05);color:var(--dim)}
+table.lvl th{color:var(--faint);font-weight:400;text-align:left;padding:4px;border-bottom:1px solid var(--line2)}
+table.lvl td{padding:4px;border-bottom:1px dashed rgba(120,140,180,.1);color:var(--dim)}
 table.lvl td b{color:var(--txt)}
 .lvlwrap{overflow-x:auto;-webkit-overflow-scrolling:touch} /* k3-2 移动端横向滚动 */
+/* ================= v12 大师级增补组件 ================= */
+/* 复盘日志条目（renderJournal 动态生成 .jrow） */
+.jrow{border:1px solid var(--line);border-radius:10px;padding:7px 9px;margin-bottom:6px;background:var(--card2);font-size:12px;line-height:1.65;transition:border-color .2s}
+.jrow:hover{border-color:rgba(232,182,76,.3)}
+.jrow .jt{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-weight:600;color:var(--txt)}
+.jrow .jt .tm{color:var(--faint);font-size:10px;margin-left:auto}
+.jrow .jd{color:var(--dim);margin-top:2px;font-weight:400}
+.jt{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-weight:600;color:var(--txt)}
+.jrow .jd,.jrow~.jd{color:var(--dim)}
+/* 评级/结果徽章（JS 侧 .grb + grXxx / resXxx 类） */
+.grb{display:inline-block;min-width:34px;text-align:center;font-weight:800;font-size:15px;padding:2px 9px;border-radius:8px;border:1px solid;font-family:var(--serif)}
+.grA{color:#4ae39a;border-color:rgba(74,227,154,.45);background:rgba(74,227,154,.1);text-shadow:0 0 10px rgba(74,227,154,.5)}
+.grB{color:var(--gold2);border-color:rgba(232,182,76,.5);background:rgba(232,182,76,.1);text-shadow:0 0 10px rgba(232,182,76,.5)}
+.grC{color:#9fb0cc;border-color:rgba(159,176,204,.35);background:rgba(159,176,204,.08)}
+.grD{color:var(--risk);border-color:rgba(255,77,66,.5);background:rgba(255,77,66,.1);text-shadow:0 0 10px rgba(255,77,66,.45)}
+.resW{color:#4ae39a}.resL{color:var(--risk)}.resF{color:var(--dim)}
+/* 交易日志行（logRow / logRow-hd） */
+.logRow{border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:var(--card2);overflow:hidden}
+.logRow-hd{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:7px 9px;font-size:12px;font-weight:600;color:var(--txt);cursor:pointer}
+.logRow-hd:hover{background:rgba(232,182,76,.04)}
+.logRow-bd{padding:0 9px 8px;font-size:12px;color:var(--dim);line-height:1.7;border-top:1px dashed var(--line)}
+/* 盈亏统计小卡（jStats 输出 .vtn） */
+.vtn{display:inline-flex;flex-direction:column;gap:2px;min-width:86px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card2)}
+.vtn b{font-size:17px;font-family:var(--serif);line-height:1.1}
+.vtn span{font-size:10px;color:var(--faint);letter-spacing:.1em}
+.badgeRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* 一句话结论 */
+.oneliner{border-left:3px solid var(--gold);background:linear-gradient(90deg,rgba(232,182,76,.07),transparent 70%);border-radius:0 8px 8px 0;font-size:13px;font-weight:700;line-height:1.5}
+/* 分区小标题（复盘页复用） */
+.subh{font-size:12px;color:var(--gold2);font-weight:700;letter-spacing:.12em;margin:12px 0 6px;display:flex;align-items:center;gap:6px}
+.subh::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(232,182,76,.3),transparent)}
+/* 克隆分析师警示条 */
+.clonebar{background:linear-gradient(90deg,rgba(187,140,247,.1),rgba(187,140,247,.02));border:1px solid rgba(187,140,247,.35);color:#d7c2fa;border-radius:10px;padding:8px 10px;font-size:12px;line-height:1.7;margin-bottom:8px}
+/* 入场动效 */
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card,.ev,.jrow,.clrow{animation:rise .45s cubic-bezier(.2,.7,.3,1) both}
+main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-delay:.12s}main .card:nth-child(4){animation-delay:.18s}main .card:nth-child(5){animation-delay:.24s}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 
 <header>
   <div class="hrow">
-    <div class="logo">🥚 JD2611 半量化研判系统<small>傅海棠供需 + 势位态 + 威科夫鹰眼</small></div>
+    <!-- v12 大师级品牌区 -->
+    <div class="brandwrap">
+      <span class="eyebrow">QUANT · RESEARCH TERMINAL</span>
+      <div class="logo"><span class="lg-mark">JD2611</span> 半量化研判系统<small>傅海棠供需 · 势位态 · 威科夫鹰眼</small></div>
+    </div>
     <input id="contract" value="JD2611" maxlength="8" title="k3-6 合约切换：输入代码（如 JD2605 / JD0）后回车，自动重载全部数据；历史日期切换为预留功能">
     <span id="modebadge" class="badge close">收盘复盘模式</span>
-    <span id="pushbadge" class="badge" style="display:none;background:rgba(240,185,11,.12);color:var(--gold);border:1px solid rgba(240,185,11,.35);font-size:10px" title="Trae 自动推送已接入：行情由 Node+AKShare 服务端预取并自动注入，无需手动录入">🤖 Trae推送</span>
+    <span id="pushbadge" class="badge" style="display:none;background:rgba(232,182,76,.12);color:var(--gold2);border:1px solid rgba(232,182,76,.35);font-size:10px" title="Trae 自动推送已接入：行情由 Node+AKShare 服务端预取并自动注入，无需手动录入">🤖 Trae推送</span>
     <div class="pricebox">
       <span><span id="dot"></span><span id="bigprice" class="num">--</span></span>
       <span id="bigchg" class="num">--</span>
@@ -190,10 +272,10 @@ table.lvl td b{color:var(--txt)}
     </div>
     <div id="chartfoot">
       <span id="lastts" style="font-size:10px;color:var(--dim)">最近K线: --</span>
-      <span class="maleg"><i style="background:#f0b90b"></i>MA5</span>
-      <span class="maleg"><i style="background:#4f9cf9"></i>MA10</span>
-      <span class="maleg"><i style="background:#b07af5"></i>MA20</span>
-      <span class="maleg"><i style="border:1px solid #f0b90b;background:none"></i>放量</span>
+      <span class="maleg"><i style="background:#e8b64c"></i>MA5</span>
+      <span class="maleg"><i style="background:#5aa2f7"></i>MA10</span>
+      <span class="maleg"><i style="background:#bb8cf7"></i>MA20</span>
+      <span class="maleg"><i style="border:1px solid #e8b64c;background:none"></i>放量</span>
       <span class="maleg" style="color:#ffa726">▲诱多</span>
       <span class="maleg" style="color:#4dd0e1">▼诱空</span>
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
@@ -210,7 +292,7 @@ table.lvl td b{color:var(--txt)}
       <h3>四项打分 <span class="tag">规则引擎 · 每项0~25</span></h3>
       <div id="scoretotal">
         <div id="totalwrap">
-          <div id="totalnum" class="num">--</div>
+          <div id="totalnum" class="num" style="font-family:var(--serif)">--</div>
           <div id="totallabel">综合总分</div>
         </div>
         <div style="flex:1;min-width:180px">
@@ -330,7 +412,7 @@ table.lvl td b{color:var(--txt)}
         <div><label>交易笔记（理由/计划）</label><input id="jNote" placeholder="如：放量突破追多，未等回踩"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px;flex-wrap:wrap">
-        <button class="fbtn" id="jAdd" style="background:rgba(38,166,154,.15);border-color:var(--sup)">＋ 记一笔</button>
+        <button class="fbtn" id="jAdd" style="background:rgba(45,212,170,.15);border-color:var(--sup)">＋ 记一笔</button>
         <button class="fbtn" id="jSnap">📋 从当前策略带快照</button>
         <span style="font-size:10px;color:var(--faint)">快照自动记录当时评级/盈亏比/一票否决，供复盘对照</span>
       </div>
@@ -416,6 +498,8 @@ table.lvl td b{color:var(--txt)}
 </div>
 
 <footer><b>免责声明：</b>本内容仅为盘面数据复盘参考，不构成任何期货投资建议，期货杠杆风险极高，所有交易盈亏由使用者自行承担。本系统为规则化半量化工具，所有打分与标注均为算法估算，不预测未来涨跌，不提供任何做多/做空交易指令。<b>历史案例存在样本偏差</b>（案例库仅收录符合特定筛选条件的代表性行情，且历史规律由事后归纳得出），不能预判未来行情。</footer>
+<!-- v12 大师级终端 · 主题版本标记 -->
+<span id="themeVer" data-theme="v12-master" style="display:none"></span>
 
 <!-- n3: Chart.js CDN（简易K线速览用；加载失败时主图与全部功能不受影响，仅隐藏速览卡片） -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -1676,16 +1760,17 @@ function volZ2(ses,b,i){ /* 会话内量z */
  *  图表（canvas，暗色·5%白网格·极淡高低标记线）
  * ===================================================================== */
 const C = {
-  bg:'#0d1017', grid:'rgba(255,255,255,0.05)', hl:'rgba(255,255,255,0.05)',
-  axis:'rgba(255,255,255,0.28)', txt:'#8391a8',
-  up:'#ef5350', dn:'#26a69a', upFill:'rgba(239,83,80,0.9)', dnFill:'rgba(38,166,154,0.9)',
-  volUp:'rgba(239,83,80,0.45)', volDn:'rgba(38,166,154,0.45)',
-  oiLine:'rgba(138,160,184,0.65)',
-  ma5:'#f0b90b', ma10:'#4f9cf9', ma20:'#b07af5',
-  resLine:'rgba(239,83,80,0.85)', supLine:'rgba(38,166,154,0.85)',
-  resGlow:'rgba(239,83,80,0.15)', supGlow:'rgba(38,166,154,0.15)',
-  resChip:'#ef5350', supChip:'#26a69a',
-  mkVol:'rgba(240,185,11,0.85)', mkFbL:'#ffa726', mkFbS:'#4dd0e1'
+  /* v12 大师级配色：深空底 · 红涨绿跌 */
+  bg:'#0a0e17', grid:'rgba(140,160,200,0.07)', hl:'rgba(140,160,200,0.08)',
+  axis:'rgba(160,178,205,0.32)', txt:'#8d9ab3',
+  up:'#ff5a52', dn:'#2dd4aa', upFill:'rgba(255,90,82,0.92)', dnFill:'rgba(45,212,170,0.92)',
+  volUp:'rgba(255,90,82,0.45)', volDn:'rgba(45,212,170,0.45)',
+  oiLine:'rgba(148,166,196,0.65)',
+  ma5:'#e8b64c', ma10:'#5aa2f7', ma20:'#bb8cf7',
+  resLine:'rgba(255,90,82,0.85)', supLine:'rgba(45,212,170,0.85)',
+  resGlow:'rgba(255,90,82,0.15)', supGlow:'rgba(45,212,170,0.15)',
+  resChip:'#ff5a52', supChip:'#2dd4aa',
+  mkVol:'rgba(232,182,76,0.88)', mkFbL:'#ffa726', mkFbS:'#4dd0e1'
 };
 const chart = {
   cv:null, ctx:null, w:0, h:0, dpr:1,
@@ -1799,14 +1884,14 @@ const chart = {
     (S.aiLines||[]).forEach((al,j)=>{
       if(al.p==null||!(al.p<hi&&al.p>lo)) return;
       const y=Y(al.p);
-      ctx.setLineDash([6,4]); ctx.strokeStyle=al.color||'rgba(240,185,11,0.85)'; ctx.lineWidth=1.3;
+      ctx.setLineDash([6,4]); ctx.strokeStyle=al.color||'rgba(232,182,76,0.85)'; ctx.lineWidth=1.3;
       ctx.beginPath(); ctx.moveTo(L.x0+70,y); ctx.lineTo(L.x1,y); ctx.stroke();
       ctx.setLineDash([]);
       ctx.font='bold 10px system-ui'; ctx.textAlign='left';
       const label=(al.label||'AI线').slice(0,10)+' '+al.p.toFixed(0);
-      ctx.fillStyle='rgba(13,16,23,0.72)';
+      ctx.fillStyle='rgba(10,14,22,0.78)';
       ctx.fillRect(L.x0+70, y+(j%2===0?-14:2), ctx.measureText(label).width+10, 13);
-      ctx.fillStyle=al.color||'#f0b90b';
+      ctx.fillStyle=al.color||'#e8b64c';
       ctx.fillText(label, L.x0+75, y+(j%2===0?-4:12));
     });
     /* ---- K线 ---- */
@@ -2047,13 +2132,18 @@ function renderPanels(){
   } else $('vetobox').style.display='none';
   /* 评级横幅卡片（k1-3）：页面顶部展示综合得分 / 机会评级 / 一票否决状态，带颜色区分 */
   {
+    /* v12 大师级：评级改为衬线发光徽章 */
     const gr=A.grade?A.grade.grade:'--';
-    const grC={'A':'var(--ok)','B':'var(--gold)','C':'var(--dim)','D':'var(--risk)'};
+    const grC={'A':'#4ae39a','B':'#f5d68a','C':'#9fb0cc','D':'#ff4d42'};
+    const grGlow={'A':'0 0 18px rgba(74,227,154,.35)','B':'0 0 18px rgba(232,182,76,.35)','C':'none','D':'0 0 18px rgba(255,77,66,.35)'};
     $('gradeBanner').style.display='block';
     $('gbScore').textContent=A.total;
     $('gbScore').style.color=A.veto.length?'var(--risk)':(A.total>=70?'var(--ok)':A.total>=45?'var(--gold)':'var(--dim)');
     $('gbGrade').textContent=gr;
-    $('gbGrade').style.color=grC[gr]||'var(--dim)';
+    $('gbGrade').style.color=grC[gr]||'#9fb0cc';
+    $('gbGrade').style.textShadow=grGlow[gr]||'none';
+    $('gbGrade').style.fontFamily='var(--serif)';
+    $('gbGrade').style.fontSize='30px';
     $('gbVeto').innerHTML = A.veto.length
       ? `<b style="color:var(--risk)">⛔ 一票否决已触发（${A.veto.length}项）</b>：硬阻断，优先级高于打分，总分已按 ×0.65 折算并封顶 45 分，不视为交易机会。<br><span style="color:var(--risk)">${A.veto[0]}${A.veto.length>1?' 等':''}</span>`
       : `<b style="color:var(--ok)">✔ 未触发一票否决</b>${A.riskFlags.length?`（另有异动风险提示 ${A.riskFlags.length} 项，见风险提示卡片）`:''}。评级规则：A≥80 · B≥65 · C≥45 · D&lt;45。`;
@@ -2541,7 +2631,7 @@ function renderStrategy(){
   rows.push(`<tr><td><b>行情定性</b></td><td><b style="color:${sideC}">${side}</b>　<span style="color:var(--faint)">${qualNote}</span></td></tr>`);
   /* n10 醒目警告条：盈亏比低于 1.5R 阈值 → 顶部大字提示不建议开仓（展示层，不改评级） */
   if(R&&!R.pass){
-    rows.push(`<tr><td colspan="2" style="background:rgba(230,72,61,.12);border:1px solid var(--risk);border-radius:6px;padding:6px 10px"><b style="color:var(--risk)">⛔ 不建议开仓</b>　<span style="color:var(--txt)">自动计算的预估盈亏比 <b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b> 低于 <b>1.5R</b> 阈值（${R.side==='多'?'多':'空'}向：入场 ${R.entry.toFixed(0)} / 止损 ${R.stop.toFixed(0)} / 目标 ${R.target.toFixed(0)}）——风险回报不划算，按框架直接过滤，等待更好的入场位置。</span></td></tr>`);
+    rows.push(`<tr><td colspan="2" style="background:rgba(255,77,66,.12);border:1px solid var(--risk);border-radius:6px;padding:6px 10px"><b style="color:var(--risk)">⛔ 不建议开仓</b>　<span style="color:var(--txt)">自动计算的预估盈亏比 <b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b> 低于 <b>1.5R</b> 阈值（${R.side==='多'?'多':'空'}向：入场 ${R.entry.toFixed(0)} / 止损 ${R.stop.toFixed(0)} / 目标 ${R.target.toFixed(0)}）——风险回报不划算，按框架直接过滤，等待更好的入场位置。</span></td></tr>`);
   }
   if(R){
     const t2=R.entry+2*(R.target-R.entry);   /* 第二目标：等距延伸（纯展示换算） */
@@ -2897,12 +2987,12 @@ function renderChartJS(){
     type:'bar',
     data:{labels:labels,datasets:[
       {label:'成交量',data:vols,backgroundColor:vc,yAxisID:'yv',order:3,barPercentage:0.62,borderWidth:0},
-      {label:'收盘价',data:bars.map(b=>b.c),type:'line',borderColor:C.ma5,backgroundColor:'rgba(240,185,11,.08)',borderWidth:1.5,pointRadius:0,tension:.25,yAxisID:'y',order:2}
+      {label:'收盘价',data:bars.map(b=>b.c),type:'line',borderColor:C.ma5,backgroundColor:'rgba(232,182,76,.08)',borderWidth:1.5,pointRadius:0,tension:.25,yAxisID:'y',order:2}
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,animation:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(13,16,23,.92)',borderColor:'#1c2333',borderWidth:1,titleColor:'#cfd8e6',bodyColor:'#8391a8',callbacks:{
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,14,22,.94)',borderColor:'rgba(120,140,180,.24)',borderWidth:1,titleColor:'#dbe4f3',bodyColor:'#8d9ab3',callbacks:{
         label:c=>c.datasetIndex===1? '收 '+c.parsed.y.toFixed(0) : '量 '+c.parsed.y.toFixed(0),
         afterBody:items=>{ const b=(typeof cjsChart!=='undefined'&&cjsChart&&cjsChart.$bars||[])[items[0].dataIndex]; if(!b) return '';
           return ['开 '+b.o.toFixed(0)+'  高 '+b.h.toFixed(0)+'  低 '+b.l.toFixed(0)]; }
