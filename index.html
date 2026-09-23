@@ -1881,17 +1881,20 @@ const chart = {
       ctx.setLineDash([]);
     }
     /* v10: AI 自动画线（Trae 推送 meta.ai.annotations，水平虚线+左端标签，不与关键位标签重叠） */
+    /* v12: 旧配色规范化防线 —— Trae 契约若带旧主题色，渲染时自动映射为 v12 大师级配色 */
+    const v12CM={'rgba(239,83,80':'rgba(255,90,82','rgba(38,166,154':'rgba(45,212,170','rgba(240,185,11':'rgba(232,182,76','#ef5350':'#ff5a52','#26a69a':'#2dd4aa','#f0b90b':'#e8b64c'};
+    const v12C=c=>{ if(!c) return c; let s=String(c); for(const k in v12CM){ if(s.indexOf(k)>=0) s=s.split(k).join(v12CM[k]); } return s; };
     (S.aiLines||[]).forEach((al,j)=>{
       if(al.p==null||!(al.p<hi&&al.p>lo)) return;
-      const y=Y(al.p);
-      ctx.setLineDash([6,4]); ctx.strokeStyle=al.color||'rgba(232,182,76,0.85)'; ctx.lineWidth=1.3;
+      const y=Y(al.p), ac=v12C(al.color);
+      ctx.setLineDash([6,4]); ctx.strokeStyle=ac||'rgba(232,182,76,0.85)'; ctx.lineWidth=1.3;
       ctx.beginPath(); ctx.moveTo(L.x0+70,y); ctx.lineTo(L.x1,y); ctx.stroke();
       ctx.setLineDash([]);
       ctx.font='bold 10px system-ui'; ctx.textAlign='left';
       const label=(al.label||'AI线').slice(0,10)+' '+al.p.toFixed(0);
       ctx.fillStyle='rgba(10,14,22,0.78)';
       ctx.fillRect(L.x0+70, y+(j%2===0?-14:2), ctx.measureText(label).width+10, 13);
-      ctx.fillStyle=al.color||'#e8b64c';
+      ctx.fillStyle=ac||'#e8b64c';
       ctx.fillText(label, L.x0+75, y+(j%2===0?-4:12));
     });
     /* ---- K线 ---- */
