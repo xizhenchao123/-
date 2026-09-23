@@ -452,7 +452,9 @@ const S = {
   m1:[],               // 1分钟K线（420根≈一个交易日，供微观资金脉冲/诱多诱空识别）
   live:null,           // {price,dayH,dayL,dayOpen,prevSettle,prevOI,oi,oiDelta,dayVol,volRatio,t,srcDate}
   spot:{ today:LS.get('spotToday',''), yest:LS.get('spotYest',''), bias:LS.get('bias',0) },
-  freq: LS.get('freq',1000),
+  /* n14: 频率钳制——localStorage 损坏值（0/负数/字符串）会让 setInterval 被浏览器钳到 4ms，
+     等于高频轰炸行情接口（会被封IP），故强制落到合法档位 1000/3000/5000/10000 */
+  freq: [1000,3000,5000,10000].includes(+LS.get('freq',1000)) ? +LS.get('freq',1000) : 1000,
   showMA: LS.get('showMA',1),
   mode:'close',
   sessionDate:null,
@@ -2126,12 +2128,12 @@ function renderTrack(){
     return;
   }
   const lines=(T.lines||[]).map(l=>'<div style="margin-bottom:4px">'+l+'</div>').join('');
-  /* k3-3 持仓扩展字段展示（止盈/开仓时间/手数/交易笔记） */
+  /* k3-3 持仓扩展字段展示（止盈/开仓时间/手数/交易笔记）——n14: 用户自由文本 note/time 走 esc() 转义 */
   const ext=[];
-  if(p.tp) ext.push('止盈参考 <b class="num">'+p.tp+'</b>（触及后人工评估）');
-  if(p.time) ext.push('开仓时间 <b>'+p.time+'</b>');
-  if(p.lots) ext.push('手数 <b class="num">'+p.lots+'</b>');
-  if(p.note) ext.push('笔记：'+p.note);
+  if(p.tp) ext.push('止盈参考 <b class="num">'+esc(p.tp)+'</b>（触及后人工评估）');
+  if(p.time) ext.push('开仓时间 <b>'+esc(p.time)+'</b>');
+  if(p.lots) ext.push('手数 <b class="num">'+esc(p.lots)+'</b>');
+  if(p.note) ext.push('笔记：'+esc(p.note));
   $('trackBody').innerHTML='<div class="sec">'+(lines||'监测中…')+
     (T.stopRef!=null?`<br>止损参考 <b class="num">${T.stopRef.toFixed(0)}</b>${T.stopIsEst?'（2×ATR日估算）':'（人工设定）'}`:'')+
     (ext.length?'<br><span style="color:var(--dim)">'+ext.join(' · ')+'</span>':'')+
@@ -2215,8 +2217,8 @@ function renderJournal(){
     const rc=x.result==='win'?'var(--ok)':x.result==='loss'?'var(--risk)':'var(--faint)';
     const snap=x.snap?`<span style="color:var(--faint)">［快照：${esc(x.snap.grade||'--')}级 · ${x.snap.rr!=null?x.snap.rr.toFixed(2)+'R':'--'} · ${esc(x.snap.side||'--')}${x.snap.veto0?' · 否决:'+esc(x.snap.veto0):''}］</span>`:'';
     return `<div style="padding:4px 0;border-bottom:1px dashed #2a3346;font-size:11px">`+
-      `<b>${esc(x.day||'--')}</b> ${x.dir==='空'?'🔻做空':'🔺做多'} 入<b class="num">${x.entry!=null?x.entry:'--'}</b> 出<b class="num">${x.exit!=null?x.exit:'--'}</b> 损<b class="num">${x.stop!=null?x.stop:'未设'}</b>`+
-      `${x.lots!=null?' '+x.lots+'手':''} <b style="color:${rc}">${x.result==='win'?'盈利':x.result==='loss'?'亏损':'持平'} ${x.pts!=null?(x.pts>0?'+':'')+x.pts+'点':''}</b>`+
+      `<b>${esc(x.day||'--')}</b> ${x.dir==='空'?'🔻做空':'🔺做多'} 入<b class="num">${esc(x.entry!=null?x.entry:'--')}</b> 出<b class="num">${esc(x.exit!=null?x.exit:'--')}</b> 损<b class="num">${esc(x.stop!=null?x.stop:'未设')}</b>`+
+      `${x.lots!=null?' '+esc(x.lots)+'手':''} <b style="color:${rc}">${x.result==='win'?'盈利':x.result==='loss'?'亏损':'持平'} ${x.pts!=null?(x.pts>0?'+':'')+esc(x.pts)+'点':''}</b>`+
       `${x.note?'<br><span style="color:var(--dim)">📝 '+esc(x.note)+'</span>':''}${snap?'<br>'+snap:''}`+
       `</div>`;
   }).join(''):'<div style="font-size:11px;color:var(--faint)">暂无交易记录。</div>';
