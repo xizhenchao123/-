@@ -2497,11 +2497,46 @@ function detectMode(){
   S.mode = live? 'live':'close';
 }
 let lastBarT=0;
+/* n13: 实时价合成——把最新价合入主图数据副本的最后一根K线（仅图表展示层），
+   S.bars 原始数据不动，analyze/打分/一票否决等底层计算逻辑零影响。
+   新5分钟周期自动"开新bar"：与行情软件行为一致，盘面跳动肉眼可见。 */
+function mergeLiveTick(){
+  const L=S.live; if(!L||L.price==null) return;
+  const base=S.tf==='m5'? S.bars.m5 : (S.tf==='h1'? S.bars.h1 : S.bars.d);
+  if(!base.length) return;
+  if(!chart.chartBars || chart.chartBarsSrc!==base){          /* 周期切换/全量刷新后重建副本 */
+    chart.chartBars=base.map(b=>({...b}));
+    chart.chartBarsSrc=base;
+  }
+  const arr=chart.chartBars, last=arr[arr.length-1];
+  const sameSlot = S.tf==='m5' ? (Math.floor(L.t/300000)*300000===last.t)
+                : S.tf==='h1' ? (Math.floor(L.t/3600000)*3600000===last.t)
+                : (bjStr(new Date(L.t))===bjStr(new Date(last.t)));   /* 日线按自然日 */
+  if(!sameSlot && S.tf!=='d'){                                 /* 新周期：开新bar（m5/h1） */
+    const bucket=S.tf==='m5'?300000:3600000;
+    arr.push({t:Math.floor(L.t/bucket)*bucket,o:L.price,h:L.price,l:L.price,c:L.price,v:0,oi:L.oi});
+    if(arr.length>600) arr.shift();
+  }else if(sameSlot){                                          /* 同周期：合成最新价 */
+    last.c=L.price;
+    if(L.price>last.h) last.h=L.price;
+    if(L.price<last.l) last.l=L.price;
+  }
+  chart.bars=arr;                                              /* draw() 用副本渲染 */
+}
 function onTick(){
-  renderHeader();
   if(S.A && (S.mode==='live')){
-    /* 实时轻更新：把最新价合入最后一根K线 */
-    chart.draw();
+    mergeLiveTick();
+    chart.draw();      /* n13: 主图每秒重绘（已含最新价合成），不重置缩放/平移状态 */
+    /* n13: Chart.js 速览轻量同步——只更新最后一个点（收盘价/量），update('none') 无动画，
+       避免整图销毁重建的性能开销；主图与速览图同步跳动 */
+    if(typeof Chart!=='undefined' && cjsChart && cjsChart.$bars && cjsChart.$bars.length){
+      try{
+        const ds=cjsChart.data.datasets;
+        if(ds[1]&&ds[1].data.length) ds[1].data[ds[1].data.length-1]=S.live.price;   /* 只同步收盘价折线；
+          成交量为单根bar口径，秒级拿不到当根增量，仍以60秒全量刷新为准，避免量柱虚高 */
+        cjsChart.update('none');
+      }catch(e){ /* 速览图更新失败不影响主图 */ }
+    }
     /* 持仓中：轻量刷新持仓监测行（浮盈亏/止损参考随最新价变动，不重跑 analyze） */
     if(S.pos&&S.pos.on) renderTrack();
   }
@@ -2536,6 +2571,7 @@ async function fullCycle(){
 function setChartData(){
   const bars = S.tf==='m5'? S.bars.m5 : (S.tf==='h1'? S.bars.h1 : S.bars.d);
   chart.setData(bars, S.tf);
+  chart.chartBars=null; chart.chartBarsSrc=null;   /* n13: 全量刷新/切换周期后，秒级合成副本下次重建 */
   $('charttitle').textContent='鸡蛋'+S.contract;
   /* K线时间戳：方便在行情软件中定位对应K线（用户要求） */
   const last=bars[bars.length-1];
@@ -2613,6 +2649,8 @@ function restartTimers(){
     renderHeader();               /* 表头+时钟+chips（读内存缓存，无网络） */
     const hb=$('hb');
     if(hb){ S.hbN=(S.hbN||0)+1; hb.textContent='♥'+S.hbN; }   /* 心跳计数器：可见证明每秒在刷新 */
+    onTick();                     /* n13: 主图每秒重绘（实时价合成在 onTick 内，与网络请求完全解耦——
+                                     fetchM1 再慢/失败都不影响K线逐秒跳动） */
   }, 1000);
   if(S.mode==='live'){
     /* n11: 每秒同步——fast 定时器除拉取m1外，同步重算 analyze()+renderPanels()+renderStrategy()，
@@ -2627,7 +2665,7 @@ function restartTimers(){
         analyze();
         renderPanels();
         renderStrategy();   /* n11: 策略输出卡片逐秒联动（live 模式 renderRecap 提前返回不会带它） */
-        onTick();
+        /* n13: 主图重绘已移至 timerClock（每秒必跳，与网络解耦），此处不再重复调用 onTick */
         const hb=$('hb'); if(hb){ hb.style.color='var(--ok)'; hb.title='每秒心跳正常 · 数据同步正常'; }
       }catch(e){
         S.errStreak++;
