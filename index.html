@@ -169,6 +169,12 @@ table.lvl td b{color:var(--txt)}
   <div id="gbOneLiner" style="display:none;margin-top:8px;padding:7px 10px;border-left:3px solid var(--dim);background:rgba(127,127,127,.08);border-radius:0 6px 6px 0;font-size:13px;font-weight:700;line-height:1.5">--</div>
 </div>
 
+<!-- v10: AI 盯盘提醒卡片（Trae 克隆分析师推送：lines→提醒 / annotations→主图自动画线） -->
+<div class="card" id="aiCard" style="display:none;margin:10px 12px 0">
+  <h3>🤖 AI 盯盘提醒 <span class="tag">Trae 克隆分析师推送</span><span class="tag" id="aiTag">--</span></h3>
+  <div class="sec" id="aiBody">暂无推送。</div>
+</div>
+
 <main>
   <!-- 左：图表 -->
   <section class="card" id="chartcard">
@@ -545,6 +551,11 @@ async function tryLoadTraePush(){
     const r = await fetch('jd_latest.json', {cache:'no-store'});
     if(!r.ok) return false;
     const j = await r.json();
+    /* v10: AI 盯盘提醒独立于K线包 —— 即使无K线也可渲染 lines/annotations */
+    if(j.meta&&j.meta.ai&&(Array.isArray(j.meta.ai.lines)&&j.meta.ai.lines.length||Array.isArray(j.meta.ai.annotations)&&j.meta.ai.annotations.length)){
+      renderAiCard(j.meta.ai);
+      S.aiLines=(Array.isArray(j.meta.ai.annotations)?j.meta.ai.annotations:[]).filter(a=>a&&a.p!=null).slice(0,6);
+    }
     if(!j.klines || !j.klines.d || j.klines.d.length<10) return false;
     /* fix: 合约校验 —— 推送包与当前页面合约不一致时拒绝注入，防止串数据 */
     if(j.contract && S.contract && String(j.contract).toUpperCase()!==String(S.contract).toUpperCase()) return false;
@@ -584,6 +595,26 @@ function ifindAutoFill(){
   if(a.posLongPrev!=null&&a.posShortPrev!=null) fill('mfNetDelta',(a.posLong-a.posShort)-(a.posLongPrev-a.posShortPrev));
   S.mf.long=$('mfLong').value; S.mf.short=$('mfShort').value; S.mf.net=$('mfNet').value; S.mf.netDelta=$('mfNetDelta').value;
   try{ renderMF(); }catch(e){}
+}
+/* v10: AI 盯盘提醒卡片渲染（lines 数组 → 提醒条；severity 高→红 中→黄 低→灰） */
+function renderAiCard(ai){
+  const box=$('aiCard'), body=$('aiBody'), tag=$('aiTag');
+  if(!box||!body) return;
+  const lines=(Array.isArray(ai.lines)?ai.lines:[]).slice(0,8);
+  const sevColor={high:'var(--risk)',mid:'var(--warn)',low:'var(--dim)'};
+  const sevIcon={high:'🔴',mid:'🟡',low:'⚪'};
+  let html='';
+  lines.forEach(l=>{
+    if(!l||!l.text) return;
+    const c=sevColor[l.severity]||sevColor.low;
+    html+=`<div class="erow" style="border-left:3px solid ${c};padding-left:8px;margin:5px 0"><b style="color:${c}">${sevIcon[l.severity]||'⚪'} ${esc(l.tag||'提醒')}</b>：${esc(l.text)}${l.price!=null?` <b class="num">@${(+l.price).toFixed(0)}</b>`:''}</div>`;
+  });
+  if(ai.summary) html=`<div class="sec" style="margin-bottom:4px"><b>${esc(ai.summary)}</b></div>`+html;
+  if(ai.review) html+=`<div class="sec" style="margin-top:4px;font-size:11px;color:var(--dim)">${esc(ai.review)}</div>`;
+  body.innerHTML=html||'<div class="sec">推送包无有效提醒。</div>';
+  box.style.display='';
+  tag.textContent=(ai.stamp||'').slice(5,16)||'已更新';
+  try{ chart.draw(); }catch(e){}
 }
 async function fetchM1(){
   if(S.busy.m1) return;
@@ -1690,6 +1721,20 @@ const chart = {
       });
       ctx.setLineDash([]);
     }
+    /* v10: AI 自动画线（Trae 推送 meta.ai.annotations，水平虚线+左端标签，不与关键位标签重叠） */
+    (S.aiLines||[]).forEach((al,j)=>{
+      if(al.p==null||!(al.p<hi&&al.p>lo)) return;
+      const y=Y(al.p);
+      ctx.setLineDash([6,4]); ctx.strokeStyle=al.color||'rgba(240,185,11,0.85)'; ctx.lineWidth=1.3;
+      ctx.beginPath(); ctx.moveTo(L.x0+70,y); ctx.lineTo(L.x1,y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font='bold 10px system-ui'; ctx.textAlign='left';
+      const label=(al.label||'AI线').slice(0,10)+' '+al.p.toFixed(0);
+      ctx.fillStyle='rgba(13,16,23,0.72)';
+      ctx.fillRect(L.x0+70, y+(j%2===0?-14:2), ctx.measureText(label).width+10, 13);
+      ctx.fillStyle=al.color||'#f0b90b';
+      ctx.fillText(label, L.x0+75, y+(j%2===0?-4:12));
+    });
     /* ---- K线 ---- */
     for(let i=0;i<seg.length;i++){
       const b=seg[i], up=b.c>=b.o, col=up?C.up:C.dn;
@@ -2641,7 +2686,8 @@ function setChartData(){
   const last=bars[bars.length-1];
   if(last) $('lastts').textContent='最近K线: '+bjStr(new Date(last.t))+' '+(S.tf==='d'?'日线收盘':fmtT(last.t))+' · 可在行情软件对应周期定位';
   else $('lastts').textContent='最近K线: --';
-  renderChartJS();   /* n3: 简易K线速览（Chart.js），与主图同步刷新 */
+  renderChartJS();   /* n3: 精简K线速览（Chart.js），与主图同步刷新 */
+  try{ chart.draw(); }catch(e){}   /* v10: 末次重绘，确保 AI 画线在数据渲染后生效 */
 }
 /* =====================================================================
  *  n3 简易K线速览（Chart.js 4）：纯可视化，不参与任何计算。
