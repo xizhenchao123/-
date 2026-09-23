@@ -371,7 +371,8 @@ table.lvl td b{color:var(--txt)}
         </div>
       </div>
       <div class="sec" id="spotHint" style="display:none;margin-top:6px;color:var(--faint);line-height:1.7"></div>
-      <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2611 属远月合约，重点看补栏周期，现货仅短期扰动。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。</div>
+      <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2611 属远月合约，重点看补栏周期，现货仅短期扰动。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。<br><b>v11 规则6：</b>Trae 推送包 meta.fundamentals 携带现货价/产区/天气消息时自动回填现货输入并按 利多+1/利空−1（合计截断±3）纳入基本面打分。</div>
+      <div class="sec" id="fundNews" style="display:none;margin-top:6px;line-height:1.7"></div>
     </div>
 
     <!-- n4: 行情API接入预留接口（默认走内置新浪源；配置自定义源后自动拉取覆盖S.bars，无需手动填数） -->
@@ -581,7 +582,9 @@ async function tryLoadTraePush(){
     S.ifind=(j.meta&&j.meta.ifind)?j.meta.ifind:null;
     S.ifindMeta=j.meta||null;
     ifindAutoFill();
-    console.log('[Trae推送] 已注入 jd_latest.json @'+stamp+' 日线'+d.length+'根/60分'+h1.length+'根/5分'+m5.length+'根'+(S.ifind?' · iFinD权威指标已捕获':''));
+    /* v11 规则6：捕获基本面推送包（现货价/产区/天气消息），自动回填现货输入并纳入打分 */
+    if(j.meta&&j.meta.fundamentals) applyFundamentals(j.meta.fundamentals);
+    console.log('[Trae推送] 已注入 jd_latest.json @'+stamp+' 日线'+d.length+'根/60分'+h1.length+'根/5分'+m5.length+'根'+(S.ifind?' · iFinD权威指标已捕获':'')+(j.meta&&j.meta.fundamentals?' · 基本面消息已捕获':''));
     return true;
   }catch(e){ return false; }   /* 本地文件不存在（file:// 或纯静态）→ 静默降级新浪源 */
 }
@@ -595,6 +598,43 @@ function ifindAutoFill(){
   if(a.posLongPrev!=null&&a.posShortPrev!=null) fill('mfNetDelta',(a.posLong-a.posShort)-(a.posLongPrev-a.posShortPrev));
   S.mf.long=$('mfLong').value; S.mf.short=$('mfShort').value; S.mf.net=$('mfNet').value; S.mf.netDelta=$('mfNetDelta').value;
   try{ renderMF(); }catch(e){}
+}
+/* =====================================================================
+ *  v11 规则6：基本面推送包消费 —— 抓取鸡蛋现货、产区、天气消息，纳入基本面打分。
+ *  契约：meta.fundamentals = {
+ *    spotToday: 5.27, spotYest: 5.65,        // 产区现货均价（元/斤），空字段才回填，绝不覆盖人工录入
+ *    region: '山东/河南',                     // 主产区标签（展示用）
+ *    news: [ {text:'华北高温持续，产蛋率下降', impact:'bull', src:'天气'}, ... ]
+ *  }
+ *  计分：每条 bull +1 / bear −1 / flat 0，合计截断 ±3 分，叠加进 ③现货基本面（仅当现货价已录入）。
+ * ===================================================================== */
+function applyFundamentals(fu){
+  try{
+    if(!fu||typeof fu!=='object') return;
+    /* ① 现货价自动回填（仅空字段，绝不覆盖人工录入） */
+    const fillSpot=(id,v)=>{ if(v==null||v==='') return; const el=$(id); if(el&&(el.value===''||el.value==null)){ el.value=String(v); LS.set(id,String(v)); } };
+    fillSpot('spotToday',fu.spotToday); fillSpot('spotYest',fu.spotYest);
+    S.spot.today=$('spotToday').value; S.spot.yest=$('spotYest').value;
+    /* ② 消息清单存入状态并渲染（news: [{text, impact: 'bull'|'bear'|'flat', src}]） */
+    const news=Array.isArray(fu.news)?fu.news.filter(n=>n&&n.text).slice(0,10):[];
+    S.fundNews={ region:fu.region||'', news };
+    const newsHtml=news.map(n=>{
+      const cls=n.impact==='bull'?'demand':n.impact==='bear'?'supply':'neutral';
+      const mark=n.impact==='bull'?'↑利多+1':n.impact==='bear'?'↓利空−1':'·中性0';
+      return `<span class="pill ${cls}" style="font-size:11px">${esc(n.src||'资讯')}｜${esc(n.text)}　<b>${mark}</b></span>`;
+    }).join('<br>');
+    $('fundNews').style.display=news.length?'block':'none';
+    $('fundNews').innerHTML=(news.length?`<b style="color:var(--gold)">📰 基本面消息（${fu.region?'产区：'+esc(fu.region)+' · ':''}Trae 抓取，纳入基本面打分 ${fuScoreNews(news)>=0?'+':''}${fuScoreNews(news)} 分）</b><br>`:'')+newsHtml;
+    /* ③ 触发重算：现货回填/消息计分都要体现在打分与面板上 */
+    analyze(); if(S.mode==='close') S.recap=buildRecap();
+    renderPanels(); renderHeader();
+  }catch(e){}
+}
+/* v11 规则6：消息计分——bull+1 / bear−1，合计截断 ±3 */
+function fuScoreNews(news){
+  let s=0;
+  (news||[]).forEach(n=>{ if(n.impact==='bull') s+=1; else if(n.impact==='bear') s-=1; });
+  return clamp(s,-3,3);
 }
 /* v10: AI 盯盘提醒卡片渲染（lines 数组 → 提醒条；severity 高→红 中→黄 低→灰） */
 function renderAiCard(ai){
@@ -1099,6 +1139,16 @@ function eagleEye(m5, live, A){
   let behWarn='';
   if(behavior==='拉升'&&supplyDemand==='供应强') behWarn='（注意：量能呈供应强，上涨缺乏量能配合）';
   if(behavior==='砸盘'&&supplyDemand==='需求强') behWarn='（注意：量能呈需求强，下杀遭遇承接）';
+  /* v11 规则3·威科夫四阶段映射：吸筹→拉升→派发→下跌（鹰眼判定资金所处阶段） */
+  const phaseMap={'吸筹':'阶段1·吸筹','拉升':'阶段2·拉升','派发':'阶段3·派发','砸盘':'阶段4·下跌'};
+  const wyckPhase=phaseMap[behavior]||'阶段过渡/观察（无明显异动）';
+  /* v11 规则3·鹰眼主力资金异动识别：增仓不涨 / 减仓不跌
+     增仓不涨=持仓持续增加但价格滞涨（当日涨幅<0.1%）→ 主力压顶/派发前置，警惕诱多；
+     减仓不跌=持仓持续减少但价格抗跌（当日跌幅<0.1%）→ 空头回补式虚假强势，反弹持续性存疑。 */
+  const dayChg=(live.prevSettle!=null&&live.prevSettle>0)?(lastC-live.prevSettle)/live.prevSettle*100:null;
+  const stallWarn=[];
+  if(intraOI>0&&dayChg!=null&&dayChg<0.1) stallWarn.push('增仓不涨：持仓增加'+fmtN(intraOI)+'手但价格滞涨（当日'+dayChg.toFixed(2)+'%）——主力压顶/派发前置特征，向上突破须量能确认，严防诱多');
+  if(intraOI<0&&dayChg!=null&&dayChg>-0.1) stallWarn.push('减仓不跌：持仓减少'+fmtN(-intraOI)+'手但价格抗跌（当日'+dayChg.toFixed(2)+'%）——空头回补式虚假强势，反弹持续性存疑，防诱空洗盘后回落');
   /* 资金异动判定 */
   const zName = prof? '时段z':'滚动z';
   const anomalyE=[];
@@ -1113,6 +1163,8 @@ function eagleEye(m5, live, A){
   if(enr) anomalyE.push('量大价不动（'+fmtT(enrs[enrs.length-1].b.t)+' '+zName+'≥'+(prof?'3.5':'3')+'且量比≥'+(prof?'1.8':'—')+'×但振幅≤0.5×ATR，力量衰竭）');
   if(openShock) anomalyE.push('开盘巨量冲击（'+zName+'='+openShock.z.toFixed(1)+'，波幅≥1.8×ATR）');
   if(A.falseBreaks.length) anomalyE.push('假突破/诱多诱空 ×'+A.falseBreaks.length+'（'+A.falseBreaks.slice(-2).map(f=>fmtT(f.t)).join('、')+'）');
+  /* v11 规则3：增仓不涨/减仓不跌 纳入主力资金异动清单（鹰眼识别项） */
+  stallWarn.forEach(w=>anomalyE.push(w));
   const anomaly=anomalyE.length>0;
   /* 一票否决：①剧烈放量砸/拉（含开盘冲击）②假突破 ③量大价不动 */
   const vetoes=[];
@@ -1131,7 +1183,7 @@ function eagleEye(m5, live, A){
   const level=vetoes.length?'高':(anomaly?'中':'低');
   return {ok:true, cal, profDays:prof?prof.days:0, supplyDemand, enrs, enr, intraOI,
           oiPct, oiP90, oiThr, oiFlag, shocks, midZ, openShock,
-          behavior, behNote, behWarn, anomalyE, anomaly, vetoes, level};
+          behavior, behNote, behWarn, wyckPhase, stallWarn, anomalyE, anomaly, vetoes, level};
 }
 
 /* =====================================================================
@@ -1234,6 +1286,9 @@ function analyze(){
       s += bsc;
       s += seasonBonus();
       s += Number(S.spot.bias)||0;
+      /* v11 规则6：产区/天气/现货消息计分（利多+1/利空−1，截断±3）叠加进现货基本面分 */
+      const newsScore=fuScoreNews(S.fundNews&&S.fundNews.news);
+      if(newsScore!==0){ s += newsScore; A.newsScore=newsScore; }
       A.scoreSpot=clamp(Math.round(s),0,25);
   } else A.scoreSpot=12; /* k2-4：现货未录入时保底12分，renderPanels 按 A.spotMissing 提示"可信度低、总分仅作技术面参考" */
   }
@@ -1302,6 +1357,7 @@ function analyze(){
   A.grade=gradeABCD(A);
   A.track=trackPosition(A);
   S.A=A;
+  jAutoJudge(A); /* v11 规则5：研判结论变化时自动记入复盘流水（同签名去重） */
   return A;
 }
 
@@ -1344,6 +1400,13 @@ function fuFundamental(A){
   /* 日线量仓反映的供需 */
   if(A.upVol5>A.downVol5*1.3&&A.d.trend.trend==='up') bull.push('近5日上涨日成交量明显大于下跌日（多头供需占优）');
   if(A.downVol5>A.upVol5*1.3&&A.d.trend.trend==='down') bear.push('近5日下跌日成交量明显大于上涨日（空头供需占优）');
+  /* v11 规则6：产区/天气/现货消息纳入基本面定性（利多/利空各取前2条） */
+  const FN=S.fundNews&&S.fundNews.news;
+  if(FN&&FN.length){
+    const reg=S.fundNews.region?('（产区：'+S.fundNews.region+'）'):'';
+    FN.filter(n=>n.impact==='bull').slice(0,2).forEach(n=>bull.push('消息面利多'+reg+'：'+n.text+(n.src?'（'+n.src+'）':'')));
+    FN.filter(n=>n.impact==='bear').slice(0,2).forEach(n=>bear.push('消息面利空'+reg+'：'+n.text+(n.src?'（'+n.src+'）':'')));
+  }
   out.bull=bull; out.bear=bear; out.flat=flat;
   const nB=bull.length, nR=bear.length;
   if(nB>=2&&nB-nR>=2) out.verdict='利多';
@@ -1403,10 +1466,12 @@ function mtfFilter(A){
   A.m1p=p;
   const m1dir = p.sig&&p.sig.indexOf('偏多')>=0?'up':(p.sig&&p.sig.indexOf('偏空')>=0?'down':'range');
   A.mtf={ d:dt, h1:ht, m5:m5dir, m1:m1dir };
-  if(dt==='range') return { pass:false, why:'日线为震荡（高低点反复、无方向）：按框架判定震荡市，直接减少开仓机会、不追单、优先观望' };
-  if(ht!==dt&&(ht==='range'||ht!==dt)) return { pass:false, why:'1小时方向（'+tname(ht)+'）与日线（'+tname(dt)+'）不一致：大小周期矛盾，标记观望，不做逆势单' };
-  if(m5dir!=='range'&&m5dir!==dt) return { pass:false, why:'5分钟短线方向（'+tname(m5dir)+'）与日线趋势（'+tname(dt)+'）相反：小周期信号未与大周期共振，不追逆势单' };
-  return { pass:true, why:'日线'+tname(dt)+'、1小时同向、5分钟'+(m5dir==='range'?'回调中':'同向')+'，多周期一致' };
+  /* v11 规则2·周期分析固定顺序：日线定大趋势背景 → 60分钟定位价格区间 → 5分钟等待入场验证；
+     多周期信号冲突，一律以更高周期结论为准（下方判断即按 日线>60分>5分 优先级短路返回）。 */
+  if(dt==='range') return { pass:false, why:'【周期固定顺序】日线（大趋势背景）为震荡、高低点反复无方向——更高周期结论优先，按框架判定震荡市：减少开仓机会、不追单、优先观望' };
+  if(ht!==dt&&(ht==='range'||ht!==dt)) return { pass:false, why:'【周期固定顺序】日线'+tname(dt)+'定势 → 60分钟定位时与日线（'+tname(dt)+'）冲突——以更高周期日线结论为准，标记观望，不做逆势单' };
+  if(m5dir!=='range'&&m5dir!==dt) return { pass:false, why:'【周期固定顺序】60分钟'+tname(dt)+'定位 → 5分钟验证时出现反向信号（'+tname(m5dir)+'）——以更高周期为准，5分钟未通过入场验证，不追逆势单' };
+  return { pass:true, why:'【周期固定顺序】日线'+tname(dt)+'定势 → 1小时同向定位区间 → 5分钟'+(m5dir==='range'?'等待入场验证（回调中）':'同向验证通过')+'，多周期一致' };
 }
 function tname(t){ return t==='up'?'上涨':(t==='down'?'下跌':'震荡'); }
 
@@ -1447,6 +1512,15 @@ function gradeABCD(A){
   if(S.losses&&S.losses.n>=3){ g.grade='D'; g.why.push('当日连亏已达'+S.losses.n+'笔：按纪律暂停开仓，强制进入复盘模式，不允许新建单子'); g.rrRef=rrCalc(A); return g; }
   const mtf=A.mtf, rr=rrCalc(A), fu=A.fu||fuFundamental(A);
   A.rr=rr;
+  /* v11 规则1·交易不可能三角：胜率、盈亏比、交易频率无法同时最优——
+     所有入场机会预期盈亏比必须≥1.5R，不足直接判定 D 级禁止开仓
+     （优先级仅次于一票否决风控与当日连亏锁仓）。 */
+  if(rr.rr!=null&&!rr.pass){
+    g.grade='D';
+    g.why.push('⛔ 交易不可能三角过滤：预期盈亏比 '+rr.rr.toFixed(2)+'R＜1.5R 纪律阈值，直接判 D 级、禁止开仓——赔率不划算的机会一律放弃，宁可错过不做劣质单。'+rr.note);
+    if(!mtf.pass) g.why.push('另：'+mtf.why);
+    return g;
+  }
   const resCount=[mtf.pass, rr.pass, fu.verdict==='利多'||fu.verdict==='利空', A.wy.behavior!=='--'&&A.wy.behavior!=='派发'&&A.wy.behavior!=='砸盘'].filter(Boolean).length;
   const aligned = fu.align&&fu.align.indexOf('共振')>=0;
   if(mtf.pass&&rr.pass&&(fu.verdict==='利多'||fu.verdict==='利空')&&resCount>=4){
@@ -1456,8 +1530,8 @@ function gradeABCD(A){
   } else if(!mtf.pass){
     g.grade='C'; g.why.push(mtf.why);
     if(!rr.pass) g.why.push(rr.note);
-  } else if(!rr.pass){
-    g.grade='C'; g.why.push('位置或入场空间不理想：'+rr.note);
+  } else if(rr.rr==null){
+    g.grade='C'; g.why.push('支撑压力区间不完整，盈亏比无法评估：'+rr.note);
   } else {
     g.grade='C'; g.why.push('基本面与量仓信号模棱两可，按框架尽量放弃');
   }
@@ -1948,7 +2022,7 @@ function renderPanels(){
   /* 分数 */
   $('s_trend').textContent=A.scoreTrend+'/25'; $('f_trend').style.width=A.scoreTrend/25*100+'%';
   $('s_vol').textContent=A.scoreVol+'/25'; $('f_vol').style.width=A.scoreVol/25*100+'%';
-  $('s_spot').textContent=(A.spotMissing?A.scoreSpot+'/25 [待输入]':A.scoreSpot+'/25'); $('f_spot').style.width=A.scoreSpot/25*100+'%';
+  $('s_spot').textContent=(A.spotMissing?A.scoreSpot+'/25 [待输入]':A.scoreSpot+'/25'+(A.newsScore!=null?'（含消息'+(A.newsScore>0?'+':'')+A.newsScore+'）':'')); $('f_spot').style.width=A.scoreSpot/25*100+'%';
   /* k2-4 基本面解读提示：远月提示 + 可信度提示 + 补充因子解读 */
   {
     const hen=parseFloat($('fHenRatio').value), prof=parseFloat($('fProfit').value), cull=parseFloat($('fCull').value), feed=parseFloat($('fFeed').value);
@@ -2161,7 +2235,7 @@ function renderEagle(){
   const M=A.mtf||{d:'--',h1:'--',m5:'--'};
   const m1p=A.m1p||{};
   const crossHtml=(A.crossConflict&&A.crossNotes&&A.crossNotes.length)?`<br><span style="color:var(--risk)">⛔ 跨周期矛盾（已计入打分）：${A.crossNotes.join('；')}</span>`:'';
-  const item2=`<b>日线</b>${tname(M.d)} → <b>1小时</b>${tname(M.h1)} → <b>5分钟</b>${tname(M.m5)} → <b>1分钟</b>${m1p.sig||'--'}<br>区间位置：<b>${A.pos||'--'}</b>；多周期硬性校验：${mtf.pass?'<b style="color:var(--ok)">通过（小周期与大周期一致）</b>':'<b style="color:var(--warn)">未通过 → 观望（大小周期矛盾不做逆势单）</b>'}${crossHtml}<br><span style="color:var(--dim)">${mtf.why||''}</span>`;
+  const item2=`<span class="pill oi" style="font-size:11px">📌 周期固定顺序：日线定势 → 60分钟定位 → 5分钟验证；冲突以更高周期为准</span><br><b>日线</b>${tname(M.d)} → <b>60分钟</b>${tname(M.h1)} → <b>5分钟</b>${tname(M.m5)}${M.m1&&M.m1!=='--'?` → <b>1分钟</b>${m1p.sig||'--'}`:''}<br>区间位置：<b>${A.pos||'--'}</b>；多周期硬性校验：${mtf.pass?'<b style="color:var(--ok)">通过（小周期与大周期一致）</b>':'<b style="color:var(--warn)">未通过 → 观望（冲突以更高周期结论为准）</b>'}${crossHtml}<br><span style="color:var(--dim)">${mtf.why||''}</span>`;
   /* 3-6. 威科夫鹰眼资金风控 */
   const behCls={'吸筹':'oi','拉升':'demand','派发':'dist','砸盘':'supply','无明显异动':'neutral'};
   let item36;
@@ -2169,9 +2243,9 @@ function renderEagle(){
     const anomalyHtml=E.anomaly?'<b style="color:var(--warn)">是</b>（'+E.anomalyE.join('；')+'）':'<b style="color:var(--ok)">否</b>';
     const lvlColor=E.level==='高'?'var(--risk)':(E.level==='中'?'var(--warn)':'var(--ok)');
     item36=
-     `<div class="erow"><b>3. 资金行为判定</b>：<span class="pill ${behCls[E.behavior]||'neutral'}">${E.behavior}</span> ${E.behNote||''}${E.behWarn||''}；供求：<b>${E.supplyDemand||'--'}</b>${E.supplyDemand==='需求强'?'（放量上涨）':E.supplyDemand==='供应强'?'（放量下跌）':''}。</div>`+
+     `<div class="erow"><b>3. 资金行为判定</b>：<span class="pill ${behCls[E.behavior]||'neutral'}">${E.behavior}</span> <span class="pill demand" style="font-size:11px">${E.wyckPhase||''}</span> ${E.behNote||''}${E.behWarn||''}；供求：<b>${E.supplyDemand||'--'}</b>${E.supplyDemand==='需求强'?'（放量上涨）':E.supplyDemand==='供应强'?'（放量下跌）':''}。<br><span style="color:var(--faint)">📌 分工：威科夫判断资金阶段 · 价格行为确定入场/止损/出场</span></div>`+
      `<div class="erow"><b>4. 是否触发资金异动</b>：${anomalyHtml}。</div>`+
-     `<div class="erow"><b>4b. 主动盘判定</b>：<span class="pill ${A.wy&&A.wy.activeSide==='主动买盘'?'demand':(A.wy&&A.wy.activeSide==='主动卖盘'?'supply':'neutral')}">${(A.wy&&A.wy.activeSide)||'--'}（主动盘占比${Math.round(((A.wy&&A.wy.actRatio)||0)*100)}%）</span>${A.wy&&A.wy.washFlag?'<span style="color:var(--risk)">⚠ 对倒假放量×'+A.wy.washN+'：总量大而主动盘缺位，量能信号不可信</span>':''}${A.probes&&A.probes.heavyN?'<span style="color:var(--warn)">巨量刺破×'+A.probes.heavyN+'（扫止损/诱单特征）</span>':''}。</div>`+
+     `<div class="erow"><b>4b. 主动盘判定</b>：<span class="pill ${A.wy&&A.wy.activeSide==='主动买盘'?'demand':(A.wy&&A.wy.activeSide==='主动卖盘'?'supply':'neutral')}">${(A.wy&&A.wy.activeSide)||'--'}（主动盘占比${Math.round(((A.wy&&A.wy.actRatio)||0)*100)}%）</span>${A.wy&&A.wy.washFlag?'<span style="color:var(--risk)">⚠ 对倒假放量×'+A.wy.washN+'：总量大而主动盘缺位，量能信号不可信</span>':''}${A.probes&&A.probes.heavyN?'<span style="color:var(--warn)">巨量刺破×'+A.probes.heavyN+'（扫止损/诱单特征）</span>':''}${(E.stallWarn&&E.stallWarn.length)?'<br><span style="color:var(--warn)">鹰眼主力异动：'+E.stallWarn.join('；')+'</span>':''}。</div>`+
      `<div class="erow"><b>5. 是否触发一票否决风险</b>：${vetoList.length?'<b style="color:var(--risk)">是</b> ⛔ '+vetoList.join('；'):'<b style="color:var(--ok)">否</b>'}</div>`+
      `<div class="erow"><b>6. 风险等级</b>：<b style="color:${lvlColor}">${E.level}</b>${vetoList.length?'（一票否决生效：高风险，观望，不作为交易机会）':(E.anomaly?'（存在资金异动，未达否决阈值）':'（量仓结构正常）')}。</div>`;
   }else{
@@ -2208,6 +2282,9 @@ function renderEagle(){
   else if(gr.grade==='A') tip='多周期共振＋量仓确认＋基本面配合＋盈亏比达标：优质机会（本提示不构成交易指令，仓位与执行由人工决定），单笔风险≤1-2%。';
   else tip='暂无符合框架的机会，空仓观望。';
   if(T.on&&T.lines&&T.lines.length) tip+='<br>持仓中 → '+T.lines[0];
+  /* v11 规则4·克隆分析师：比对本人历史交易记录，识别易踩坑行情，同类行情提前警示（置于交易提示最顶部） */
+  const cw=cloneWarn(jLoad(), A);
+  if(cw.length) tip='<b style="color:var(--warn)">🧬 克隆分析师 · 同类行情提前警示</b><br>'+cw.map(w=>'· '+esc(w)).join('<br>')+'<br>'+tip;
   $('eagleTag').textContent='盘中实时研判 · 评级 '+(gr.grade||'C')+(vetoList.length?' · ⛔一票否决':'');
   $('eagleBody').innerHTML=
    `<div class="erow"><b>1. 基本面简要评估</b>：${item1}</div>`+
@@ -2259,6 +2336,8 @@ function renderTrack(){
 function jLoad(){ try{ return JSON.parse(LS.get('journal','[]'))||[]; }catch(e){ return []; } }
 function jSave(arr){ try{ LS.set('journal', JSON.stringify(arr.slice(-500))); }catch(e){} }
 function jStatsCalc(list){
+  /* v11 规则5：日志含自动流水（type=judge/open/close），统计仅针对人工交易记录 */
+  list=list.filter(x=>!x.type);
   const done=list.filter(x=>x.result!=='flat'&&x.pts!=null);
   const wins=done.filter(x=>x.pts>0), losses=done.filter(x=>x.pts<0);
   const avgW=wins.length?wins.reduce((s,x)=>s+x.pts,0)/wins.length:0;
@@ -2273,6 +2352,7 @@ function jStatsCalc(list){
 function jReview(list){
   /* 规则化错误比对（全部基于日志自身字段，不引入新计算模型） */
   const out=[];
+  list=list.filter(x=>!x.type); /* v11 规则5：仅比对人工交易记录 */
   if(list.length<3) return out;
   /* ① 止损纪律：未填止损价的笔数占比 */
   const noStop=list.filter(x=>x.stop==null).length;
@@ -2297,6 +2377,82 @@ function jReview(list){
   if(st.closed>=5&&st.winRate>=55&&st.rrAct!=null&&st.rrAct>=1.2) out.push({cls:'ok',txt:'正向反馈：胜率 '+st.winRate.toFixed(0)+'% + 实际盈亏比 '+st.rrAct.toFixed(2)+'，期望值 '+(st.expect!=null?st.expect.toFixed(1):'--')+' 点/笔为正——当前打法可持续，按纪律执行即可。'});
   return out;
 }
+
+/* =====================================================================
+ *  v11 规则4·克隆分析师：参考本人历史交易记录，识别容易踩坑的行情，
+ *  同类行情提前警示（全部基于日志自身字段做模式比对，不引入新模型）。
+ *  v11 规则5·自动复盘流水：研判结论变化 / 开仓 / 平仓 事件自动记入日志，
+ *  流水带 type=judge|open|close 标记，统计与AI复盘只针对人工记录（见上方过滤器）。
+ * ===================================================================== */
+function cloneWarn(list, A){
+  const out=[];
+  const man=list.filter(x=>!x.type);
+  if(man.length<3||!A) return out;
+  const done=man.filter(x=>x.result!=='flat'&&x.pts!=null);
+  if(!done.length) return out;
+  /* ① 评级踩坑：某评级下历史胜率≤33%（≥3笔）→ 当前同为该评级时重点警示 */
+  const byGrade={};
+  done.forEach(x=>{ const g=(x.snap&&x.snap.grade)||'未评级'; (byGrade[g]=byGrade[g]||[]).push(x); });
+  Object.keys(byGrade).forEach(g=>{
+    const arr=byGrade[g];
+    if(arr.length>=3){
+      const w=arr.filter(x=>x.pts>0).length, wr=w/arr.length;
+      if(wr<=0.33) out.push('评级踩坑：历史「'+g+'级开仓」'+arr.length+'笔仅'+w+'笔盈利（胜率'+Math.round(wr*100)+'%）'+((A.grade&&A.grade.grade===g)?'——当前正是'+g+'级机会，与你的历史踩坑行情高度相似，建议放弃':'——该评级机会出现时先回想上次为什么亏'));
+    }
+  });
+  /* ② 方向踩坑：最近同方向连亏≥2笔 → 警示情绪化同向开仓/逆动能硬扛 */
+  const last2=done.slice(-2);
+  if(last2.length===2&&last2[0].dir===last2[1].dir&&last2[0].pts<0&&last2[1].pts<0){
+    const d=last2[0].dir;
+    out.push('方向踩坑：最近连续2笔'+d+'单均亏损'+(A.mtf&&((d==='多'&&A.mtf.d==='up')||(d==='空'&&A.mtf.d==='down'))?'，当前日线仍为'+(d==='多'?'多头':'空头')+'背景——警惕惯性同向开仓，检查是否有增量逻辑':'，注意方向选择是否受上笔亏损情绪影响'));
+  }
+  /* ③ 追单踩坑：历史「追/突破」类亏损≥2笔 且 当前盘面正出现突破类信号 */
+  const chaseLoss=done.filter(x=>x.pts<0&&x.note&&/追|突破|冲高|杀跌/.test(x.note));
+  if(chaseLoss.length>=2){
+    const brk=((A.falseBreaks&&A.falseBreaks.length)||(A.validBreaks&&A.validBreaks.length));
+    if(brk) out.push('追单踩坑：历史有'+chaseLoss.length+'笔「追/突破」类亏损——当前盘面正出现突破类信号，等回踩确认再动手，勿直接追');
+  }
+  /* ④ 盈亏比踩坑：历史实际盈亏比差 且 当前预估盈亏比又不达标 → 最典型踩坑组合 */
+  const st=jStatsCalc(man);
+  if(st.rrAct!=null&&st.rrAct<0.8&&A.rr&&A.rr.pass===false){
+    out.push('盈亏比踩坑：历史实际盈亏比仅 '+st.rrAct.toFixed(2)+'（亏大赚小），当前预估盈亏比又不达标——正是你最容易亏钱的行情组合，直接观望');
+  }
+  /* ⑤ 习惯踩坑：亏损笔记中同一高频关键词≥3次 → 高频失误点自查 */
+  const kwMap={};
+  done.filter(x=>x.pts<0&&x.note).forEach(x=>{
+    (x.note.match(/追|扛|逆势|重仓|不设止损|提前止盈|拿不住|抄底|摸顶|情绪/g)||[]).forEach(k=>{ kwMap[k]=(kwMap[k]||0)+1; });
+  });
+  const topKw=Object.keys(kwMap).sort((a,b)=>kwMap[b]-kwMap[a])[0];
+  if(topKw&&kwMap[topKw]>=3) out.push('习惯踩坑：历史亏损笔记中「'+topKw+'」出现 '+kwMap[topKw]+' 次——这是你的高频失误点，开仓前自查是否又在犯');
+  return out;
+}
+function jAutoJudge(A){
+  try{
+    if(!A||!A.grade) return;
+    const rrV=(A.rr&&A.rr.rr!=null)?A.rr.rr:null;
+    /* 结论签名：评级/盈亏比(0.1R分桶)/多周期校验/否决数/资金行为 变化才记一条，避免每次刷新刷屏 */
+    const sig=[A.grade.grade, rrV!=null?rrV.toFixed(1):'--', (A.mtfRes&&A.mtfRes.pass)?'过':'阻', (A.veto||[]).length, (A.eagle&&A.eagle.behavior)||''].join('|');
+    const list=jLoad();
+    const last=list.length?[...list].reverse().find(x=>x.type==='judge'):null;
+    if(last&&last.sig===sig) return;
+    const b=bj();
+    list.push({ type:'judge', day:bjStr(b).slice(5), time:fmtT(b), sig,
+      grade:A.grade.grade, rr:rrV!=null?+rrV.toFixed(2):null,
+      mtf:!!(A.mtfRes&&A.mtfRes.pass), wy:(A.eagle&&A.eagle.behavior)||'', phase:(A.eagle&&A.eagle.wyckPhase)||'',
+      stall:((A.eagle&&A.eagle.stallWarn)||[]).map(w=>w.slice(0,40)), total:A.total, ts:Date.now() });
+    jSave(list); renderJournal();
+  }catch(e){}
+}
+function jAutoPos(ev, prev){
+  try{
+    const p=prev||S.pos; if(!p) return;
+    const b=bj(), list=jLoad();
+    list.push({ type:ev, day:bjStr(b).slice(5), time:fmtT(b),
+      dir:p.dir, entry:p.entry, stop:p.sl||null, lots:p.lots||null,
+      note:(p.note||'')+(ev==='open'?'（自动流水：开仓时点）':'（自动流水：平仓时点）'), ts:Date.now() });
+    jSave(list); renderJournal();
+  }catch(e){}
+}
 function renderJournal(){
   const list=jLoad(), st=jStatsCalc(list);
   $('jTag').textContent=st.total+' 笔';
@@ -2319,10 +2475,25 @@ function renderJournal(){
   $('jReview').innerHTML='<div class="recaph" style="border-left-color:var(--purple)">🤖 AI 复盘（规则化错误比对）</div>'+
     (rv.length?rv.map(r=>`<div class="pill wide ${r.cls==='ok'?'demand':r.cls}" style="margin-bottom:3px">${esc(r.txt)}</div>`).join(''):
      '<div style="font-size:11px;color:var(--faint)">'+(st.total<3?'记录满 3 笔后自动生成复盘结论。':'暂未发现明显错误模式。')+'</div>');
-  /* 明细列表（倒序，最新在上） */
+  /* 明细列表（倒序，最新在上；v11 规则5：自动流水带类型徽标区分人工记录） */
+  const grColor0={'A':'var(--ok)','B':'var(--gold)','C':'var(--dim)','D':'var(--risk)'}; /* v11 规则5：研判流水评级配色 */
   $('jList').innerHTML=list.length?list.slice().reverse().map(x=>{
     const rc=x.result==='win'?'var(--ok)':x.result==='loss'?'var(--risk)':'var(--faint)';
     const snap=x.snap?`<span style="color:var(--faint)">［快照：${esc(x.snap.grade||'--')}级 · ${x.snap.rr!=null?x.snap.rr.toFixed(2)+'R':'--'} · ${esc(x.snap.side||'--')}${x.snap.veto0?' · 否决:'+esc(x.snap.veto0):''}］</span>`:'';
+    if(x.type==='judge'){ /* 研判流水：仅记结论快照，不参与统计 */
+      return `<div style="padding:4px 0;border-bottom:1px dashed #2a3346;font-size:11px;color:var(--dim)">`+
+        `<span class="pill neutral" style="font-size:10px">研判</span> <b>${esc(x.day||'--')} ${esc(x.time||'')}</b> 评级<b style="color:${grColor0[x.grade]||'var(--dim)'}">${esc(x.grade||'--')}</b>`+
+        `${x.rr!=null?' · 盈亏比 <b class="num">'+x.rr+'R</b>':''} · 多周期${x.mtf?'<b style="color:var(--ok)">通过</b>':'<b style="color:var(--warn)">受阻</b>'}`+
+        `${x.wy?' · 资金「'+esc(x.wy)+'」'+(x.phase?'('+esc(x.phase)+')':''):''}${x.total!=null?' · 总分 '+x.total:''}`+
+        `${(x.stall&&x.stall.length)?'<br><span style="color:var(--warn)">⚠ '+esc(x.stall.join('；'))+'</span>':''}</div>`;
+    }
+    if(x.type==='open'||x.type==='close'){ /* 开/平仓流水：时点记录 */
+      const oc=x.type==='open';
+      return `<div style="padding:4px 0;border-bottom:1px dashed #2a3346;font-size:11px;color:var(--dim)">`+
+        `<span class="pill ${oc?'demand':'supply'}" style="font-size:10px">${oc?'开仓':'平仓'}</span> <b>${esc(x.day||'--')} ${esc(x.time||'')}</b> ${x.dir==='空'?'🔻做空':'🔺做多'}`+
+        `${x.entry!=null&&x.entry!==''?' @<b class="num">'+esc(x.entry)+'</b>':''}${x.stop!=null&&x.stop!==''?' 损<b class="num">'+esc(x.stop)+'</b>':''}${x.lots?' '+esc(x.lots)+'手':''}`+
+        `${x.note?'<br><span style="color:var(--faint)">'+esc(x.note)+'</span>':''}</div>`;
+    }
     return `<div style="padding:4px 0;border-bottom:1px dashed #2a3346;font-size:11px">`+
       `<b>${esc(x.day||'--')}</b> ${x.dir==='空'?'🔻做空':'🔺做多'} 入<b class="num">${esc(x.entry!=null?x.entry:'--')}</b> 出<b class="num">${esc(x.exit!=null?x.exit:'--')}</b> 损<b class="num">${esc(x.stop!=null?x.stop:'未设')}</b>`+
       `${x.lots!=null?' '+esc(x.lots)+'手':''} <b style="color:${rc}">${x.result==='win'?'盈利':x.result==='loss'?'亏损':'持平'} ${x.pts!=null?(x.pts>0?'+':'')+esc(x.pts)+'点':''}</b>`+
@@ -2815,6 +2986,8 @@ function bindUI(){
   $('biasSel').addEventListener('change',e=>{ S.spot.bias=+e.target.value; LS.set('bias',S.spot.bias); spotChange(); });
   /* ---- 持仓录入（第五步：录入后自动监测；方向=none 即平仓清空） ---- */
   const posChange=()=>{
+    /* v11 规则5：捕获变更前持仓状态，用于自动流水（开仓/平仓事件记录） */
+    const prevPos=S.pos?{...S.pos}:null;
     const v=$('posDir').value;
     const tp=$('posTP').value, tm=$('posTime').value, lots=$('posLots').value, note=$('posNote').value;
     if(v==='none'){ S.pos={on:false,dir:'多',entry:$('posEntry').value,sl:$('posStop').value,tp,tm,lots,note}; }
@@ -2824,6 +2997,9 @@ function bindUI(){
       S.pos={on:true, dir:(v==='long'?'多':'空'), entry:$('posEntry').value, sl:$('posStop').value, tp, time:autoTm, lots, note};
       if(!S.losses.date) S.losses.date=bjStr(bj());
     }
+    /* v11 规则5：开仓/平仓事件自动记入复盘流水（on 状态真实变化才记录） */
+    if(prevPos&&prevPos.on&&!S.pos.on) jAutoPos('close', prevPos);
+    else if((!prevPos||!prevPos.on)&&S.pos.on) jAutoPos('open', S.pos);
     LS.set('posOn',S.pos.on); LS.set('posDir',S.pos.dir);
     LS.set('posEntry',S.pos.entry); LS.set('posSL',S.pos.sl);
     LS.set('posTP',S.pos.tp||''); LS.set('posTime',S.pos.time||''); LS.set('posLots',S.pos.lots||''); LS.set('posNote',S.pos.note||'');
