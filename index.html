@@ -1836,7 +1836,7 @@ function renderPanels(){
   $('swtag').textContent=A.pos+' · '+tTxt(A.d.trend).replace('趋势','');
   $('shiBody').innerHTML=
    `<b>【势】</b>日线：<span class="hl">${tTxt(A.d.trend)}${dSub}</span>；60分钟：<span class="hl">${tTxt(A.h1.trend)}${hSub}</span>；5分钟：${A.m5.rsi!=null?`RSI ${A.m5.rsi.toFixed(1)}<span style="color:var(--dim)">（${rsiTxt(A.m5.rsi)}）</span>`:'--'}。<br>`+
-   `<b>【位】</b>当前价 <b class="num hl">${L.price.toFixed(0)}</b> 处于 <b>${A.pos}</b>（支${A.sup[0]?A.sup[0].price.toFixed(0):'--'} ~ 压${A.res[0]?A.res[0].price.toFixed(0):'--'} 区间${A.res[0]&&A.sup[0]?(function(){const d=A.res[0].price-A.sup[0].price;return isFinite(d)&&d!==0?' '+(((L.price-A.sup[0].price)/d*100)):0;})().toFixed(0)+'% 处':'，数据不足'}）。<br>`+
+   `<b>【位】</b>当前价 <b class="num hl">${L.price.toFixed(0)}</b> 处于 <b>${A.pos}</b>（支${A.sup[0]?A.sup[0].price.toFixed(0):'--'} ~ 压${A.res[0]?A.res[0].price.toFixed(0):'--'} 区间${A.res[0]&&A.sup[0]?(function(){const d=A.res[0].price-A.sup[0].price;return isFinite(d)&&d!==0?(((L.price-A.sup[0].price)/d*100)):0;})().toFixed(0)+'% 处':'，数据不足'}）。<br>`+
    `<b>【态】</b>${A.patterns.length?A.patterns.map(p=>p.name+(p.note?'（'+p.note+'）':'')).join('、'):'常规结构'}；${A.structIntact?'短线低点结构完好':'短线结构破坏'}${A.falseBreaks.length?`；<span style="color:var(--risk)">出现${A.falseBreaks.length}次假突破（${A.falseBreaks.map(x=>x.type.slice(0,2)+'@'+fmtT(x.t)).join('、')}）</span>`:''}${A.validBreaks.length?`；<span style="color:var(--ok)">${A.validBreaks.length}个关键位突破已确认</span>（收盘站稳）`:''}${(A.validBreaks||[]).filter(v=>v.pending).length?`；<span style="color:var(--warn)">${A.validBreaks.filter(v=>v.pending).length}个待确认（防抖中）</span>`:''}${(A.probes&&(A.probes.upN+A.probes.dnN))?`；影线刺破×${A.probes.upN+A.probes.dnN}（盘中刺破不算突破）`:''}。`;
   /* 关键价位 */
   let lv='';
