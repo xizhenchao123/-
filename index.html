@@ -99,6 +99,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;padding:10p
 .pill.veto{background:rgba(230,72,61,.18);color:var(--risk)}
 .pill.oi{background:rgba(79,156,249,.15);color:var(--blue)}
 .pill.dist{background:rgba(176,122,245,.15);color:var(--purple)}
+.pill.risk{background:rgba(230,72,61,.18);color:var(--risk)}   /* n10 交易日志 AI 复盘错误警示 */
 /* ---------- 鹰眼资金风控专项检测器 ---------- */
 .erow{padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.05);font-size:12px;line-height:1.8;color:var(--dim)}
 .erow:last-child{border-bottom:none}
@@ -144,6 +145,7 @@ table.lvl td b{color:var(--txt)}
     <div class="logo">🥚 JD2611 半量化研判系统<small>傅海棠供需 + 势位态 + 威科夫鹰眼</small></div>
     <input id="contract" value="JD2611" maxlength="8" title="k3-6 合约切换：输入代码（如 JD2605 / JD0）后回车，自动重载全部数据；历史日期切换为预留功能">
     <span id="modebadge" class="badge close">收盘复盘模式</span>
+    <span id="pushbadge" class="badge" style="display:none;background:rgba(240,185,11,.12);color:var(--gold);border:1px solid rgba(240,185,11,.35);font-size:10px" title="Trae 自动推送已接入：行情由 Node+AKShare 服务端预取并自动注入，无需手动录入">🤖 Trae推送</span>
     <div class="pricebox">
       <span><span id="dot"></span><span id="bigprice" class="num">--</span></span>
       <span id="bigchg" class="num">--</span>
@@ -231,6 +233,21 @@ table.lvl td b{color:var(--txt)}
       <div id="events"></div>
     </div>
 
+    <!-- n9: 主力资金动向分析（方案A：独立辅助风险预警模块，不参与四项打分/一票否决/评级计算） -->
+    <div class="card" id="mfCard">
+      <h3>🐋 主力资金动向分析 <span class="tag">方案A · 辅助风险预警</span><span class="tag">不参与总分计算</span><span class="tag" id="mfTag">未录入</span></h3>
+      <div class="inp">
+        <div><label>投机多头持仓（手）</label><input id="mfLong" type="number" step="1" placeholder="如 12000"></div>
+        <div><label>投机空头持仓（手）</label><input id="mfShort" type="number" step="1" placeholder="如 9500"></div>
+        <div><label>主力净持仓（手，自动=多−空）</label><input id="mfNet" type="number" step="1" placeholder="自动计算，可手动校正"></div>
+        <div><label>净持仓增减（较上期，±手）</label><input id="mfNetDelta" type="number" step="1" placeholder="如 500 或 -300"></div>
+        <div><label>产业套保多头（手）</label><input id="mfHedgeL" type="number" step="1" placeholder="如 3000"></div>
+        <div><label>产业套保空头（手）</label><input id="mfHedgeS" type="number" step="1" placeholder="如 8000"></div>
+      </div>
+      <div class="sec" id="mfBody">加载中…</div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据来源：交易所每日收盘后公布的成交持仓排名（前20会员分投机/套保口径人工转录）。本模块为方案A辅助风险预警：仅输出资金面文字解读与背离提示，不参与四项打分、一票否决与评级计算，不影响任何底层逻辑。</div>
+    </div>
+
     <div class="card" id="eagleCard">
       <h3>🦅 研判输出 · 固定模板 <span class="tag">傅海棠供需→势位态→威科夫鹰眼</span><span class="tag">盘中11项/收盘6项</span><span class="tag" id="eagleTag">--</span></h3>
       <div class="sec" id="eagleBody">加载中…</div>
@@ -275,6 +292,39 @@ table.lvl td b{color:var(--txt)}
       <div id="recapBody"></div>
       <!-- n1: AI 策略输出区块（复用打分/价位/一票否决变量，不新增计算） -->
       <div id="strategyBody" style="margin-top:10px"></div>
+    </div>
+
+    <!-- n2: AI 交易策略输出（live/close 双模式均显示，不依赖收盘复盘卡片；底层逻辑复用 renderStrategy，不新增计算规则） -->
+    <div class="card" id="stratCard">
+      <h3>🤖 AI 交易策略输出 <span class="tag" id="stratTag">--</span><button class="fbtn" id="stratCopy" style="float:right;margin-top:-1px">📋 复制策略</button></h3>
+      <div id="stratBody"></div>
+    </div>
+
+    <!-- n10: 交易日志（人工录入每笔交易 + 自动统计胜率/盈亏比/期望值 + 规则化 AI 错误复盘；纯展示层模块，不参与打分/评级） -->
+    <div class="card" id="journalCard">
+      <h3>📓 交易日志 · AI 自动复盘 <span class="tag" id="jTag">0 笔</span><button class="fbtn" id="jFoldBtn" style="float:right;margin-top:-1px">▾ 展开</button></h3>
+      <div id="jFold" style="display:none">
+      <div class="inp">
+        <div><label>日期</label><input id="jDay" placeholder="如 0923"></div>
+        <div><label>方向</label><select id="jDir"><option value="多">做多</option><option value="空">做空</option></select></div>
+        <div><label>开仓价</label><input id="jEntry" type="number" step="1" placeholder="如 4600"></div>
+        <div><label>出场价</label><input id="jExit" type="number" step="1" placeholder="如 4650"></div>
+        <div><label>止损价（当时设定）</label><input id="jStop" type="number" step="1" placeholder="如 4550"></div>
+        <div><label>手数</label><input id="jLots" type="number" step="1" min="1" placeholder="如 2"></div>
+        <div><label>结果</label><select id="jResult"><option value="win">盈利</option><option value="loss">亏损</option><option value="flat">持平</option></select></div>
+        <div><label>盈亏(点，±)</label><input id="jPts" type="number" step="1" placeholder="可自动算，可手动校正"></div>
+        <div><label>交易笔记（理由/计划）</label><input id="jNote" placeholder="如：放量突破追多，未等回踩"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px;flex-wrap:wrap">
+        <button class="fbtn" id="jAdd" style="background:rgba(38,166,154,.15);border-color:var(--sup)">＋ 记一笔</button>
+        <button class="fbtn" id="jSnap">📋 从当前策略带快照</button>
+        <span style="font-size:10px;color:var(--faint)">快照自动记录当时评级/盈亏比/一票否决，供复盘对照</span>
+      </div>
+      <div class="sec" id="jStats"></div>
+      <div class="sec" id="jReview" style="margin-top:6px"></div>
+      <div class="sec" id="jList" style="margin-top:6px;max-height:260px;overflow-y:auto"></div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据存本地浏览器，不上传。「AI 复盘」为规则化模板输出：按止损纪律/追单/逆势/仓位四类常见错误自动比对，供人工参考，不构成投资建议。</div>
+      </div>
     </div>
 
     <!-- n3: Chart.js 简易K线速览（5分钟K线+成交量柱，纯可视化不参与计算；CDN加载失败自动隐藏） -->
@@ -409,9 +459,16 @@ const S = {
   pos:{ on:LS.get('posOn',false), dir:LS.get('posDir','多'), entry:LS.get('posEntry',''), sl:LS.get('posSL',''), tp:LS.get('posTP',''), time:LS.get('posTime',''), lots:LS.get('posLots',''), note:LS.get('posNote','') },  // 持仓跟踪（k3-3 扩展：止盈/开仓时间/手数/交易笔记）
   losses:{ date:LS.get('lossDate',''), n:LS.get('lossN',0), maxLossN:LS.get('maxLossN',0) },   // 当日连亏计数（人工点击累计，3笔停交易）+ 历史最大连亏
   dd:{ peak:LS.get('ddPeak',null), last:LS.get('ddLast',null), maxDD:LS.get('ddMax',0) },      // 简易回撤记录：人工录入累计盈亏(点)，自动跟踪峰值与最大回撤
+  /* n9 主力资金动向（人工录入，方案A：仅辅助预警，不参与打分/否决计算） */
+  mf:{ long:LS.get('mfLong',''), short:LS.get('mfShort',''), net:LS.get('mfNet',''), netDelta:LS.get('mfNetDelta',''), hedgeL:LS.get('mfHedgeL',''), hedgeS:LS.get('mfHedgeS',''), autoNet:true },
   view:{ n:100, off:0 },
   lastOK:0, errStreak:0, busy:{m1:false}
 };
+
+/* =====================================================================
+ *  工具函数
+ * ===================================================================== */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 /* =====================================================================
  *  数据引擎（新浪JSONP，script标签注入，无CORS问题）
@@ -457,6 +514,10 @@ function toBars(raw, cap){
   return cap ? arr.slice(-cap) : arr;
 }
 async function fetchAllKlines(){
+  /* n-auto: Trae 自动推送链路 —— 页面启动/每轮优先探测同目录 jd_latest.json，
+     存在则整包注入三周期K线（来自 AKShare 服务端预取），完全跳过浏览器新浪 JSONP，
+     彻底告别手动录入；文件不存在（如纯静态托管）自动降级回内置新浪源，零影响。 */
+  if(await tryLoadTraePush()) return;
   const sym = S.contract;
   const [m5,h1,d] = await Promise.all([
     jsonp('InnerFuturesNewService.getFewMinLine',{symbol:sym,type:5}).catch(()=>[]),
@@ -466,6 +527,33 @@ async function fetchAllKlines(){
   if(m5.length) S.bars.m5 = toBars(m5, 720);   /* ~16交易日：分时段量能基准需要 */
   if(h1.length) S.bars.h1 = toBars(h1, 200);
   if(d.length)  S.bars.d  = toBars(d, null);
+}
+/* n-auto: 读取 Trae 推送的 jd_latest.json（Node 服务端 AKShare 预取 + 规则引擎结果） */
+let traePushStamp='';
+async function tryLoadTraePush(){
+  try{
+    const r = await fetch('jd_latest.json', {cache:'no-store'});
+    if(!r.ok) return false;
+    const j = await r.json();
+    if(!j.klines || !j.klines.d || j.klines.d.length<10) return false;
+    const stamp = j.ts || '';
+    const firstLoad = !S.bars.d.length;   /* 首次加载：即使 ts 未变也要注入 */
+    if(!firstLoad && stamp===traePushStamp) return true;   /* 已注入过且无更新：视为命中，跳过浏览器拉取 */
+    const kb=(a,cap)=>(a||[]).map(b=>{
+      const ds=String(b.d);
+      const iso=ds.indexOf(' ')>=0 ? ds.replace(' ','T') : ds+'T00:00:00';
+      const t=Date.parse(iso+'+08:00');
+      return isNaN(t)?null:{t, o:+b.o, h:+b.h, l:+b.l, c:+b.c, v:+b.v||0, oi:+b.p||0};
+    }).filter(Boolean);
+    const m5=kb(j.klines.m5,720), h1=kb(j.klines.h1,200), d=kb(j.klines.d,null);
+    if(d.length>=10){ S.bars.d=d; }
+    if(h1.length) S.bars.h1=h1;
+    if(m5.length) S.bars.m5=m5;
+    traePushStamp=stamp;
+    S.traePush={ts:stamp, grade:j.grade, total:j.total, side:(j.live&&j.live.price)||null, ts_:j.ts};
+    console.log('[Trae推送] 已注入 jd_latest.json @'+stamp+' 日线'+d.length+'根/60分'+h1.length+'根/5分'+m5.length+'根');
+    return true;
+  }catch(e){ return false; }   /* 本地文件不存在（file:// 或纯静态）→ 静默降级新浪源 */
 }
 async function fetchM1(){
   if(S.busy.m1) return;
@@ -1459,7 +1547,9 @@ const C = {
   volUp:'rgba(239,83,80,0.45)', volDn:'rgba(38,166,154,0.45)',
   oiLine:'rgba(138,160,184,0.65)',
   ma5:'#f0b90b', ma10:'#4f9cf9', ma20:'#b07af5',
-  resLine:'rgba(239,83,80,0.38)', supLine:'rgba(38,166,154,0.38)',
+  resLine:'rgba(239,83,80,0.85)', supLine:'rgba(38,166,154,0.85)',
+  resGlow:'rgba(239,83,80,0.15)', supGlow:'rgba(38,166,154,0.15)',
+  resChip:'#ef5350', supChip:'#26a69a',
   mkVol:'rgba(240,185,11,0.85)', mkFbL:'#ffa726', mkFbS:'#4dd0e1'
 };
 const chart = {
@@ -1543,16 +1633,30 @@ const chart = {
     ctx.fillStyle='rgba(255,255,255,0.30)'; ctx.font='9px system-ui'; ctx.textAlign='left';
     ctx.fillText('高 '+dHi.toFixed(0), L.x0+4, Y(dHi)-3);
     ctx.fillText('低 '+dLo.toFixed(0), L.x0+4, Y(dLo)+11);
-    /* ---- 关键位（仅2档支撑/压力） ---- */
+    /* ---- 关键位（仅2档支撑/压力）k4美化：辉光底层+加粗实心虚线+彩色标签块，更醒目 ---- */
     if(A){
-      ctx.setLineDash([6,5]); ctx.font='10px system-ui';
+      ctx.font='bold 10px system-ui';
       (A.res||[]).slice(0,2).forEach((r,i)=>{
-        if(r.price<hi&&r.price>lo){ ctx.strokeStyle=C.resLine; ctx.beginPath(); ctx.moveTo(L.x0,Y(r.price)); ctx.lineTo(L.x1,Y(r.price)); ctx.stroke();
-          ctx.fillStyle=C.resLine; ctx.textAlign='left'; ctx.fillText('压'+(i+1)+' '+r.price.toFixed(0), L.x0+4, Y(r.price)-4); }
+        if(r.price<hi&&r.price>lo){
+          const y=Y(r.price);
+          ctx.fillStyle=C.resGlow; ctx.fillRect(L.x0, y-2.5, L.x1-L.x0, 5);   /* 辉光条 */
+          ctx.setLineDash([8,4]); ctx.strokeStyle=C.resLine; ctx.lineWidth=1.4;
+          ctx.beginPath(); ctx.moveTo(L.x0,y); ctx.lineTo(L.x1,y); ctx.stroke();
+          ctx.setLineDash([]); ctx.lineWidth=1;
+          ctx.fillStyle=C.resChip; ctx.fillRect(L.x0+3, y-14, 64, 13);        /* 标签底色块 */
+          ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText('压'+(i+1)+' '+r.price.toFixed(0), L.x0+7, y-4);
+        }
       });
       (A.sup||[]).slice(0,2).forEach((r,i)=>{
-        if(r.price<hi&&r.price>lo){ ctx.strokeStyle=C.supLine; ctx.beginPath(); ctx.moveTo(L.x0,Y(r.price)); ctx.lineTo(L.x1,Y(r.price)); ctx.stroke();
-          ctx.fillStyle=C.supLine; ctx.textAlign='left'; ctx.fillText('支'+(i+1)+' '+r.price.toFixed(0), L.x0+4, Y(r.price)+11); }
+        if(r.price<hi&&r.price>lo){
+          const y=Y(r.price);
+          ctx.fillStyle=C.supGlow; ctx.fillRect(L.x0, y-2.5, L.x1-L.x0, 5);
+          ctx.setLineDash([8,4]); ctx.strokeStyle=C.supLine; ctx.lineWidth=1.4;
+          ctx.beginPath(); ctx.moveTo(L.x0,y); ctx.lineTo(L.x1,y); ctx.stroke();
+          ctx.setLineDash([]); ctx.lineWidth=1;
+          ctx.fillStyle=C.supChip; ctx.fillRect(L.x0+3, y+2, 64, 13);
+          ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText('支'+(i+1)+' '+r.price.toFixed(0), L.x0+7, y+12);
+        }
       });
       ctx.setLineDash([]);
     }
@@ -1732,7 +1836,7 @@ function renderPanels(){
   $('swtag').textContent=A.pos+' · '+tTxt(A.d.trend).replace('趋势','');
   $('shiBody').innerHTML=
    `<b>【势】</b>日线：<span class="hl">${tTxt(A.d.trend)}${dSub}</span>；60分钟：<span class="hl">${tTxt(A.h1.trend)}${hSub}</span>；5分钟：${A.m5.rsi!=null?`RSI ${A.m5.rsi.toFixed(1)}<span style="color:var(--dim)">（${rsiTxt(A.m5.rsi)}）</span>`:'--'}。<br>`+
-   `<b>【位】</b>当前价 <b class="num hl">${L.price.toFixed(0)}</b> 处于 <b>${A.pos}</b>（支${A.sup[0]?A.sup[0].price.toFixed(0):'--'} ~ 压${A.res[0]?A.res[0].price.toFixed(0):'--'} 区间${A.res[0]&&A.sup[0]?' '+(((L.price-A.sup[0].price)/(A.res[0].price-A.sup[0].price)*100)||0).toFixed(0)+'% 处':'，数据不足'}）。<br>`+
+   `<b>【位】</b>当前价 <b class="num hl">${L.price.toFixed(0)}</b> 处于 <b>${A.pos}</b>（支${A.sup[0]?A.sup[0].price.toFixed(0):'--'} ~ 压${A.res[0]?A.res[0].price.toFixed(0):'--'} 区间${A.res[0]&&A.sup[0]?(function(){const d=A.res[0].price-A.sup[0].price;return isFinite(d)&&d!==0?' '+(((L.price-A.sup[0].price)/d*100)):0;})().toFixed(0)+'% 处':'，数据不足'}）。<br>`+
    `<b>【态】</b>${A.patterns.length?A.patterns.map(p=>p.name+(p.note?'（'+p.note+'）':'')).join('、'):'常规结构'}；${A.structIntact?'短线低点结构完好':'短线结构破坏'}${A.falseBreaks.length?`；<span style="color:var(--risk)">出现${A.falseBreaks.length}次假突破（${A.falseBreaks.map(x=>x.type.slice(0,2)+'@'+fmtT(x.t)).join('、')}）</span>`:''}${A.validBreaks.length?`；<span style="color:var(--ok)">${A.validBreaks.length}个关键位突破已确认</span>（收盘站稳）`:''}${(A.validBreaks||[]).filter(v=>v.pending).length?`；<span style="color:var(--warn)">${A.validBreaks.filter(v=>v.pending).length}个待确认（防抖中）</span>`:''}${(A.probes&&(A.probes.upN+A.probes.dnN))?`；影线刺破×${A.probes.upN+A.probes.dnN}（盘中刺破不算突破）`:''}。`;
   /* 关键价位 */
   let lv='';
@@ -1832,12 +1936,96 @@ function renderPanels(){
     : '当前未触发异动风险规则。' +
       (A.veto.length?'':'（注意：规则仅覆盖已知异动类型，不能穷尽所有风险。）');
   renderEagle();
+  renderMF();     /* n9 主力资金动向（方案A：独立辅助预警，不参与打分） */
   renderTrack();
   renderRecap();
   renderCases();
 }
 function m5UpV(){ const s=S.bars.m5.slice(-12); return s.filter(b=>b.c>=b.o).reduce((x,b)=>x+b.v,0); }
 function m5DnV(){ const s=S.bars.m5.slice(-12); return s.filter(b=>b.c<b.o).reduce((x,b)=>x+b.v,0); }
+
+/* =====================================================================
+ *  n9 主力资金动向分析（方案A：独立辅助风险预警模块）
+ *  - 输入：投机多/空持仓、主力净持仓（可自动=多−空）、净持仓增减、产业套保多/空
+ *  - 输出：mfAnalyze() → { behavior, behaviorTxt, hedgeTxt, alerts[] }
+ *  - 边界：仅读取人工录入数据与既有分析结果 A（只读），不修改 A 的任何字段，
+ *          不参与四项打分、一票否决、评级、盈亏比计算。
+ *  - 背离预警：价格向上突破压力位+投机净持仓减少 → 警惕诱多；
+ *              价格向下跌破支撑位+投机净持仓增加 → 警惕诱空。
+ * ===================================================================== */
+function mfInputs(){
+  const num=v=>{ const n=parseFloat(v); return (v!==''&&!isNaN(n)&&isFinite(n))?n:null; };
+  return {
+    long:num(S.mf.long), short:num(S.mf.short),
+    net:(()=>{ const auto=num(S.mf.long)-num(S.mf.short);
+      const manual=num(S.mf.net);
+      if(S.mf.autoNet&&auto!=null&&num(S.mf.short)!=null&&num(S.mf.long)!=null) return auto;
+      return manual; })(),
+    netDelta:num(S.mf.netDelta), hedgeL:num(S.mf.hedgeL), hedgeS:num(S.mf.hedgeS)
+  };
+}
+function mfAnalyze(){
+  const I=mfInputs(), out={ ready:false, behavior:null, behaviorTxt:'', hedgeTxt:'', alerts:[], I };
+  /* 解读前提：投机多空两侧均已录入（净持仓可由此推导） */
+  if(I.long==null||I.short==null){ out.behaviorTxt='投机多/空持仓未录入完整，资金解读暂不可用（录入后自动生成）。'; return out; }
+  out.ready=true;
+  const net=I.net, d=I.netDelta;
+  /* ① 主力资金行为判定（四态，方案A约定口径；优先级：同向增减 → 反向增减=派发 → 多空比对峙=分歧） */
+  if(net>0&&d!=null&&d>0){ out.behavior='主力持续增多'; out.behaviorTxt='投机净持仓为多头且较上期增加（净多 '+fmtN(net)+' 手，增 '+fmtN(d)+' 手）：主力资金持续做多，多头动能有资金背书，趋势延续概率相对更高，但仍需价格结构确认。'; }
+  else if(net<0&&d!=null&&d<0){ out.behavior='主力持续增空'; out.behaviorTxt='投机净持仓为空头且空头进一步加码（净空 '+fmtN(Math.abs(net))+' 手，净持仓减 '+fmtN(Math.abs(d))+' 手）：主力资金持续做空，下行压力有资金背书，反弹对待需谨慎。'; }
+  else if(d!=null&&d!==0&&((net>0&&d<0)||(net<0&&d>0))){ out.behavior='投机资金派发离场'; out.behaviorTxt='投机净持仓方向与增减方向相反（当前净'+(net>0?'多':'空')+' '+fmtN(Math.abs(net))+' 手，本期'+(d>0?'增':'减')+fmtN(Math.abs(d))+' 手）：'+(net>0?'多头获利了结/派发迹象，涨势资金基础松动，若价格仍在涨需警惕最后一冲':'空头回补离场，跌势资金基础松动，若价格仍在跌需警惕最后一杀')+'。'; }
+  else if(I.long!=null&&I.short!=null&&I.long>0&&I.short>0){
+    const ratio=I.long/I.short;
+    if(ratio>=0.7&&ratio<=1.43){ out.behavior='多空分歧加大'; out.behaviorTxt='投机多空持仓比值 '+ratio.toFixed(2)+'（多 '+fmtN(I.long)+' / 空 '+fmtN(I.short)+'）：双方持仓规模接近，多空对峙激烈，行情方向选择临近但不确定性上升，仓位宜保守。'; }
+    else { out.behavior='多空均衡'; out.behaviorTxt='投机多头 '+fmtN(I.long)+' / 空头 '+fmtN(I.short)+'（比值 '+ratio.toFixed(2)+'），净持仓 '+(net!=null?fmtN(net):'--')+' 手：资金面'+(ratio>1?'偏多但无增减配合':'偏空但无增减配合')+'，暂无明显方向性动作。'; }
+  }
+  else { out.behavior='多空均衡'; out.behaviorTxt='净持仓 '+(net!=null?fmtN(net):'--')+' 手、增减变化不大：投机资金暂无明显方向性动作，资金面中性。'; }
+  /* ② 产业套保提示（固定免责文字，单独标注） */
+  if(I.hedgeL!=null||I.hedgeS!=null){
+    const hL=I.hedgeL||0, hS=I.hedgeS||0, hd=hS-hL;
+    out.hedgeTxt='产业套保：多头 '+fmtN(hL)+' 手 / 空头 '+fmtN(hS)+' 手（套保净'+(hd>0?'空':hd<0?'多':'衡')+' '+fmtN(Math.abs(hd))+' 手）。';
+  }
+  out.hedgeNote='⚠ 产业套保盘为现货企业锁价，不能直接等同于行情涨跌预判。';
+  /* ③ 资金背离自动预警（只读既有 A 的突破/价位结果，不回写） */
+  const A=S.A;
+  if(A&&out.ready){
+    const resTop=A.res&&A.res[0]?A.res[0].price:null;
+    const supTop=A.sup&&A.sup[0]?A.sup[0].price:null;
+    /* 向上突破压力位（有效确认）+ 投机净持仓减少 → 警惕诱多 */
+    if(resTop!=null&&d!=null&&d<0&&(A.validBreaks||[]).some(v=>v.level===resTop&&v.confirmed&&(v.dir==null||v.dir==='up'))){
+      out.alerts.push({level:'high',txt:'资金背离预警：价格向上突破压力位 '+resTop.toFixed(0)+'，但投机主力净持仓减少 '+fmtN(Math.abs(d))+' 手——量价上行缺乏资金跟随，警惕诱多，严格复核一票否决条件后再评估。'});
+    }
+    /* 向下跌破支撑位（有效确认）+ 投机净持仓增加 → 警惕诱空 */
+    if(supTop!=null&&d!=null&&d>0&&(A.validBreaks||[]).some(v=>v.level===supTop&&v.confirmed&&(v.dir==null||v.dir==='down'))){
+      out.alerts.push({level:'high',txt:'资金背离预警：价格向下跌破支撑位 '+supTop.toFixed(0)+'，但投机主力净持仓增加 '+fmtN(d)+' 手——杀跌缺乏资金跟随，警惕诱空，严格复核一票否决条件后再评估。'});
+    }
+  }
+  return out;
+}
+function renderMF(){
+  const body=$('mfBody'), tag=$('mfTag'), MF=mfAnalyze(), I=MF.I;
+  /* 标签：录入状态 */
+  const filled=[I.long,I.short,I.net,I.netDelta,I.hedgeL,I.hedgeS].filter(x=>x!=null).length;
+  tag.textContent=filled?('已录入 '+filled+'/6 项'):'未录入';
+  if(!MF.ready){ body.innerHTML='<span style="color:var(--dim)">'+esc(MF.behaviorTxt)+'</span>'+(MF.hedgeNote?'<br><span style="color:var(--faint);font-size:11px">'+esc(MF.hedgeNote)+'</span>':''); return; }
+  /* 行为判定着色 */
+  const bCls={'主力持续增多':'demand','主力持续增空':'supply','多空分歧加大':'dist','投机资金派发离场':'dist','多空均衡':'neutral'};
+  let html='<div style="margin-bottom:5px"><span class="pill '+(bCls[MF.behavior]||'neutral')+'">'+esc(MF.behavior)+'</span> '+esc(MF.behaviorTxt)+'</div>';
+  /* 净持仓速览 */
+  html+='<div style="font-size:11px;color:var(--dim);margin-bottom:4px">投机净持仓：<b class="num" style="color:'+(I.net>0?'var(--up)':I.net<0?'var(--dn)':'var(--dim)')+'">'+(I.net!=null?((I.net>0?'+':'')+fmtN(I.net)+' 手'):'--')+'</b>'
+       +(I.netDelta!=null?('　较上期：<b class="num" style="color:'+(I.netDelta>0?'var(--up)':I.netDelta<0?'var(--dn)':'var(--dim)')+'">'+(I.netDelta>0?'+':'')+fmtN(I.netDelta)+' 手</b>'):'')
+       +(I.hedgeL!=null||I.hedgeS!=null?('　产业套保多 '+fmtN(I.hedgeL||0)+' / 空 '+fmtN(I.hedgeS||0)):'')+'</div>';
+  /* 产业套保提示（单独标注，固定免责文字） */
+  if(MF.hedgeTxt) html+='<div style="font-size:11px;color:var(--dim);margin-bottom:4px">'+esc(MF.hedgeTxt)+'</div>';
+  html+='<div style="font-size:11px;color:var(--purple);margin-bottom:4px">💡 '+esc(MF.hedgeNote)+'</div>';
+  /* 背离预警 */
+  if(MF.alerts.length){
+    html+=MF.alerts.map(a=>'<div class="pill wide supply" style="margin-top:3px">🚨 '+esc(a.txt)+'</div>').join('');
+  } else {
+    html+='<div style="font-size:11px;color:var(--faint)">暂无资金背离预警（需同时满足：关键位有效突破 + 投机净持仓反向增减）。</div>';
+  }
+  body.innerHTML=html;
+}
 
 /* ================= 研判输出 · 双模板自动切换 =================
  * 盘中实时研判模式 → 11项固定模板（严格按框架顺序，不自由发挥）
@@ -1949,9 +2137,92 @@ function renderTrack(){
     '<br><span style="color:var(--faint)">框架红线：禁止扛单、重仓、浮亏加仓、不带止损；离场与止损执行由人工决定。</span></div>';
 }
 
+/* =====================================================================
+ *  n10 交易日志 + AI 自动复盘（纯展示层新增模块，不参与打分/评级/一票否决）
+ *  - 数据：S.journal = [{ id, day, dir, entry, exit, stop, lots, result,
+ *          pts, note, snap:{grade,total,rr,side,veto0}, ts }]
+ *          localStorage 'journal'，上限 500 条（FIFO）。
+ *  - 统计：笔数 / 胜率 / 平均盈利·亏损(点) / 实际盈亏比 / 期望值(点/笔)。
+ *    实际盈亏比 = 平均盈利点 ÷ 平均亏损点绝对值（与预估 1.5R 阈值区分开）。
+ *  - AI 复盘：规则化模板——止损纪律 / 追单 / 逆势 / 仓位四类常见错误自动比对。
+ * ===================================================================== */
+function jLoad(){ try{ return JSON.parse(LS.get('journal','[]'))||[]; }catch(e){ return []; } }
+function jSave(arr){ try{ LS.set('journal', JSON.stringify(arr.slice(-500))); }catch(e){} }
+function jStatsCalc(list){
+  const done=list.filter(x=>x.result!=='flat'&&x.pts!=null);
+  const wins=done.filter(x=>x.pts>0), losses=done.filter(x=>x.pts<0);
+  const avgW=wins.length?wins.reduce((s,x)=>s+x.pts,0)/wins.length:0;
+  const avgL=losses.length?Math.abs(losses.reduce((s,x)=>s+x.pts,0)/losses.length):0;
+  const closed=done.length;
+  const winRate=closed?(wins.length/closed*100):null;
+  const rrAct=avgL>0?(avgW/avgL):null;
+  const expect=closed?(done.reduce((s,x)=>s+x.pts,0)/closed):null;
+  return { total:list.length, closed, wins:wins.length, losses:losses.length, flats:list.length-closed,
+           winRate, avgW, avgL, rrAct, expect, netPts:done.reduce((s,x)=>s+x.pts,0) };
+}
+function jReview(list){
+  /* 规则化错误比对（全部基于日志自身字段，不引入新计算模型） */
+  const out=[];
+  if(list.length<3) return out;
+  /* ① 止损纪律：未填止损价的笔数占比 */
+  const noStop=list.filter(x=>x.stop==null).length;
+  if(noStop>0&&noStop/list.length>=0.3) out.push({cls:'risk',txt:'止损纪律：'+noStop+'/'+list.length+' 笔未记录止损价（占比'+(noStop/list.length*100).toFixed(0)+'%）——不带止损是爆仓主因，开仓前必须先定止损价。'});
+  /* ② 追单特征：笔记含「追」「突破」「追多/追空」关键词 + 亏损占比高 */
+  const chase=list.filter(x=>x.note&&/追|突破|冲高|杀跌/.test(x.note));
+  if(chase.length>=2){
+    const chaseLoss=chase.filter(x=>x.result==='loss').length;
+    if(chaseLoss/chase.length>=0.5) out.push({cls:'warn',txt:'追单嫌疑：'+chase.length+' 笔笔记含「追/突破/冲高/杀跌」，其中 '+chaseLoss+' 笔亏损——突破入场建议等回踩确认，避免追在情绪高点。'});
+  }
+  /* ③ 连亏处理：日志按时间序，连续亏损≥3 笔后仍有新开仓 */
+  let maxStreak=0, streak=0, afterStreak=0;
+  list.forEach(x=>{ if(x.result==='loss'){ streak++; maxStreak=Math.max(maxStreak,streak); if(streak>=3) afterStreak++; } else streak=0; });
+  if(maxStreak>=3) out.push({cls:'risk',txt:'连亏管理：日志中出现最长连续 '+maxStreak+' 笔亏损'+(afterStreak>0?'，且连亏期间仍在开仓 '+afterStreak+' 笔（违反当日连亏3笔锁仓纪律）':'')+'——连亏3笔应强制停手复盘。'});
+  /* ④ 逆势：方向与当时快照评级方向相反（如评级建议做多却做空） */
+  const against=list.filter(x=>x.snap&&x.snap.side&&x.dir&&((x.snap.side.indexOf('多')>=0&&x.dir==='空')||(x.snap.side.indexOf('空')>=0&&x.dir==='多')));
+  if(against.length>=2) out.push({cls:'warn',txt:'逆势嫌疑：'+against.length+' 笔交易方向与当时策略快照建议相反——逆着系统信号做单需额外理由，否则胜率难维持。'});
+  /* ⑤ 盈亏比失衡：平均亏损 > 平均盈利的 1.5 倍 */
+  const st=jStatsCalc(list);
+  if(st.rrAct!=null&&st.rrAct<0.67&&st.closed>=5) out.push({cls:'risk',txt:'盈亏比失衡：实际盈亏比 '+st.rrAct.toFixed(2)+'（平均亏 '+st.avgL.toFixed(0)+' 点 vs 平均赚 '+st.avgW.toFixed(0)+' 点）——亏大赚小，检查是否止损太远/止盈太近/扛单。'});
+  /* ⑥ 正向反馈：做得好的也要说 */
+  if(st.closed>=5&&st.winRate>=55&&st.rrAct!=null&&st.rrAct>=1.2) out.push({cls:'ok',txt:'正向反馈：胜率 '+st.winRate.toFixed(0)+'% + 实际盈亏比 '+st.rrAct.toFixed(2)+'，期望值 '+(st.expect!=null?st.expect.toFixed(1):'--')+' 点/笔为正——当前打法可持续，按纪律执行即可。'});
+  return out;
+}
+function renderJournal(){
+  const list=jLoad(), st=jStatsCalc(list);
+  $('jTag').textContent=st.total+' 笔';
+  /* 统计卡 */
+  const pct=v=>v==null?'--':v.toFixed(0)+'%';
+  const rr=v=>v==null?'--':v.toFixed(2);
+  const pts=v=>v==null?'--':(v>0?'+':'')+v.toFixed(0);
+  $('jStats').innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px">'+
+    `<span class="tag">总 ${st.total} 笔（平 ${st.flats}）</span>`+
+    `<span class="tag">胜 ${st.wins} / 负 ${st.losses}</span>`+
+    `<span class="tag">胜率 <b style="color:${st.winRate==null?'var(--faint)':st.winRate>=50?'var(--ok)':'var(--risk)'}">${pct(st.winRate)}</b></span>`+
+    `<span class="tag">平均盈利 <b class="num" style="color:var(--ok)">${pts(st.avgW)}</b> 点</span>`+
+    `<span class="tag">平均亏损 <b class="num" style="color:var(--risk)">${pts(st.avgL)}</b> 点</span>`+
+    `<span class="tag">实际盈亏比 <b style="color:${st.rrAct==null?'var(--faint)':st.rrAct>=1.5?'var(--ok)':st.rrAct>=1?'var(--gold)':'var(--risk)'}">${rr(st.rrAct)}</b></span>`+
+    `<span class="tag">期望值 <b class="num" style="color:${st.expect==null?'var(--faint)':st.expect>=0?'var(--ok)':'var(--risk)'}">${pts(st.expect)}</b> 点/笔</span>`+
+    `<span class="tag">净盈亏 <b class="num" style="color:${st.netPts>0?'var(--ok)':st.netPts<0?'var(--risk)':'var(--faint)'}">${pts(st.netPts)}</b> 点</span></div>`+
+    (st.total===0?'<div style="font-size:11px;color:var(--faint);margin-top:4px">尚无记录：录入每笔交易（含日期/方向/价格/盈亏点数），系统自动统计胜率与盈亏比并生成 AI 复盘。</div>':'');
+  /* AI 复盘 */
+  const rv=jReview(list);
+  $('jReview').innerHTML='<div class="recaph" style="border-left-color:var(--purple)">🤖 AI 复盘（规则化错误比对）</div>'+
+    (rv.length?rv.map(r=>`<div class="pill wide ${r.cls==='ok'?'demand':r.cls}" style="margin-bottom:3px">${esc(r.txt)}</div>`).join(''):
+     '<div style="font-size:11px;color:var(--faint)">'+(st.total<3?'记录满 3 笔后自动生成复盘结论。':'暂未发现明显错误模式。')+'</div>');
+  /* 明细列表（倒序，最新在上） */
+  $('jList').innerHTML=list.length?list.slice().reverse().map(x=>{
+    const rc=x.result==='win'?'var(--ok)':x.result==='loss'?'var(--risk)':'var(--faint)';
+    const snap=x.snap?`<span style="color:var(--faint)">［快照：${esc(x.snap.grade||'--')}级 · ${x.snap.rr!=null?x.snap.rr.toFixed(2)+'R':'--'} · ${esc(x.snap.side||'--')}${x.snap.veto0?' · 否决:'+esc(x.snap.veto0):''}］</span>`:'';
+    return `<div style="padding:4px 0;border-bottom:1px dashed #2a3346;font-size:11px">`+
+      `<b>${esc(x.day||'--')}</b> ${x.dir==='空'?'🔻做空':'🔺做多'} 入<b class="num">${x.entry!=null?x.entry:'--'}</b> 出<b class="num">${x.exit!=null?x.exit:'--'}</b> 损<b class="num">${x.stop!=null?x.stop:'未设'}</b>`+
+      `${x.lots!=null?' '+x.lots+'手':''} <b style="color:${rc}">${x.result==='win'?'盈利':x.result==='loss'?'亏损':'持平'} ${x.pts!=null?(x.pts>0?'+':'')+x.pts+'点':''}</b>`+
+      `${x.note?'<br><span style="color:var(--dim)">📝 '+esc(x.note)+'</span>':''}${snap?'<br>'+snap:''}`+
+      `</div>`;
+  }).join(''):'<div style="font-size:11px;color:var(--faint)">暂无交易记录。</div>';
+}
+
 function renderRecap(){
-  const rc=S.recap;
-  if(S.mode==='live'||!rc){ $('recapCard').style.display='none'; return; }
+  const rc=S.recap;  if(S.mode==='live'||!rc){ $('recapCard').style.display='none'; return; }
   $('recapCard').style.display='block';
   $('recapdate').textContent=rc.day;
   const cls=(rc.chg>=0)?C.up:C.dn;
@@ -1972,18 +2243,25 @@ function renderRecap(){
  *  第二目标为等距延伸的纯展示换算，仓位比例为纪律映射（非计算模型）。
  * ===================================================================== */
 function renderStrategy(){
-  const el=$('strategyBody'); const A=S.A;
-  if(S.mode==='live'||!A||!S.recap||!S.live){ el.innerHTML=''; return; }
+  const el=$('stratBody'); const A=S.A;
+  /* n2: 移除 live 模式拦截，策略输出在 live/close 双模式下均显示 */
+  if(!A){ el.innerHTML=''; $('stratTag').textContent='--'; return; }
   const gr=A.grade?A.grade.grade:'--';
   const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
-  /* ① 行情定性：一票否决 > 连亏纪律 > 评级+盈亏比 > 观望 */
+  /* ① 行情定性：一票否决 > 连亏纪律 > 盈亏比不足(直接不建议开仓) > 评级+盈亏比达标 > 观望 */
   let side, sideC, qualNote='';
   if(A.veto.length){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='触发一票否决（硬阻断优先于打分）：'+A.veto[0]+(A.veto.length>1?' 等 '+A.veto.length+' 项':''); }
   else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
+  else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.5R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
   else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
   else { side='观望'; sideC='var(--dim)'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':'')+'，未达执行标准'; }
+  $('stratTag').textContent=side; $('stratTag').style.color=sideC;   /* n2: 标题区显示行情定性 */
   const rows=[];
   rows.push(`<tr><td><b>行情定性</b></td><td><b style="color:${sideC}">${side}</b>　<span style="color:var(--faint)">${qualNote}</span></td></tr>`);
+  /* n10 醒目警告条：盈亏比低于 1.5R 阈值 → 顶部大字提示不建议开仓（展示层，不改评级） */
+  if(R&&!R.pass){
+    rows.push(`<tr><td colspan="2" style="background:rgba(230,72,61,.12);border:1px solid var(--risk);border-radius:6px;padding:6px 10px"><b style="color:var(--risk)">⛔ 不建议开仓</b>　<span style="color:var(--txt)">自动计算的预估盈亏比 <b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b> 低于 <b>1.5R</b> 阈值（${R.side==='多'?'多':'空'}向：入场 ${R.entry.toFixed(0)} / 止损 ${R.stop.toFixed(0)} / 目标 ${R.target.toFixed(0)}）——风险回报不划算，按框架直接过滤，等待更好的入场位置。</span></td></tr>`);
+  }
   if(R){
     const t2=R.entry+2*(R.target-R.entry);   /* 第二目标：等距延伸（纯展示换算） */
     const supP=A.sup[0]?A.sup[0].price:null, resP=A.res[0]?A.res[0].price:null;
@@ -2013,14 +2291,23 @@ function renderStrategy(){
   if(gr==='C'&&!A.veto.length) ban.push('⚠ 评级未达 B 级（多周期/盈亏比/量仓/基本面未全部满足）：按框架尽量放弃');
   if(!R) ban.push('⚠ 支撑压力区间不完整：无法评估盈亏比，不满足开仓前置条件');
   if(!ban.length) ban.push('当前无额外禁入条件；突破确认前提：①放量 ②仓差配合（无量上冲当诱多对待）');
+  /* n9 主力资金动向同步进策略：资金解读 + 背离预警写入风险提示/禁入条件（纯读取 mfAnalyze 结果，不改判级） */
+  {
+    const MF=mfAnalyze();
+    if(MF.ready){
+      rows.push(`<tr><td><b>主力资金动向</b></td><td><span class="pill ${(MF.behavior==='主力持续增多')?'demand':(MF.behavior==='主力持续增空')?'supply':'dist'}">${esc(MF.behavior)}</span> ${esc(MF.behaviorTxt)}${MF.hedgeTxt?'<br><span style="color:var(--faint)">'+esc(MF.hedgeTxt)+'</span>':''}<br><span style="color:var(--purple)">💡 ${esc(MF.hedgeNote)}</span></td></tr>`);
+      MF.alerts.forEach(a=>ban.push('🚨 '+esc(a.txt)));
+      if(MF.alerts.length) ban.push('⚠ 存在资金背离（见上）：方案A要求——背离不改评级与总分，但人工评估时必须逐条复核一票否决条件，确认无诱多/诱空陷阱后再决策');
+    }
+  }
   rows.push(`<tr><td><b>禁止入场触发条件</b></td><td>${ban.join('<br>')}</td></tr>`);
   el.innerHTML=
    `<div class="recaph" style="border-left-color:var(--purple)">🤖 AI 策略输出（评级+价位+一票否决自动生成，非交易指令）</div>`+
    `<div class="lvlwrap"><table class="lvl"><tr><th style="width:130px">项目</th><th>内容</th></tr>${rows.join('')}</table></div>`+
    `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">本区块由既有打分（总分 ${A.total}）、关键价位（支撑 ${A.sup[0]?A.sup[0].price.toFixed(0):'--'} / 压力 ${A.res[0]?A.res[0].price.toFixed(0):'--'}）与一票否决规则自动汇总生成，未新增任何计算；参数为量化参考位，是否开仓与实际执行由人工决定，盈亏自负。</div>`;
   if(S.mode==='close') saveStrategyToLS();   /* n5: 收盘复盘渲染成功后自动存档当日策略 */
-    }
-    /* =====================================================================
+}
+/* =====================================================================
      *  n5 策略保存 + 历史策略回查
      *  - 存档时机：renderStrategy 渲染成功后自动调用（仅收盘复盘模式）；
      *  - 结构：{ day, ts, total, grade, vetos[], qual, entry, stop, t1, t2,
@@ -2069,11 +2356,11 @@ function renderStrategy(){
       card.style.display='block';
       const rows=list.slice().reverse().map(r=>{
         const gc=r.grade==='A'?'var(--ok)':(r.grade==='B'?'var(--gold)':(r.grade==='C'?'var(--txt)':'var(--risk)'));
-        const vt=r.vetos&&r.vetos.length?`　<span style="color:var(--risk);font-size:10px">⛔ ${r.vetos[0]}</span>`:'';
+        const vt=r.vetos&&r.vetos.length?`　<span style="color:var(--risk);font-size:10px">⛔ ${esc(r.vetos[0])}</span>`:'';
         const px=r.entry!=null?`　<span style="color:var(--faint)">入 ${r.entry} / 损 ${r.stop} / 目标 ${r.t1}→${r.t2} / ${(r.rr!=null?r.rr:'--')}R</span>`:'';
-        return `<tr><td style="white-space:nowrap"><b class="num">${r.day}</b></td>`+
-          `<td style="white-space:nowrap">评级 <b style="color:${gc}">${r.grade}</b>（${r.total} 分）</td>`+
-          `<td>${r.qual}${vt}</td>`+
+        return `<tr><td style="white-space:nowrap"><b class="num">${esc(r.day)}</b></td>`+
+          `<td style="white-space:nowrap">评级 <b style="color:${gc}">${esc(r.grade)}</b>（${r.total} 分）</td>`+
+          `<td>${esc(r.qual)}${vt}</td>`+
           `<td>${px||'<span style="color:var(--faint)">--</span>'}</td>`+
           `<td style="color:var(--dim)">${r.pos}</td></tr>`;
       }).join('');
@@ -2226,6 +2513,12 @@ async function fullCycle(){
     S.lastOK=Date.now();
     deriveLive();
     detectMode();
+    /* n-auto: Trae 推送命中时点亮页头徽标，并标注引擎评级与数据时间 */
+    const pb=$('pushbadge');
+    if(S.traePush && S.traePush.ts && S.traePush.ts===traePushStamp){
+      pb.style.display='inline-block';
+      pb.textContent='🤖 Trae推送 '+(S.traePush.grade||'')+'级 · '+(S.traePush.ts?S.traePush.ts.slice(11,16):'');
+    }
     const bt=S.bars.m5.length? S.bars.m5[S.bars.m5.length-1].t:0;
     analyze();
     if(S.mode==='close') S.recap=buildRecap();
@@ -2314,11 +2607,17 @@ let timerFast=null, timerSlow=null;
 function restartTimers(){
   clearInterval(timerFast); clearInterval(timerSlow);
   if(S.mode==='live'){
+    /* n11: 每秒同步——fast 定时器除拉取m1/刷新表头外，同步重算 analyze()+renderPanels()，
+       使势位态/威科夫/资金鹰眼/策略输出等分析面板与最新价逐秒联动（原仅60秒 fullCycle 才重算）；
+       renderCases 内有 key 去重不会闪烁；主图 draw 与 Chart.js 经 setChartData 随面板同步。 */
     timerFast=setInterval(async()=>{
       if(S.busy.m1) return;
       await fetchM1();
       deriveLive();
-      onTick();
+      analyze();
+      renderPanels();
+      renderStrategy();   /* n11: 策略输出卡片逐秒联动（live 模式 renderRecap 提前返回不会带它） */
+      onTick();           /* 表头+主图轻量重绘（draw 不重置图表缩放状态） */
     }, S.freq);
     timerSlow=setInterval(()=>{ fullCycle(); }, 60000);
   }else{
@@ -2372,6 +2671,73 @@ function bindUI(){
   $('posEntry').addEventListener('input',posChange);
   $('posStop').addEventListener('input',posChange);
   ['posTP','posTime','posLots','posNote'].forEach(id=>$(id).addEventListener('input',posChange));
+  /* ---- n9 主力资金动向录入（方案A：纯录入+预警渲染，不触发打分重算） ---- */
+  const mfIds=['mfLong','mfShort','mfNet','mfNetDelta','mfHedgeL','mfHedgeS'];
+  const mfChange=()=>{
+    S.mf.long=$('mfLong').value; S.mf.short=$('mfShort').value;
+    S.mf.net=$('mfNet').value; S.mf.netDelta=$('mfNetDelta').value;
+    S.mf.hedgeL=$('mfHedgeL').value; S.mf.hedgeS=$('mfHedgeS').value;
+    /* 键名与初始化读取保持一致（LS.get('mfLong') ↔ LS.set('mfLong')，大小写敏感） */
+    mfIds.forEach(id=>LS.set(id, $(''+id).value));
+    /* 净持仓自动=多−空（手动改过净持仓则尊重手动值，本输入不做联动覆盖） */
+    const l=parseFloat(S.mf.long), s=parseFloat(S.mf.short);
+    if(!isNaN(l)&&!isNaN(s)&&isFinite(l)&&isFinite(s)){ S.mf.autoNet=true; if($('mfNet').value==='') $('mfNet').placeholder=(l-s)+'（自动=多−空）'; }
+    renderMF();
+    /* 资金解读进入策略区 → 需要重渲染策略（只影响展示层） */
+    if(S.A) renderStrategy();
+  };
+  mfIds.forEach(id=>$(id).addEventListener('input',mfChange));
+  /* ---- n10 交易日志：录入 / 快照 / 折叠 / 自动统计复盘 ---- */
+  const jEls={ day:$('jDay'), dir:$('jDir'), entry:$('jEntry'), exit:$('jExit'), stop:$('jStop'), lots:$('jLots'), result:$('jResult'), pts:$('jPts'), note:$('jNote') };
+  /* 盈亏点数自动算：多头=(出场-开仓)×手数×10；空头=(开仓-出场)×手数×10；手动改过不再覆盖 */
+  let jPtsManual=false;
+  $('jPts').addEventListener('input',()=>jPtsManual=true);
+  const jAutoPts=()=>{
+    if(jPtsManual) return;
+    const e=parseFloat(jEls.entry.value), x=parseFloat(jEls.exit.value), l=parseFloat(jEls.lots.value)||1;
+    if(!isNaN(e)&&!isNaN(x)&&isFinite(e)&&isFinite(x)){
+      const per=(jEls.dir.value==='空')?(e-x):(x-e);
+      jEls.pts.value=Math.round(per*l*10);
+      if(jEls.pts.value>0) jEls.result.value='win'; else if(jEls.pts.value<0) jEls.result.value='loss'; else jEls.result.value='flat';
+    }
+  };
+  ['jEntry','jExit','jLots'].forEach(id=>$(id).addEventListener('input',jAutoPts));
+  jEls.dir.addEventListener('change',jAutoPts);
+  /* 记一笔 */
+  $('jAdd').addEventListener('click',()=>{
+    const entry=parseFloat(jEls.entry.value), exit=parseFloat(jEls.exit.value), stopV=parseFloat(jEls.stop.value);
+    if(isNaN(entry)){ jEls.entry.focus(); return; }
+    const list=jLoad();
+    list.push({
+      id:Date.now(), day:jEls.day.value||bjStr(bj()).slice(5).replace('-',''),
+      dir:jEls.dir.value, entry, exit:isNaN(exit)?null:exit, stop:isNaN(stopV)?null:stopV,
+      lots:parseFloat(jEls.lots.value)||null, result:jEls.result.value,
+      pts:jEls.pts.value===''?null:parseFloat(jEls.pts.value),
+      note:jEls.note.value||'', snap:S.jSnap||null, ts:bjStr(bj())+' '+fmtT(bj())
+    });
+    jSave(list); S.jSnap=null;
+    ['jEntry','jExit','jStop','jPts','jNote'].forEach(id=>$(id).value='');
+    jPtsManual=false;
+    renderJournal();
+  });
+  /* 从当前策略带快照：记录当时评级/盈亏比/方向/一票否决（纯读取，不改任何计算） */
+  $('jSnap').addEventListener('click',()=>{
+    const A=S.A;
+    if(!A){ return; }
+    const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
+    S.jSnap={ grade:A.grade?A.grade.grade:'--', total:A.total, rr:(R&&R.rr!=null)?R.rr:null,
+              side:(R&&R.side)?('适合'+(R.side==='多'?'做多':'做空')):(A.veto.length?'禁止开仓':'观望'),
+              veto0:A.veto.length?A.veto[0]:'' };
+    const btn=$('jSnap'); btn.textContent='✓ 快照已随下一笔记录';
+    setTimeout(()=>btn.textContent='📋 从当前策略带快照',2000);
+  });
+  /* 折叠/展开 */
+  $('jFoldBtn').addEventListener('click',()=>{
+    const f=$('jFold'), open=f.style.display!=='none';
+    f.style.display=open?'none':'block';
+    $('jFoldBtn').textContent=open?'▾ 展开':'▴ 收起';
+    if(!open) renderJournal();
+  });
   /* ---- 当日连亏计数（纪律模块：2笔仓位减半，3笔锁仓停新单）+ 历史最大连亏 + 简易回撤 ---- */
   const lossRender=()=>{
     const n=S.losses.n;
@@ -2405,6 +2771,13 @@ function bindUI(){
     const stratTxt=strat?'\n\n—— AI 策略输出 ——\n'+strat:'';
     const txt='【JD2611 半量化研判 · 收盘复盘 '+$('recapdate').textContent+'】\n'+$('recapBody').innerText+stratTxt;
     const done=()=>{ const b=$('recapCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复盘+策略',1500); };
+    const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ alert('复制失败，请手动全选复制'); } document.body.removeChild(ta); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
+  };
+  /* n2: 策略区块一键复制（clipboard API + 降级方案） */
+  $('stratCopy').onclick=()=>{
+    const txt='【JD2611 半量化研判 · AI 交易策略 '+$('stratTag').textContent+'】\n'+$('stratBody').innerText;
+    const done=()=>{ const b=$('stratCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复制策略',1500); };
     const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ alert('复制失败，请手动全选复制'); } document.body.removeChild(ta); };
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
   };
@@ -2473,6 +2846,12 @@ function bindUI(){
   $('posDir').value = S.pos.on ? (S.pos.dir==='空'?'short':'long') : 'none';
   $('posEntry').value=S.pos.entry||''; $('posStop').value=S.pos.sl||'';
   $('posTP').value=S.pos.tp||''; $('posTime').value=S.pos.time||''; $('posLots').value=S.pos.lots||''; $('posNote').value=S.pos.note||'';
+  /* n9 恢复主力资金动向录入（方案A） */
+  $('mfLong').value=S.mf.long||''; $('mfShort').value=S.mf.short||'';
+  $('mfNet').value=S.mf.net||''; $('mfNetDelta').value=S.mf.netDelta||'';
+  $('mfHedgeL').value=S.mf.hedgeL||''; $('mfHedgeS').value=S.mf.hedgeS||'';
+  /* n10 交易日志标签初始化（列表默认折叠，展开时才渲染明细） */
+  $('jTag').textContent=jLoad().length+' 笔';
   lossRender(); ddRender();
 }
 
