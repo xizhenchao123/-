@@ -150,6 +150,7 @@ table.lvl td b{color:var(--txt)}
       <span><span id="dot"></span><span id="bigprice" class="num">--</span></span>
       <span id="bigchg" class="num">--</span>
       <span id="clock" class="num">--:--:--</span>
+      <span id="hb" class="num" style="font-size:10px;color:var(--faint)" title="实时心跳：页面每秒刷新一次的可见计数（与数据源响应速度无关）">♥--</span>
     </div>
   </div>
 </header>
@@ -2603,25 +2604,39 @@ function renderChartJS(){
   cjsChart.$bars=bars;   /* tooltip afterBody 读取 OHLC 用 */
 }
 /* 定时器管理 */
-let timerFast=null, timerSlow=null;
+let timerFast=null, timerSlow=null, timerClock=null;
 function restartTimers(){
-  clearInterval(timerFast); clearInterval(timerSlow);
+  clearInterval(timerFast); clearInterval(timerSlow); clearInterval(timerClock);
+  /* n12: 独立时钟心跳——纯本地渲染，与网络完全解耦，保证肉眼可见的"每秒在动"。
+     页面任何时刻都每秒跳动（时钟+心跳计数），数据联动按 S.freq 独立调度。 */
+  timerClock=setInterval(()=>{
+    renderHeader();               /* 表头+时钟+chips（读内存缓存，无网络） */
+    const hb=$('hb');
+    if(hb){ S.hbN=(S.hbN||0)+1; hb.textContent='♥'+S.hbN; }   /* 心跳计数器：可见证明每秒在刷新 */
+  }, 1000);
   if(S.mode==='live'){
-    /* n11: 每秒同步——fast 定时器除拉取m1/刷新表头外，同步重算 analyze()+renderPanels()，
+    /* n11: 每秒同步——fast 定时器除拉取m1外，同步重算 analyze()+renderPanels()+renderStrategy()，
        使势位态/威科夫/资金鹰眼/策略输出等分析面板与最新价逐秒联动（原仅60秒 fullCycle 才重算）；
-       renderCases 内有 key 去重不会闪烁；主图 draw 与 Chart.js 经 setChartData 随面板同步。 */
+       renderCases 内有 key 去重不会闪烁；主图 draw 不重置缩放状态。
+       n12: try/catch 包裹——任何一步抛错不再让后续步骤（含表头刷新）中断，错误计数可见。 */
     timerFast=setInterval(async()=>{
-      if(S.busy.m1) return;
-      await fetchM1();
-      deriveLive();
-      analyze();
-      renderPanels();
-      renderStrategy();   /* n11: 策略输出卡片逐秒联动（live 模式 renderRecap 提前返回不会带它） */
-      onTick();           /* 表头+主图轻量重绘（draw 不重置图表缩放状态） */
+      if(S.busy.m1) return;   /* 上一拍 fetchM1 仍在途 → 本拍整链跳过（防重叠；busy 标志由 fetchM1 自管） */
+      try{
+        await fetchM1();
+        deriveLive();
+        analyze();
+        renderPanels();
+        renderStrategy();   /* n11: 策略输出卡片逐秒联动（live 模式 renderRecap 提前返回不会带它） */
+        onTick();
+        const hb=$('hb'); if(hb){ hb.style.color='var(--ok)'; hb.title='每秒心跳正常 · 数据同步正常'; }
+      }catch(e){
+        S.errStreak++;
+        console.warn('[per-sec sync error]', e);
+        const hb=$('hb'); if(hb){ hb.style.color='var(--risk)'; hb.title='心跳在跳，但数据同步出错：'+e.message; }
+      }
     }, S.freq);
     timerSlow=setInterval(()=>{ fullCycle(); }, 60000);
   }else{
-    timerFast=setInterval(()=>{ renderHeader(); }, 1000);   // 时钟
     timerSlow=setInterval(()=>{ fullCycle(); }, 60000);     // 复盘数据低频刷新
   }
 }
