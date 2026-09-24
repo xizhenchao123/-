@@ -396,6 +396,12 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div id="stratBody"></div>
     </div>
 
+    <!-- v13: 牛牛 Trader 卡片（Trae 推送 meta.ai.strategy 驱动；分层价位+K线确认+三档止盈，纯展示不参与打分） -->
+    <div class="card" id="nnCard" style="display:none">
+      <h3>🐂 牛牛 Trader 策略卡 <span class="tag">分层价位→K线确认→三档止盈</span><span class="tag" id="nnTag">--</span><button class="fbtn" id="nnCopy" style="float:right;margin-top:-1px">📋 复制方案</button></h3>
+      <div id="nnBody"></div>
+    </div>
+
     <!-- n10: 交易日志（人工录入每笔交易 + 自动统计胜率/盈亏比/期望值 + 规则化 AI 错误复盘；纯展示层模块，不参与打分/评级） -->
     <div class="card" id="journalCard">
       <h3>📓 交易日志 · AI 自动复盘 <span class="tag" id="jTag">0 笔</span><button class="fbtn" id="jFoldBtn" style="float:right;margin-top:-1px">▾ 展开</button></h3>
@@ -641,6 +647,8 @@ async function tryLoadTraePush(){
       renderAiCard(j.meta.ai);
       S.aiLines=(Array.isArray(j.meta.ai.annotations)?j.meta.ai.annotations:[]).filter(a=>a&&a.p!=null).slice(0,6);
     }
+    /* v13: 牛牛 Trader 策略卡 —— meta.ai.strategy 存在即渲染（独立于 lines，无K线也可展示） */
+    if(j.meta&&j.meta.ai&&j.meta.ai.strategy){ renderNiuNiuCard(j.meta.ai.strategy); } else { hideNiuNiuCard(); }
     if(!j.klines || !j.klines.d || j.klines.d.length<10) return false;
     /* fix: 合约校验 —— 推送包与当前页面合约不一致时拒绝注入，防止串数据 */
     if(j.contract && S.contract && String(j.contract).toUpperCase()!==String(S.contract).toUpperCase()) return false;
@@ -740,6 +748,68 @@ function renderAiCard(ai){
   tag.textContent=(ai.stamp||'').slice(5,16)||'已更新';
   try{ chart.draw(); }catch(e){}
 }
+/* =====================================================================
+ *  v13 牛牛 Trader 策略卡：消费 meta.ai.strategy 推送字段（纯展示层，
+ *  不参与四项打分/一票否决/评级计算；展示规则含硬校验——到价≠入场必须
+ *  等K线确认、止损不可移动、盈亏比<1.5R 直接禁开）。
+ *  契约：meta.ai.strategy = {
+ *    stamp, summary, side:'多|空|观望', template:'区间低吸|突破追多|区间高空|破位追空|深踩防守多|大周期压力空',
+ *    tf:'H4|H1|M15|M5|M1',
+ *    zones:{ res:[{p,tf,label,level:短线|次级|强}], sup:[{p,tf,label,level:短线|重要|深度|极端}] },
+ *    entry:{ zone:'3780-3795', tf:'M5', kline:'长下影/阳包阴', price:3788 },
+ *    stop:{ price:3765, hard:true },
+ *    tp:[{price,txt,weight:'40%'},{price,txt,weight:'40%'},{price,txt,weight:'20%'}],
+ *    rr:1.8, gate:{ priceInZone:true, klineSeen:false, note:'…' },
+ *    review:'复盘要点'
+ *  }
+ * ===================================================================== */
+const NN_TPL={
+  '区间低吸':{dir:'多',plan:'价格回踩支撑区间，M1/M5 出现长下影、阳包阴等止跌K线形态'},
+  '突破追多':{dir:'多',plan:'M5 实体收盘站稳关键位置，回踩测试不破'},
+  '区间高空':{dir:'空',plan:'价格反弹至压力区间，M1/M5 出现长上影、阴包阳滞涨形态'},
+  '破位追空':{dir:'空',plan:'M15 实体收盘跌破支撑，反弹回抽无法重新站上'},
+  '深踩防守多':{dir:'多',plan:'价格快速下探深度支撑后快速收回，M5 出现明确止跌形态'},
+  '大周期压力空':{dir:'空',plan:'价格拉升到大周期压力区间，H1/M15 出现滞涨、假突破信号'}
+};
+const NN_KCOLOR={'长上影':'var(--res)','长下影':'var(--sup)','阳包阴':'var(--sup)','阴包阳':'var(--res)'};
+function renderNiuNiuCard(st){
+  const box=$('nnCard'), body=$('nnBody'), tag=$('nnTag');
+  if(!box||!body) return;
+  if(!st||!st.entry||!st.stop||!Array.isArray(st.tp)||st.tp.length<3){ box.style.display='none'; return; }
+  const zc={短线:'var(--dim)',次级:'var(--gold)',强:'var(--risk)',重要:'var(--gold)',深度:'var(--purple)',极端:'var(--risk)'};
+  const row=(a,cls,icon)=>`<tr><td><b class="num" style="color:${cls||'var(--txt)'}">${(+a.p).toFixed(0)}</b></td><td><span class="tag" style="font-size:10px">${esc(a.tf||'--')}</span></td><td>${esc(a.level||'--')}</td><td>${icon?icon+' ':''}${esc(a.label||'')}</td></tr>`;
+  let html='';
+  if(st.summary) html+=`<div class="sec" style="margin-bottom:4px"><b>${esc(st.summary)}</b></div>`;
+  const tpl=NN_TPL[st.template];
+  html+=`<div class="lvlwrap"><table class="lvl"><tr><th style="width:96px">项目</th><th>内容</th></tr>`;
+  html+=`<tr><td><b>策略模板</b></td><td><span class="pill ${st.template&&tpl&&tpl.dir==='多'?'demand':(tpl?'supply':'dist')}">${esc(st.template||'--')}</span>　<span style="color:var(--faint)">${tpl?esc(tpl.plan):'未知模板，按通用区间规则处理'}</span></td></tr>`;
+  html+=`<tr><td><b>方向 / 主周期</b></td><td><b style="color:${tpl&&tpl.dir==='多'?'var(--sup)':'var(--res)'}">${esc(st.side||'--')}</b> · 大周期判定 ${esc(st.tf||'--')}（H4/H1 定方向 → M15/M5 找入场 → M1 精确认）</td></tr>`;
+  /* ② 分层价位表（标注周期） */
+  const Z=(st.zones||{});
+  const resRows=(Array.isArray(Z.res)?Z.res:[]).slice(0,4).map(a=>row(a,'var(--res)','🟥')).join('');
+  const supRows=(Array.isArray(Z.sup)?Z.sup:[]).slice(0,5).map(a=>row(a,'var(--sup)','🟩')).join('');
+  html+=`<tr><td><b>分层压力位</b></td><td>${resRows?`<table class="lvl" style="margin:0"><tr><th>价位</th><th>周期</th><th>级别</th><th>说明</th></tr>${resRows}</table>`:'<span style="color:var(--faint)">--</span>'}</td></tr>`;
+  html+=`<tr><td><b>分层支撑位</b></td><td>${supRows?`<table class="lvl" style="margin:0"><tr><th>价位</th><th>周期</th><th>级别</th><th>说明</th></tr>${supRows}</table>`:'<span style="color:var(--faint)">--</span>'}</td></tr>`;
+  /* ③ 入场：到价仅是必要条件，必须等K线确认 */
+  const E=st.entry, G=(st.gate||{});
+  const kl=(Array.isArray(E.kline)?E.kline:[E.kline]).filter(Boolean);
+  html+=`<tr><td><b>入场区间（${esc(E.tf||'--')}）</b></td><td><b class="num" style="color:var(--gold)">${esc(E.zone||'--')}</b>${E.price!=null?`（锚点 <b class="num">${(+E.price).toFixed(0)}</b>）`:''}<br><span style="color:var(--faint)">价格运行到区间只是必要条件，不是充分条件——到价后必须等 K 线反转形态确认，未出现形态不允许评估入场。</span></td></tr>`;
+  html+=`<tr><td><b>K线确认要求</b></td><td>${kl.map(k=>`<span class="pill" style="font-size:11px;border:1px solid ${NN_KCOLOR[k]||'var(--dim)'};color:${NN_KCOLOR[k]||'var(--txt)'}">${esc(k)}</span>`).join(' ')}${G.klineSeen===true?'　<b style="color:var(--ok)">✔ 已确认，可评估入场</b>':G.klineSeen===false?'　<b style="color:var(--risk)">✘ 形态未出现 → 禁止评估入场</b>':''}${G.note?`<br><span style="color:var(--faint)">${esc(G.note)}</span>`:''}</td></tr>`;
+  /* ④ 止损 + 三档止盈 */
+  html+=`<tr><td><b>硬性止损</b></td><td><b class="num" style="color:var(--risk)">${(+st.stop.price).toFixed(0)}</b>${st.stop.hard?'　<b style="color:var(--risk)">🔒 硬止损，不可随意移动</b>':''}</td></tr>`;
+  const tpRow=st.tp.slice(0,3).map((t,i)=>`<b style="color:var(--ok)">止盈${i+1} <span class="num">${(+t.price).toFixed(0)}</span></b>${t.weight?`（出 ${esc(t.weight)}）`:''}${t.txt?`<span style="color:var(--faint)"> ${esc(t.txt)}</span>`:''}`).join('　→　');
+  html+=`<tr><td><b>阶梯止盈</b></td><td>${tpRow}（分批止盈）</td></tr>`;
+  /* ⑤ 盈亏比硬校验（仅展示，按推送值） */
+  const rr=st.rr;
+  html+=`<tr><td><b>盈亏比校验</b></td><td>${rr!=null?`<b class="num" style="color:${rr>=1.5?'var(--ok)':'var(--risk)'}">${(+rr).toFixed(2)}R</b> ${rr>=1.5?'<span style="color:var(--ok)">≥1.5R 达标</span>':'<span style="color:var(--risk)">＜1.5R → 硬性禁止开仓</span>'}`:'<span style="color:var(--risk)">未提供 → 视为不达标，禁止开仓</span>'}</td></tr>`;
+  if(st.review) html+=`<tr><td><b>复盘要点</b></td><td style="color:var(--dim);font-size:11px">${esc(st.review)}</td></tr>`;
+  html+='</table></div>';
+  html+=`<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">牛牛 Trader 规则：①顺周期优先 H4/H1→M15/M5→M1，大小周期冲突降级处理；②到价≠入场，必须等 K 线形态；③三档止盈分批出，硬止损不动；④盈亏比≥1.5R 硬门槛。本卡片由 Trae 推送包渲染，仅供复盘与决策参考，不构成投资建议。</div>`;
+  body.innerHTML=html;
+  box.style.display='';
+  tag.textContent=(st.stamp||'').slice(0,16)||'已更新';
+}
+function hideNiuNiuCard(){ const b=$('nnCard'); if(b) b.style.display='none'; }
 async function fetchM1(){
   if(S.busy.m1) return;
   S.busy.m1 = true;
@@ -3210,6 +3280,13 @@ function bindUI(){
   $('stratCopy').onclick=()=>{
     const txt='【JD2611 半量化研判 · AI 交易策略 '+$('stratTag').textContent+'】\n'+$('stratBody').innerText;
     const done=()=>{ const b=$('stratCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复制策略',1500); };
+    const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ alert('复制失败，请手动全选复制'); } document.body.removeChild(ta); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
+  };
+  /* v13: 牛牛 Trader 方案一键复制（clipboard API + 降级方案） */
+  $('nnCopy').onclick=()=>{
+    const txt='【JD2611 半量化研判 · 牛牛 Trader 方案 '+$('nnTag').textContent+'】\n'+$('nnBody').innerText;
+    const done=()=>{ const b=$('nnCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复制方案',1500); };
     const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ alert('复制失败，请手动全选复制'); } document.body.removeChild(ta); };
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
   };
