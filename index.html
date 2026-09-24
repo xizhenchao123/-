@@ -1582,7 +1582,7 @@ function analyze(){
 
 /* ---- ① 傅海棠基本面定性评估：利多/利空/供需平衡 ---- */
 function fuFundamental(A){
-  const live=S.live, out={ verdict:'供需平衡', reasons:[], align:null };
+  const live=S.live, out={ verdict:'供需平衡', reasons:[], align:null, alignOk:null };
   if(!A||!live) return out;
   const bull=[], bear=[], flat=[];
   /* 现货蛋价变动（第一依据：蛋价是供需的结果与领先信号） */
@@ -1627,10 +1627,10 @@ function fuFundamental(A){
   else out.verdict= (nB>nR)?'偏多但矛盾不突出':(nR>nB?'偏空但矛盾不突出':'供需平衡');
   /* 基本面方向 vs 期货价格方向：一致才有趋势行情 */
   const dayUp=live.prevSettle? live.price>=live.prevSettle : null;
-  if(out.verdict==='利多'&&dayUp===true) out.align='基本面利多+盘面上行，供需与价格共振';
-  else if(out.verdict==='利空'&&dayUp===false) out.align='基本面利空+盘面下行，供需与价格共振';
-  else if(out.verdict==='利多'||out.verdict==='利空') out.align='基本面方向与盘面暂不一致，趋势级别机会待确认';
-  else out.align='无显著供需矛盾，判定为震荡市，减少交易、优先观望';
+  if(out.verdict==='利多'&&dayUp===true){ out.align='基本面利多+盘面上行，供需与价格共振'; out.alignOk=true; }
+  else if(out.verdict==='利空'&&dayUp===false){ out.align='基本面利空+盘面下行，供需与价格共振'; out.alignOk=true; }
+  else if(out.verdict==='利多'||out.verdict==='利空'){ out.align='基本面方向与盘面暂不一致，趋势级别机会待确认'; out.alignOk=dayUp==null?null:false; }
+  else { out.align='无显著供需矛盾，判定为震荡市，减少交易、优先观望'; out.alignOk=null; }
   return out;
 }
 
@@ -1967,11 +1967,9 @@ function v14Plans(A){
   const riskS=shortStop-shortEntry;
   const sTP=[ sup1, sup1-0.5*(res1-sup1), sup1-(A.sup[1]?sup1-A.sup[1].price:atrD) ];
   const mk=(entry,stop,risk,tps,side)=>{
-    let prev=entry;
     return tps.map((t,i)=>{
-      const gain=Math.abs(t-prev);
+      const gain=Math.abs(t-entry); /* 累计R：一律自入场价起算 */
       const rrV=risk>0?gain/risk:0;
-      prev=i===0?entry:t;
       return { name:['TP1 · 第一目标（减半仓）','TP2 · 第二目标（再减半）','TP3 · 趋势目标（移动止损）'][i], p:t, rr:rrV };
     });
   };
@@ -2012,12 +2010,12 @@ function v14FundProb(A){
   /* 启发式映射：每条利多 +12%，每条利空 -12%，中性 +3% 均值回归，基准50% */
   let bullP=clamp(Math.round(50 + nB*12 - nR*12 + (fu.verdict==='利多'?8:fu.verdict==='利空'?-8:0)),8,92);
   /* 与技术面共振修正：dayUp 与 verdict 同向 +5% */
-  if(fu.align===true) bullP=clamp(bullP+5,5,95);
-  if(fu.align===false) bullP=clamp(bullP-5,5,95);
+  if(fu.alignOk===true) bullP=clamp(bullP+5,5,95);
+  if(fu.alignOk===false) bullP=clamp(bullP-5,5,95);
   const reasons=(fu.bull||[]).map(x=>({d:'利多',t:x,c:'var(--up)'}))
     .concat((fu.bear||[]).map(x=>({d:'利空',t:x,c:'var(--dn)'})))
     .concat((fu.flat||[]).map(x=>({d:'中性',t:x,c:'var(--dim)'})));
-  return { bullP, bearP:100-bullP, verdict:fu.verdict||'供需平衡', reasons, align:fu.align };
+  return { bullP, bearP:100-bullP, verdict:fu.verdict||'供需平衡', reasons, align:fu.align, alignOk:fu.alignOk };
 }
 function renderFProb(){
   const card=$('fprobCard'); if(!card) return;
@@ -2038,8 +2036,8 @@ function renderFProb(){
     fp.reasons.forEach(r=>{ h+='<div style="padding:2px 0;border-bottom:1px dashed var(--line2)"><span class="tag" style="font-size:9px;color:'+r.c+'">'+r.d+'</span> '+esc(r.t)+'</div>'; });
     h+='</div>';
   }
-  if(fp.align===true) h+='<div style="font-size:10px;color:var(--ok);margin-top:5px">✓ 基本面方向与技术面（当日量价）同向，信号可信度加成</div>';
-  else if(fp.align===false) h+='<div style="font-size:10px;color:var(--warn);margin-top:5px">⚠ 基本面方向与技术面背离，谨慎对待顺势信号（可能是短期扰动）</div>';
+  if(fp.alignOk===true) h+='<div style="font-size:10px;color:var(--ok);margin-top:5px">✓ 基本面方向与技术面（当日量价）同向，信号可信度加成</div>';
+  else if(fp.alignOk===false) h+='<div style="font-size:10px;color:var(--warn);margin-top:5px">⚠ 基本面方向与技术面背离，谨慎对待顺势信号（可能是短期扰动）</div>';
   $('fprobBody').innerHTML=h;
   $('fprobBody').insertAdjacentHTML('beforeend', aiV14Block('fprob'));
 }
@@ -2091,7 +2089,7 @@ function v14AiLog(A, force){
   if(!A||!S.live) return;
   const sig=[A.grade?A.grade.grade:'--', A.fu?A.fu.verdict:'--', A.mtfRes?(A.mtfRes.pass?'共振':'矛盾'):'--',
              A.track&&A.track.on?(A.track.risk?'持仓风险':'持仓中'):'空仓', A.veto.length?('否决x'+A.veto.length):'无否决'].join('|');
-  let log=[]; try{ log=LS.get('ailog',[]); }catch(e){}
+  let log=[]; try{ const v=LS.get('ailog',[]); log=Array.isArray(v)?v:[]; }catch(e){}
   const last=log[0];
   /* 留痕条件：签名变化 or 强制 or 距上条≥3分钟 */
   if(!force&&last&&last.sig===sig&&(Date.now()-(last.ts||0))<180000) return;
@@ -2114,7 +2112,7 @@ function renderAiLog(){
   const card=$('ailogCard'); if(!card) return;
   const A=S.A; if(!A||!S.live){ card.style.display='none'; return; }
   card.style.display='block';
-  let log=[]; try{ log=LS.get('ailog',[]); }catch(e){}
+  let log=[]; try{ const v=LS.get('ailog',[]); log=Array.isArray(v)?v:[]; }catch(e){}
   $('ailogTag').textContent=log.length+' 条';
   if(!log.length){ $('ailogBody').innerHTML='<div style="font-size:11px;color:var(--faint)">暂无日志：分析产生实质变化（评级/共振/风险状态变化）或每3分钟自动留痕。</div>'; return; }
   const gCol={A:'var(--ok)',B:'var(--blue)',C:'var(--warn)',D:'var(--risk)'};
@@ -3774,17 +3772,17 @@ function bindUI(){
     if(S.A&&S.live){ v14AiLog(S.A,true); v14CopyDone($('ailogSnap')); }
   };
   $('ailogExport').onclick=()=>{
-    let log=[]; try{ log=JSON.parse(LS.get('ailog')||'[]'); }catch(e){}
+    let log=[]; try{ const v=LS.get('ailog',[]); log=Array.isArray(v)?v:[]; }catch(e){}
     if(!log.length){ alert('暂无AI日志：分析产生实质变化后自动留痕，或点击「📸 记录当前」手动记录'); return; }
     const blob=new Blob([JSON.stringify(log,null,2)],{type:'application/json'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download='jd_ailog_'+bjStr(bj())+'.json'; a.click(); URL.revokeObjectURL(a.href);
   };
   $('ailogClear').onclick=()=>{
-    let n=0; try{ n=JSON.parse(LS.get('ailog')||'[]').length; }catch(e){}
+    let n=0; try{ const v=LS.get('ailog',[]); n=Array.isArray(v)?v.length:0; }catch(e){}
     if(!n){ alert('暂无AI日志可清空'); return; }
     if(!confirm('确认清空全部 '+n+' 条AI分析日志？此操作不可恢复。')) return;
-    LS.set('ailog','[]'); renderAiLog();
+    LS.set('ailog',[]); renderAiLog();
   };
   /* k3-5 折叠面板预留：默认折叠案例库，复盘卡片默认展开 */
   $('caseFoldBtn').onclick=()=>{
