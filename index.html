@@ -214,6 +214,13 @@ table.lvl td b{color:var(--txt)}
 .card,.ev,.jrow,.clrow{animation:rise .45s cubic-bezier(.2,.7,.3,1) both}
 main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-delay:.12s}main .card:nth-child(4){animation-delay:.18s}main .card:nth-child(5){animation-delay:.24s}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* v15: K线截图识别（OCR）卡片 */
+#ocrCard .ocrrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+#ocrPrev{display:none;margin-top:8px;text-align:center}
+#ocrImg{max-width:100%;max-height:160px;border:1px solid rgba(127,127,127,.25);border-radius:8px}
+#ocrPre{white-space:pre-wrap;word-break:break-all;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;padding:8px;font-size:11px;line-height:1.6;margin-top:8px;max-height:200px;overflow-y:auto}
+#ocrSpin{display:none;width:13px;height:13px;border:2px solid rgba(127,127,127,.3);border-top-color:var(--ok);border-radius:50%;animation:ocrspin 1s linear infinite;vertical-align:-2px;margin:0 6px}
+@keyframes ocrspin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -255,6 +262,23 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 <div class="card" id="aiCard" style="display:none;margin:10px 12px 0">
   <h3>🤖 AI 盯盘提醒 <span class="tag">Trae 克隆分析师推送</span><span class="tag" id="aiTag">--</span></h3>
   <div class="sec" id="aiBody">暂无推送。</div>
+</div>
+
+<!-- v15: K线截图识别卡片（对接 Trae 视觉模型：选截图→复制提示词→Trae 解析→meta.ai.ocr 推送→自动取回回填） -->
+<div class="card" id="ocrCard" style="margin:10px 12px 0">
+  <h3>📷 K线截图识别 <span class="tag">Trae 视觉模型 · 仅辅助需人工核对</span><span id="ocrSpin"></span><span class="tag" id="ocrState">⚪ 空闲</span></h3>
+  <div class="ocrrow">
+    <label class="fbtn" style="background:rgba(127,127,127,.10);cursor:pointer">🖼 选择截图 (PNG/JPG)<input id="ocrPick" type="file" accept="image/png,image/jpeg" style="display:none"></label>
+    <button class="fbtn" id="ocrCopyPrompt" style="background:rgba(45,212,170,.15);border-color:var(--sup)">📋 复制识别提示词</button>
+    <button class="fbtn" id="ocrCopyAll">⧉ 复制识别全文</button>
+    <button class="fbtn" id="ocrToggle">▾ 原文</button>
+  </div>
+  <div id="ocrMsg"></div>
+  <div id="ocrPrev"><img id="ocrImg" alt="K线截图预览"></div>
+  <div id="ocrBody"><div class="sec">尚未识别。选截图 → 复制提示词 → 粘到 Trae 并附图发送 → 本页自动取回识别结果并回填。</div></div>
+  <div style="margin-top:8px"><label style="font-size:11px;color:var(--dim);font-weight:700">行情文本框（识别结果自动填入，可编辑后再复制使用；不参与打分）</label>
+    <textarea id="ocrText" rows="4" placeholder="识别完成后，结构化行情文本自动填入此处；可人工修改、复制到任何研判/日志场景。" style="width:100%;box-sizing:border-box;margin-top:4px;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;color:var(--fg);font-size:12px;line-height:1.6;padding:7px;resize:vertical"></textarea></div>
+  <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">流程：截图留在本机不上传云端 → Trae 视觉模型解析 → 识别结果写入推送包 → 页面自动取回并填入上方行情文本框。识别失败自动提示重传；所有数据仅辅助研判，不构成交易建议。</div>
 </div>
 
 <main>
@@ -555,6 +579,8 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 </div>
 
 <footer><b>免责声明：</b>本内容仅为盘面数据复盘参考，不构成任何期货投资建议，期货杠杆风险极高，所有交易盈亏由使用者自行承担。本系统为规则化半量化工具，所有打分与标注均为算法估算，不预测未来涨跌，不提供任何做多/做空交易指令。<b>历史案例存在样本偏差</b>（案例库仅收录符合特定筛选条件的代表性行情，且历史规律由事后归纳得出），不能预判未来行情。</footer>
+<!-- v15: AI 识别风险安全提示（页面底部常驻） -->
+<div class="sec" id="ocrSafe" style="margin:0 12px 10px;padding:8px 10px;border:1px dashed rgba(255,170,60,.45);border-radius:8px;font-size:11px;line-height:1.7;color:var(--warn);background:rgba(255,170,60,.06)">⚠️ <b>AI 图片识别安全提示：</b>AI 图片识别存在误差，所有识别出来的数据，务必人工核对盘面；本系统仅作为行情研判辅助工具，不构成任何交易建议，期货交易风险极高。</div>
 <!-- v12 大师级终端 · 主题版本标记 -->
 <span id="themeVer" data-theme="v12-master" style="display:none"></span>
 
@@ -705,6 +731,8 @@ async function tryLoadTraePush(){
     /* v14: AI独立研判对照包 —— meta.ai.v14 驱动矩阵/基本面/风控三卡「AI对照」块（纯展示，不覆盖页面计算） */
     if(j.meta&&j.meta.ai&&j.meta.ai.v14){ S.aiV14=j.meta.ai.v14; try{ if(S.A){ renderMtfx(); renderFProb(); renderRisk(); } }catch(e){} }
     else S.aiV14=null;
+    /* v15: OCR 识别结果通道——meta.ai.ocr {stamp,text,ok} → 卡片展示+空字段回填 */
+    try{ ocrPoll(j); }catch(e){}
     if(!j.klines || !j.klines.d || j.klines.d.length<10) return false;
     /* fix: 合约校验 —— 推送包与当前页面合约不一致时拒绝注入，防止串数据 */
     if(j.contract && S.contract && String(j.contract).toUpperCase()!==String(S.contract).toUpperCase()) return false;
@@ -803,6 +831,94 @@ function renderAiCard(ai){
   box.style.display='';
   tag.textContent=(ai.stamp||'').slice(5,16)||'已更新';
   try{ chart.draw(); }catch(e){}
+}
+/* =====================================================================
+ * v15: K线截图识别（对接 Trae 视觉模型）
+ * 流程：页面选择截图 → 一键复制识别提示词 → 粘给 Trae 并附图（Trae 视觉模型解析）
+ *   → Trae 把结果写入 jd_latest.json 的 meta.ai.ocr{stamp,text}
+ *   → 本页推送轮询自动取回：卡片展示 + 空字段自动回填（绝不覆盖人工录入）
+ * 截图永不上传云端、页面零外部接口：合规、零密钥。
+ * ===================================================================== */
+S.ocr=S.ocr||{stamp:'',lastTxt:''};
+const OCR_PROMPT='你是K线图片解析专家，只提取图片内期货K线信息。\n输出格式：\n品种、合约、周期（1h/5min/日线），当前价格，近期高点、低点，成交量，持仓量，关键支撑位，关键压力位，K线结构，供需区域。\n只输出结构化行情文本，不要多余描述，提取内容直接填入行情研判系统。\n⚠️如果图片模糊、识别不到数据，直接返回：识别失败，请重新上传清晰K线截图。';
+function ocrSetState(st,note){
+  const el=$('ocrState'); if(!el) return;
+  const m={idle:['⚪ 空闲','var(--dim)'],wait:['🟡 等待Trae识别…','var(--warn)'],done:['🟢 已取回·请人工核对','var(--ok)'],fail:['🔴 识别失败·请重传','var(--risk)']}[st]||['⚪ 空闲','var(--dim)'];
+  el.textContent=note||m[0]; el.style.color=m[1];
+}
+function ocrShowMsg(kind,text){
+  const el=$('ocrMsg'); if(!el) return;
+  const c={err:'var(--risk)',ok:'var(--ok)',info:'var(--dim)',warn:'var(--warn)'}[kind]||'var(--dim)';
+  el.innerHTML='<div style="border-left:3px solid '+c+';padding:4px 8px;margin-top:6px;font-size:11px;color:'+c+'">'+esc(text)+'</div>';
+}
+async function ocrCopyPrompt(){
+  const okMsg=()=>ocrShowMsg('ok','识别提示词已复制：粘贴到 Trae 对话框，附上刚选的截图，发送即可。');
+  try{ await navigator.clipboard.writeText(OCR_PROMPT); okMsg(); }
+  catch(e){
+    try{
+      const ta=document.createElement('textarea'); ta.value=OCR_PROMPT; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); okMsg();
+    }catch(e2){ ocrShowMsg('err','复制失败：请打开《JD2611-AI研判助手提示词.md》第10节手动复制。'); }
+  }
+}
+function ocrParse(txt){
+  const t=String(txt||'');
+  if(!t.trim()) return null;
+  if(/识别失败|模糊|无法识别|看不清/.test(t)) return {fail:true,raw:t};
+  const pick=lab=>{ const m=t.match(new RegExp(lab+'[^0-9\\-\\n]{0,12}(-?\\d+(?:\\.\\d+)?)')); return m?+m[1]:null; };
+  const pm=t.match(/(日线|1h|60分|小时|5min|5分|分钟)/i);
+  return { raw:t, period:pm?pm[0]:null,
+    price:pick('当前价格')||pick('现价'), high:pick('近期高点')||pick('高点'), low:pick('近期低点')||pick('低点'),
+    vol:pick('成交量'), oi:pick('持仓量'),
+    sup:pick('关键支撑位')||pick('支撑位'), res:pick('关键压力位')||pick('压力位') };
+}
+function ocrApply(txt){
+  /* 仅填入 OCR 卡自有的行情文本框：期货价（元/500kg）与基本面字段（元/斤现货）量纲不同，
+     绝不回填 spotToday 等基本面输入，防止污染基差与供需打分（页面零打分逻辑改动）。 */
+  const el=$('ocrText'); if(!el) return;
+  el.value=String(txt||'');
+  try{ LS.set('ocrText',el.value); }catch(e){}
+}
+function renderOcrCard(ocr){
+  const card=$('ocrCard'), body=$('ocrBody'); if(!card||!body||!ocr) return;
+  if(ocr.ok===false||(ocr.text&&/识别失败|模糊/.test(ocr.text))){
+    body.innerHTML='<div class="sec" style="color:var(--risk)">❌ '+esc(ocr.text||'图片模糊或无有效数据，请重新上传清晰K线截图。')+'</div>';
+    ocrSetState('fail'); card.style.display=''; return;
+  }
+  if(!ocr.text){ body.innerHTML='<div class="sec">推送包无识别文本。</div>'; ocrSetState('fail'); card.style.display=''; return; }
+  S.ocr.lastTxt=ocr.text;
+  const o=ocrParse(ocr.text);
+  const row=(k,v,u)=>v==null?'':'<div class="erow" style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dashed rgba(127,127,127,.15)"><span style="color:var(--dim)">'+k+'</span><b class="num">'+esc(String(v))+(u?'<span style="color:var(--faint);font-size:10px"> '+u+'</span>':'')+'</b></div>';
+  let html='';
+  html+=row('周期',o.period); html+=row('当前价格',o.price); html+=row('近期高点',o.high);
+  html+=row('近期低点',o.low); html+=row('成交量',o.vol,'手'); html+=row('持仓量',o.oi,'手');
+  html+=row('关键支撑位',o.sup); html+=row('关键压力位',o.res);
+  html+='<pre id="ocrPre" style="display:none">'+esc(ocr.text)+'</pre>';
+  html+='<div style="margin-top:6px;font-size:11px;color:var(--warn)">⚠️ AI 图片识别存在误差，上方数据务必逐项人工核对盘面后再使用。</div>';
+  body.innerHTML=html;
+  ocrApply(ocr.text);
+  ocrSetState('done');
+  const mm=String(ocr.stamp||'').match(/(\d{2}:\d{2})/);
+  ocrShowMsg('ok','识别结果已取回'+(mm?('（'+mm[1]+' 批次）'):'')+'：全文已自动填入下方行情文本框（可编辑），请逐项人工核对盘面后再使用。');
+  card.style.display='';
+}
+function ocrPoll(j){
+  const o=(j&&j.meta&&j.meta.ai&&j.meta.ai.ocr)||null;
+  if(!o) return;
+  const stamp=o.stamp||(o.text||'').slice(0,60);
+  if(stamp===S.ocr.stamp) return;   /* 同一批次 → 跳过（页面刷新后重渲染一次无害） */
+  S.ocr.stamp=stamp;
+  try{ renderOcrCard(o); }catch(e){}
+}
+async function ocrCopyAll(){
+  const v=(($('ocrText')||{}).value||'').trim()||S.ocr.lastTxt;
+  if(!v){ ocrShowMsg('warn','暂无识别结果可复制。'); return; }
+  try{ await navigator.clipboard.writeText(v); ocrShowMsg('ok','识别全文已复制，可粘贴到行情研判或交易日志。'); }
+  catch(e){ ocrShowMsg('err','复制失败。'); }
+}
+function ocrToggleRaw(){
+  const p=$('ocrPre'); if(!p) return;
+  p.style.display=p.style.display==='none'?'block':'none';
 }
 /* =====================================================================
  *  v13 牛牛 Trader 策略卡：消费 meta.ai.strategy 推送字段（纯展示层，
@@ -3597,6 +3713,22 @@ function restartTimers(){
 
 /* ---------------- 交互绑定 ---------------- */
 function bindUI(){
+  /* v15: K线截图识别（Trae 视觉模型）交互绑定 */
+  try{ $('ocrText').value=LS.get('ocrText','')||''; }catch(e){}   /* 刷新后恢复上次识别文本 */
+  $('ocrPick').onchange=()=>{
+    const f=($('ocrPick').files||[])[0]; if(!f) return;
+    if(!/image\/(png|jpe?g)/.test(f.type)){ ocrShowMsg('err','仅支持 PNG / JPG 截图，请重新选择。'); $('ocrPick').value=''; return; }
+    if(f.size>8*1024*1024){ ocrShowMsg('err','图片超过 8MB，请压缩后再选。'); $('ocrPick').value=''; return; }
+    const rd=new FileReader();
+    rd.onload=()=>{ $('ocrImg').src=rd.result; $('ocrPrev').style.display=''; };
+    rd.onerror=()=>ocrShowMsg('err','图片读取失败，请重试。');
+    rd.readAsDataURL(f);
+    ocrSetState('wait');
+    ocrShowMsg('info','截图已就绪：点【📋 复制识别提示词】→ 粘贴到 Trae 对话框并附上这张截图 → 发送。识别完成后本页自动取回并回填。');
+  };
+  $('ocrCopyPrompt').onclick=ocrCopyPrompt;
+  $('ocrCopyAll').onclick=ocrCopyAll;
+  $('ocrToggle').onclick=ocrToggleRaw;
   document.querySelectorAll('.tftabs button').forEach(b=>{
     b.onclick=()=>{ document.querySelectorAll('.tftabs button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); S.tf=b.dataset.tf; S.view={n:S.tf==='d'?90:100,off:0}; setChartData(); };
   });
