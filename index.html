@@ -4105,7 +4105,7 @@ function v16ExportCsv(judgeOnly){
   const list=jLoad();
   const rows=judgeOnly?list.filter(x=>x.type==='judge'):list;
   if(!rows.length){ alert('暂无'+(judgeOnly?'研判流水':'日志')+'可导出'); return; }
-  const head=['类型','日期','时间','评级','总分','盈亏比R','多周期','威科夫行为','方向','开仓价','止损','手数','盈亏点','结果','笔记','签名'];
+  const head=['类型','日期','时间','评级','总分','盈亏比R','多周期','威科夫行为','威科夫阶段','方向','开仓价','止损','手数','盈亏点','结果','笔记','签名'];
   const lines=[head.join(',')].concat(rows.map(x=>[
     x.type||'manual', x.day||'', x.time||'', x.grade||'', x.total!=null?x.total:'',
     x.rr!=null?x.rr:'', x.mtf!=null?(x.mtf?'过':'阻'):'', x.wy||'', x.phase||'',
