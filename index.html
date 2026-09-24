@@ -221,6 +221,15 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 #ocrPre{white-space:pre-wrap;word-break:break-all;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;padding:8px;font-size:11px;line-height:1.6;margin-top:8px;max-height:200px;overflow-y:auto}
 #ocrSpin{display:none;width:13px;height:13px;border:2px solid rgba(127,127,127,.3);border-top-color:var(--ok);border-radius:50%;animation:ocrspin 1s linear infinite;vertical-align:-2px;margin:0 6px}
 @keyframes ocrspin{to{transform:rotate(360deg)}}
+/* ===== v16 增量模块样式（模板切换/K线绘图/持仓监控/研判体检/资金风控/复盘统计） ===== */
+.kdwrap{position:relative}
+#kdCanvas{width:100%;height:260px;display:block;background:rgba(127,127,127,.05);border:1px solid rgba(127,127,127,.18);border-radius:8px}
+.v16big{font-size:22px;font-weight:800;line-height:1.1}
+.v16gauge{height:10px;border-radius:6px;background:rgba(127,127,127,.15);overflow:hidden;margin:6px 0 2px}
+.v16gauge i{display:block;height:100%;border-radius:6px;transition:width .4s}
+.tplitem{padding:7px 9px;border:1px solid rgba(127,127,127,.22);border-radius:8px;margin-bottom:6px;background:rgba(127,127,127,.05);font-size:12px;line-height:1.8}
+.tplitem.on{border-color:var(--sup);background:rgba(45,212,170,.08)}
+.tplitem b{color:var(--fg)}
 </style>
 </head>
 <body>
@@ -279,6 +288,77 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
   <div style="margin-top:8px"><label style="font-size:11px;color:var(--dim);font-weight:700">行情文本框（识别结果自动填入，可编辑后再复制使用；不参与打分）</label>
     <textarea id="ocrText" rows="4" placeholder="识别完成后，结构化行情文本自动填入此处；可人工修改、复制到任何研判/日志场景。" style="width:100%;box-sizing:border-box;margin-top:4px;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;color:var(--fg);font-size:12px;line-height:1.6;padding:7px;resize:vertical"></textarea></div>
   <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">流程：截图留在本机不上传云端 → Trae 视觉模型解析 → 识别结果写入推送包 → 页面自动取回并填入上方行情文本框。识别失败自动提示重传；所有数据仅辅助研判，不构成交易建议。</div>
+</div>
+
+<!-- v16-高1: 策略模板切换（威科夫势位态 / 傅海棠基本面 两套模板一键切换，localStorage 持久化；纯展示层，不改变任何计算逻辑） -->
+<div class="card" id="tplCard">
+  <h3>🧭 策略模板切换 <span class="tag">两套体系 · 一键切换</span><span class="tag" id="tplState">--</span></h3>
+  <div id="tplList"></div>
+  <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">模板仅决定研判侧重与提示口径（威科夫：势/位/态三段结构；傅海棠：供需/成本/安全边际），不改动四项打分、一票否决与评级引擎。当前侧重会在「策略输出」卡片顶部标注。</div>
+</div>
+
+<!-- v16-高2: 简易K线绘图面板（手动录入高低点价格，纯 canvas 手绘静态K线+支撑压力线+箱体边界；不做图片AI识别） -->
+<div class="card" id="kdrawCard">
+  <h3>✏️ 简易K线绘图 <span class="tag">手动录入 · 纯绘图</span><span class="tag" id="kdCount">0 根</span></h3>
+  <div class="inp" id="kdInputs">
+    <div><label>高点 High</label><input id="kdH" type="number" step="1" placeholder="如 3900"></div>
+    <div><label>低点 Low</label><input id="kdL" type="number" step="1" placeholder="如 3850"></div>
+    <div><label>开盘 O（可留空=收盘平开）</label><input id="kdO" type="number" step="1" placeholder="如 3880"></div>
+    <div><label>收盘 C（可留空=高低中值）</label><input id="kdC" type="number" step="1" placeholder="如 3890"></div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap">
+    <button class="fbtn" id="kdAdd" style="background:rgba(45,212,170,.15);border-color:var(--sup)">＋ 加一根K线</button>
+    <button class="fbtn" id="kdClear">🗑 清空</button>
+    <button class="fbtn" id="kdLineToggle">📐 支撑压力/箱体：开</button>
+    <span id="kdMsg" style="font-size:11px;color:var(--faint)">依次录入每根K线的四个价格，自动绘制静态图并标注关键线。</span>
+  </div>
+  <div class="kdwrap"><canvas id="kdCanvas" width="900" height="260"></canvas></div>
+  <div class="sec" id="kdInfo" style="margin-top:6px"></div>
+  <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">绘制规则：红=收≥开、绿=收&lt;开；支撑线=全程最低点，压力线=全程最高点，箱体=近6根高低区间；数据存本机浏览器，不上传。仅手工绘图工具，不参与打分，不构成交易建议。</div>
+</div>
+
+<!-- v16-高3: 持仓监控增强（复用既有持仓录入与 trackPosition 引擎，增加浮盈浮亏金额/动态移动止损阶梯/减仓离场提示；不重写引擎） -->
+<div class="card" id="posmonCard">
+  <h3>📊 持仓监控 <span class="tag">浮盈浮亏 · 动态移损 · 离场提示</span><span class="tag" id="pmTag">未持仓</span></h3>
+  <div id="pmPnl" style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;margin-bottom:6px">
+    <div><div class="v16big num" id="pmMoney" style="color:var(--dim)">--</div><div style="font-size:10px;color:var(--faint)">浮动盈亏（元）</div></div>
+    <div><div class="v16big num" id="pmR" style="color:var(--dim)">--</div><div style="font-size:10px;color:var(--faint)">浮盈（R倍）</div></div>
+    <div><div class="v16big num" id="pmPts" style="color:var(--dim)">--</div><div style="font-size:10px;color:var(--faint)">浮盈（点）</div></div>
+  </div>
+  <div class="sec" id="pmStop" style="display:none"></div>
+  <div class="sec" id="pmAct" style="display:none"></div>
+  <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">口径：鸡蛋期货 5吨/手，1点=10元/手，浮盈 =（现价−开仓价）×10×手数×方向。移损阶梯：浮盈≥1R 移至成本线（保本损），≥1.5R 移至 +0.5R，≥2R 移至 +1R；提示仅供人工决定，禁止扛单。</div>
+</div>
+
+<!-- v16-中低: 研判体检（置信度打分0-100 + 震荡噪音过滤，插在评级横幅下方联动展示） -->
+<div class="card" id="confCard" style="display:none">
+  <h3>🧪 研判体检 <span class="tag">置信度 · 噪音过滤</span><span class="tag" id="confTag">--</span></h3>
+  <div id="noiseBanner" style="display:none;background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.45);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-weight:800;font-size:13px;color:var(--risk)">⛔ 当前无合格开仓机会，禁止开单</div>
+  <div class="v16gauge"><i id="confBar" style="width:0%;background:var(--dim)"></i></div>
+  <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faint)"><span>0</span><b id="confNum" class="num" style="font-size:13px;color:var(--fg)">--</b><span>100</span></div>
+  <div class="sec" id="confBody" style="margin-top:6px"></div>
+  <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">置信度五因子：四项总分50% + 多周期共振20% + 盈亏比10% + 否决/风险扣减10% + 噪音状态10%；震荡识别命中时置信度封顶40且禁止开单提示常亮。</div>
+</div>
+
+<!-- v16-中5: 资金风控校验（总资金输入→单笔亏损≤2%→最大可开手数；1点=10元/手） -->
+<div class="card" id="riskcapCard">
+  <h3>💰 资金风控校验 <span class="tag">单笔亏损强制≤2%</span></h3>
+  <div class="inp" style="grid-template-columns:1fr 1fr">
+    <div><label>账户总资金（元）</label><input id="rcEquity" type="number" step="1000" placeholder="如 100000"></div>
+    <div><label>当前风险价（开仓价）</label><input id="rcEntry" type="number" step="1" placeholder="如 3860，留空用现价"></div>
+    <div><label>止损价</label><input id="rcStop" type="number" step="1" placeholder="如 3830"></div>
+  </div>
+  <div class="sec" id="rcOut" style="margin-top:6px">输入总资金与止损价后自动计算：单笔最大亏损额（2%）、单手风险（点差×10元）、最大可开手数。</div>
+  <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">公式：最大手数 = floor(总资金×2% ÷（|开仓价−止损价|×10元/手）)；连亏减半规则叠加生效（当日连亏2笔再减半）。计算为上限校验，实际仓位仍由人工决定。</div>
+</div>
+
+<!-- v16-低7: 研判流水复盘统计（对自动研判流水做胜率/盈亏比统计 + CSV导出；复用 n10 日志存储，人工交易统计仍在交易日志卡） -->
+<div class="card" id="jstatCard">
+  <h3>📈 研判流水复盘 <span class="tag">信号胜率 · 盈亏比 · CSV</span><span class="tag" id="jsTag">--</span></h3>
+  <div class="sec" id="jsBody">分析研判流水加载中…</div>
+  <div style="margin-top:6px"><button class="fbtn" id="jsExport">⤓ 导出研判流水CSV</button>
+    <button class="fbtn" id="jsExportAll">⤓ 导出全部日志CSV</button></div>
+  <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">口径：以「信号落地时评级方向」与「其后首个反向信号/当日收盘」对照估次，仅统计研判流水（type=judge）质量，与交易日志（人工记录）互相独立；胜率为信号质量参考，不代表实际交易收益。</div>
 </div>
 
 <main>
@@ -1686,6 +1766,7 @@ function analyze(){
   /* v14 六大展示模块：信号矩阵/关键价位表/双向预案/基本面概率/风控审核/AI日志（纯展示，不改打分） */
   try{ renderMtfx(); renderLevels(); renderPlans(); renderFProb(); renderRisk(); v14AiLog(A,false); }catch(e){}
   jAutoJudge(A); /* v11 规则5：研判结论变化时自动记入复盘流水（同签名去重） */
+  try{ v16RenderConf(A); }catch(e){} /* v16-中6/中4：置信度打分+噪音过滤联动渲染 */
   return A;
 }
 
@@ -2800,6 +2881,7 @@ function renderPanels(){
   renderMF();     /* n9 主力资金动向（方案A：独立辅助预警，不参与打分） */
   try{ renderIfind(); }catch(e){}   /* n-ifind2 iFinD 权威指标面板（纯展示+交叉校验，注入失败不影响主流程） */
   renderTrack();
+  try{ v16RenderPosmon(); }catch(e){} /* v16-高2：持仓监控（浮盈浮亏+移损建议） */
   renderRecap();
   renderCases();
 }
@@ -3569,7 +3651,7 @@ function onTick(){
       }catch(e){ /* 速览图更新失败不影响主图 */ }
     }
     /* 持仓中：轻量刷新持仓监测行（浮盈亏/止损参考随最新价变动，不重跑 analyze） */
-    if(S.pos&&S.pos.on) renderTrack();
+    if(S.pos&&S.pos.on){ renderTrack(); try{ v16RenderPosmon(); }catch(e){} } /* v16-高2：逐秒刷新 */
   }
 }
 async function fullCycle(){
@@ -3709,6 +3791,329 @@ function restartTimers(){
   }else{
     timerSlow=setInterval(()=>{ fullCycle(); }, S.cycleMs);   /* n15: 复盘数据低频刷新（周期同样可调） */
   }
+}
+
+/* =====================================================================
+ *  v16 七模块（对标牛牛Trader）：全部为纯展示/辅助层，不改动四项打分、
+ *  一票否决、评级引擎与既有 v11~v15 任何逻辑。
+ *  高1 简易K线绘图  高2 持仓监控增强  高3 策略模板切换
+ *  中4 震荡噪音过滤  中5 资金风控校验  中6 研判置信度  低7 研判流水复盘
+ * ===================================================================== */
+
+/* ---- v16-高3: 策略模板（威科夫势位态 / 傅海棠基本面） ---- */
+const V16_TPLS={
+  wyckoff:{ name:'威科夫势位态', focus:'势（多周期趋势结构）→ 位（关键支撑压力与位置高低）→ 态（量价行为/努力结果）',
+    tips:['以 5分钟结构服从 60分/日线方向，只做顺势段','关键位（支撑/压力/假突破密集区）附近观察量价配合再动手','重点盯：假突破、努力无结果、巨量刺破——出现即放弃该方向'],
+    side:'结构派' },
+  fu:{ name:'傅海棠基本面', focus:'供需（存栏/淘汰/补栏）→ 成本（饲料/养殖利润）→ 安全边际（基差/贴水）',
+    tips:['远月合约优先看供需缺口与补栏周期，现货只作短期扰动','安全边际优先：期货深贴水+成本支撑附近才考虑做多','供需平衡附近不硬做，等矛盾积累后再出手'],
+    side:'基本面派' }
+};
+function v16TplGet(){ const v=LS.get('v16tpl',''); return V16_TPLS[v]?v:'wyckoff'; }
+function v16TplSet(k){ if(!V16_TPLS[k]) return; LS.set('v16tpl',k); v16TplRender(); }
+function v16TplRender(){
+  const cur=v16TplGet(), box=$('tplList'); if(!box) return;
+  box.innerHTML=Object.keys(V16_TPLS).map(k=>{
+    const t=V16_TPLS[k];
+    return `<div class="tplitem ${k===cur?'on':''}" id="tpl_${k}" style="cursor:pointer"><b>${t.name}</b> <span class="tag">${t.side}</span><br>${t.focus}<br><span style="color:var(--dim)">${t.tips.map(x=>'· '+x).join('<br>· ')}</span></div>`;
+  }).join('');
+  const t=V16_TPLS[cur];
+  $('tplState').textContent='当前：'+t.name;
+  const strat=$('stratTitle16'); if(strat) strat.textContent='研判侧重：'+t.name+'（v16模板）';
+  Object.keys(V16_TPLS).forEach(k=>{ const el=$('tpl_'+k); if(el) el.onclick=()=>v16TplSet(k); });
+}
+
+/* ---- v16-高2: 持仓监控（复用 S.pos 与 trackPosition 引擎，金额口径 1点=10元/手） ---- */
+function v16PosMoney(){
+  const p=S.pos, out={ on:!!(p&&p.on), money:null, pts:null, r:null, dirTxt:'--', price:null };
+  if(!out.on||!S.live) return out;
+  const entry=parseFloat(p.entry), lots=parseFloat(p.lots)||1;
+  if(isNaN(entry)||entry<=0) return out;
+  const price=S.live.price, dir=p.dir==='空'?-1:1;
+  out.dirTxt=p.dir; out.price=price;
+  out.pts=(price-entry)*dir;
+  out.money=out.pts*10*lots;           /* 鸡蛋 5吨/手 → 1点=10元/手 */
+  if(S.A&&S.A.d&&S.A.d.atr) out.r=out.pts/(2*(S.A.d.atr||50));
+  return out;
+}
+function v16MoveStopAdvice(T){
+  /* 移损阶梯：基于 trackPosition 的 pnlR（R=2×ATR日），纯提示不改数据 */
+  if(!T||T.pnlR==null||T.stopRef==null) return null;
+  const dir=T.rMul>=0&&T.pnlR>=0;
+  const p=S.pos, entry=parseFloat(p&&p.entry), dirMul=(p&&p.dir==='空')?-1:1;
+  if(T.pnlR>=2) return { txt:'浮盈≥2R：移动止损可移至 +1R（'+((entry!=null&&!isNaN(entry))?(entry+dirMul*1*2*(S.A.d.atr||50)).toFixed(0):'--')+'），锁定利润，剩余仓位人工决定', cls:'ok' };
+  if(T.pnlR>=1.5) return { txt:'浮盈≥1.5R：移动止损可移至 +0.5R（'+((entry!=null&&!isNaN(entry))?(entry+dirMul*0.5*2*(S.A.d.atr||50)).toFixed(0):'--')+'），进可攻退可守', cls:'ok' };
+  if(T.pnlR>=1) return { txt:'浮盈≥1R：移动止损可移至成本线（'+((entry!=null&&!isNaN(entry))?entry.toFixed(0):'--')+'）保本，杜绝盈利单变亏损单', cls:'warn' };
+  return null;
+}
+function v16RenderPosmon(){
+  const box=$('posmonCard'); if(!box) return;
+  const T=(S.A&&S.A.track)||null, m=v16PosMoney();
+  const on=!!(T&&T.on);
+  $('pmTag').textContent = on ? ('持仓中·'+m.dirTxt+(T.risk?' · ⚠破位风险':'')) : '未持仓';
+  $('pmTag').style.color = on ? (T.risk?'var(--risk)':'var(--ok)') : '';
+  if(!on){
+    $('pmMoney').textContent='--'; $('pmR').textContent='--'; $('pmPts').textContent='--';
+    $('pmMoney').style.color='var(--dim)'; $('pmR').style.color='var(--dim)'; $('pmPts').style.color='var(--dim)';
+    $('pmStop').style.display='none'; $('pmAct').style.display='none';
+    return;
+  }
+  const col=v=>v==null?'var(--dim)':(v>=0?'var(--up)':'var(--dn)');
+  $('pmMoney').textContent = m.money==null?'--':(m.money>0?'+':'')+m.money.toFixed(0)+' 元';
+  $('pmMoney').style.color=col(m.money);
+  $('pmR').textContent = m.r==null?'--':(m.r>=0?'+':'')+m.r.toFixed(2)+'R';
+  $('pmR').style.color=col(m.r);
+  $('pmPts').textContent = m.pts==null?'--':(m.pts>0?'+':'')+m.pts.toFixed(0)+' 点';
+  $('pmPts').style.color=col(m.pts);
+  /* 移损阶梯提示 */
+  const mv=v16MoveStopAdvice(T);
+  if(mv){ $('pmStop').style.display='block'; $('pmStop').innerHTML='🔻 <b>动态移动止损</b>：'+mv.txt; }
+  else { $('pmStop').style.display='block'; $('pmStop').innerHTML='<span style="color:var(--faint)">止损参考 <b class="num">'+(T.stopRef!=null?T.stopRef.toFixed(0):'--')+'</b>'+(T.stopIsEst?'（2×ATR日估算）':'（人工设定）')+'；浮盈达 1R/1.5R/2R 后此处给出阶梯移损提示。</span>'; }
+  /* 减仓/离场提示（在 trackPosition 风险行基础上给出行动口径） */
+  const acts=[];
+  if(T.risk) acts.push({cls:'risk',txt:'⛔ 价格已破止损参考位 '+T.stopRef.toFixed(0)+'：按纪律应离场（框架禁止扛单）；若为瞬间刺破可等收盘确认，但不可移动止损躲避。'});
+  else if(T.pnlR!=null&&T.pnlR>=2&&(S.A.eagle&&S.A.eagle.enr)) acts.push({cls:'warn',txt:'浮盈≥2R 且出现量大价不动（力量衰竭）：建议减仓1/2~2/3锁定利润，剩余仓位以 +1R 移损跟踪。'});
+  else if(T.pnlR!=null&&T.pnlR>=1.5) acts.push({cls:'warn',txt:'浮盈≥1.5R：可减仓1/3落袋，止损上移至 +0.5R；若关键压力带就在上方（见关键价位表），压力前主动减仓。'});
+  else if(T.pnlR!=null&&T.pnlR>=1) acts.push({cls:'ok',txt:'浮盈≥1R：先保本——止损移至成本线，再让利润奔跑；暂不需减仓。'});
+  else if(T.pnlR!=null&&T.pnlR<-0.8) acts.push({cls:'warn',txt:'浮亏接近1R（'+Math.abs(T.pnlR).toFixed(2)+'R）：临近止损，严禁向亏损方向加仓摊平；确认止损位仍有效则持有，失效立即离场。'});
+  if(S.A&&S.A.eagle&&S.A.eagle.shocks&&S.A.eagle.shocks.length) acts.push({cls:'risk',txt:'⚠ 持仓期间出现突发巨量资金冲击：高度警惕，可先减仓一半防极端行情。'});
+  $('pmAct').style.display=acts.length?'block':'none';
+  if(acts.length) $('pmAct').innerHTML=acts.map(a=>`<div style="margin-bottom:4px;color:${a.cls==='risk'?'var(--risk)':a.cls==='warn'?'var(--warn)':'var(--ok)'}">${a.txt}</div>`).join('');
+}
+
+/* ---- v16-高1: 简易K线绘图（手动录入，纯 canvas 静态绘制+支撑压力+箱体） ---- */
+function v16KdLoad(){ try{ return JSON.parse(LS.get('v16kd','[]'))||[]; }catch(e){ return []; } }
+function v16KdSave(a){ try{ LS.set('v16kd',JSON.stringify(a.slice(-120))); }catch(e){} }
+let v16KdLines=true;
+function v16KdDraw(){
+  const cvs=$('kdCanvas'); if(!cvs) return;
+  const ctx=cvs.getContext('2d'), data=v16KdLoad();
+  $('kdCount').textContent=data.length+' 根';
+  const W=cvs.width, H=cvs.height;
+  ctx.clearRect(0,0,W,H);
+  const info=$('kdInfo');
+  if(!data.length){
+    ctx.fillStyle='rgba(140,150,170,.55)'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('暂无数据：录入高低点后点「＋ 加一根K线」开始绘制', W/2, H/2);
+    if(info) info.innerHTML='<span style="color:var(--faint)">示例：支撑/压力线取全程最低/最高点；箱体取近6根K线的高低区间（需≥6根）。</span>';
+    return;
+  }
+  /* 价格范围与边距 */
+  let lo=Infinity, hi=-Infinity;
+  data.forEach(b=>{ lo=Math.min(lo,b.l); hi=Math.max(hi,b.h); });
+  const pad=(hi-lo)*0.08||10; lo-=pad; hi+=pad;
+  const PL=44, PR=14, PT=10, PB=18;
+  const y=v=>PT+(hi-v)/(hi-lo)*(H-PT-PB);
+  const n=data.length, step=(W-PL-PR)/n, bw=Math.max(4,Math.min(18,step*0.6));
+  /* 支撑压力线（全程极值）+ 箱体（近6根区间） */
+  if(v16KdLines){
+    ctx.setLineDash([5,4]); ctx.lineWidth=1;
+    const minB=data.reduce((a,b)=>b.l<a.l?b:a), maxB=data.reduce((a,b)=>b.h>a.h?b:a);
+    ctx.strokeStyle='rgba(45,212,170,.75)';
+    ctx.beginPath(); ctx.moveTo(PL,y(minB.l)+0.5); ctx.lineTo(W-PR,y(minB.l)+0.5); ctx.stroke();
+    ctx.strokeStyle='rgba(248,113,113,.75)';
+    ctx.beginPath(); ctx.moveTo(PL,y(maxB.h)+0.5); ctx.lineTo(W-PR,y(maxB.h)+0.5); ctx.stroke();
+    if(n>=6){
+      const rec=data.slice(-6); let rlo=Infinity, rhi=-Infinity;
+      rec.forEach(b=>{ rlo=Math.min(rlo,b.l); rhi=Math.max(rhi,b.h); });
+      const x0=PL+step*(n-6), x1=W-PR;
+      ctx.strokeStyle='rgba(232,182,76,.8)'; ctx.setLineDash([2,3]);
+      ctx.strokeRect(x0,y(rhi),x1-x0,y(rlo)-y(rhi));
+      ctx.setLineDash([5,4]);
+      ctx.fillStyle='rgba(232,182,76,.9)'; ctx.font='10px sans-serif'; ctx.textAlign='left';
+      ctx.fillText('箱体上沿 '+rhi.toFixed(0), x0+2, y(rhi)-3);
+      ctx.fillText('箱体下沿 '+rlo.toFixed(0), x0+2, y(rlo)+11);
+    }
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(45,212,170,.9)'; ctx.font='10px sans-serif'; ctx.textAlign='left';
+    ctx.fillText('支撑 '+minB.l.toFixed(0), 2, y(minB.l)+3);
+    ctx.fillStyle='rgba(248,113,113,.9)';
+    ctx.fillText('压力 '+maxB.h.toFixed(0), 2, y(maxB.h)-3);
+  }
+  /* K线：红涨绿跌（与主图一致） */
+  data.forEach((b,i)=>{
+    const x=PL+step*i+step/2, up=b.c>=b.o, col=up?'#ef4444':'#22c55e';
+    ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,y(b.h)); ctx.lineTo(x,y(b.l)); ctx.stroke();
+    const top=y(Math.max(b.o,b.c)), hgt=Math.max(1,Math.abs(y(b.o)-y(b.c)));
+    ctx.globalAlpha=up?0.95:0.85; ctx.fillRect(x-bw/2,top,bw,hgt); ctx.globalAlpha=1;
+  });
+  /* 刻度 */
+  ctx.fillStyle='rgba(140,150,170,.8)'; ctx.font='10px sans-serif'; ctx.textAlign='right';
+  const ticks=5;
+  for(let i=0;i<=ticks;i++){ const v=lo+(hi-lo)*i/ticks; ctx.fillText(v.toFixed(0), PL-4, y(v)+3); }
+  ctx.textAlign='left';
+  if(info){
+    const last=data[data.length-1];
+    const minB=data.reduce((a,b)=>b.l<a.l?b:a), maxB=data.reduce((a,b)=>b.h>a.h?b:a);
+    info.innerHTML='共 '+n+' 根 · 全程最高 <b class="num">'+maxB.h.toFixed(0)+'</b> / 最低 <b class="num">'+minB.l.toFixed(0)+'</b>（振幅 '+(maxB.h-minB.l).toFixed(0)+' 点）· 最新收 <b class="num">'+last.c.toFixed(0)+'</b>'+(n>=6?' · 箱体（近6根）已标出':' · 满6根后自动标箱体');
+  }
+}
+function v16KdAdd(){
+  const h=parseFloat($('kdH').value), l=parseFloat($('kdL').value);
+  const oRaw=$('kdO').value, cRaw=$('kdC').value;
+  const msg=$('kdMsg');
+  if(isNaN(h)||isNaN(l)){ msg.textContent='⚠ 高点、低点为必填数字'; msg.style.color='var(--risk)'; return; }
+  if(h<l){ msg.textContent='⚠ 高点必须大于低点'; msg.style.color='var(--risk)'; return; }
+  let o=parseFloat(oRaw), c=parseFloat(cRaw);
+  if(isNaN(o)) o=c; if(isNaN(c)) c=o;
+  if(isNaN(o)&&isNaN(c)) c=(h+l)/2, o=c;
+  if(o>h||o<l||c>h||c<l){ msg.textContent='⚠ 开/收盘价须在最高最低之间'; msg.style.color='var(--risk)'; return; }
+  const data=v16KdLoad(); data.push({h,l,o,c,ts:Date.now()});
+  v16KdSave(data); v16KdDraw();
+  $('kdH').value=''; $('kdL').value=''; $('kdO').value=''; $('kdC').value='';
+  msg.textContent='已添加第 '+data.length+' 根；继续录入或直接看图。'; msg.style.color='var(--ok)';
+}
+
+/* ---- v16-中6: 研判置信度（0~100 五因子，复用既有 A 对象字段，不改动原始打分） ---- */
+function v16ConfCalc(A){
+  if(!A) return null;
+  /* ① 四项总分映射 50 分：总分 0~100 → 0~50 */
+  const f1=(A.total!=null?A.total:0)*0.5;
+  /* ② 多周期共振 20 分：过=20，阻=4 */
+  const mtfPass=!!(A.mtfRes&&A.mtfRes.pass);
+  const f2=mtfPass?20:4;
+  /* ③ 盈亏比 10 分：≥2R=10，≥1.5R=8，≥1R=5，不达标=2 */
+  const rrV=A.rr&&A.rr.rr!=null?A.rr.rr:null;
+  const f3=rrV==null?2:(rrV>=2?10:rrV>=1.5?8:rrV>=1?5:2);
+  /* ④ 否决/风险扣减 10 分起评：无否决=10，每个否决-4 */
+  const f4=Math.max(0,10-((A.veto||[]).length*4));
+  /* ⑤ 噪音状态 10 分：正常=10，警戒=5，震荡=0 */
+  const nz=v16NoiseDetect(A);
+  const f5=nz.state==='震荡'?0:(nz.state==='警戒'?5:10);
+  let score=Math.round(f1+f2+f3+f4+f5);
+  /* 震荡封顶 40：直接压制置信度，联动禁止开单 */
+  let capped=false;
+  if(nz.state==='震荡'&&score>40){ score=40; capped=true; }
+  return { score, f1:Math.round(f1), f2, f3, f4, f5, noise:nz, capped,
+           reasons:[ '四项总分 '+(A.total!=null?A.total:'--')+'→'+f1.toFixed(0)+' 分',
+                     '多周期共振 '+(mtfPass?'通过':'受阻')+'→'+f2+' 分',
+                     '盈亏比 '+(rrV!=null?rrV.toFixed(2)+'R':'--')+'→'+f3+' 分',
+                     '一票否决×'+((A.veto||[]).length)+'→'+f4+' 分',
+                     '噪音状态 '+nz.state+'→'+f5+' 分'+(capped?'（震荡封顶40）':'') ] };
+}
+function v16RenderConf(){
+  const A=S.A; if(!A||!$('confCard')) return;
+  $('confCard').style.display='block';
+  const c=v16ConfCalc(A); if(!c) return;
+  $('confNum').textContent=c.score+' 分';
+  const bar=$('confBar');
+  bar.style.width=c.score+'%';
+  bar.style.background = c.score>=70?'var(--up)':c.score>=45?'var(--warn)':'var(--risk)';
+  const isNoise=c.noise.state==='震荡';
+  $('confTag').textContent = isNoise?'⛔ 震荡过滤':'置信 '+c.score;
+  $('confTag').style.color = isNoise?'var(--risk)':(c.score>=70?'var(--up)':c.score>=45?'var(--warn)':'var(--risk)');
+  $('noiseBanner').style.display = isNoise?'block':'none';
+  $('confBody').innerHTML=c.reasons.map(r=>'· '+r).join('<br>')+
+    '<br><span style="color:var(--dim)">'+(c.score>=70?'置信度较高：可按预案执行（仍需人工确认）。':c.score>=45?'置信度中等：观望或轻仓试错，严格执行止损。':'置信度偏低：以观望为主，等待信号改善。')+'</span>';
+  /* 策略输出卡顶部模板侧重标注 */
+  const t=V16_TPLS[v16TplGet()];
+  $('confBody').innerHTML+='<br><span style="color:var(--faint);font-size:10px">当前模板侧重：'+t.name+'（'+t.focus+'）</span>';
+}
+
+/* ---- v16-中4: 震荡噪音识别（复用 crossConflict/ATR 收缩/60分振幅等既有字段） ---- */
+function v16NoiseDetect(A){
+  const out={ state:'正常', hits:[], score:0 };
+  if(!A) return out;
+  /* ① 多周期轻度/严重冲突 → 趋势噪音 */
+  if(A.crossConflict===2){ out.hits.push('多周期趋势严重冲突'); out.score+=3; }
+  else if(A.crossConflict===1){ out.hits.push('多周期轻度冲突'); out.score+=1; }
+  /* ② 日线 ATR 处于低位（<35 点）→ 波动收缩 */
+  const atrD=A.d&&A.d.atr;
+  if(atrD!=null&&atrD<35){ out.hits.push('日线ATR仅'+atrD.toFixed(0)+'点（波动收缩）'); out.score+=2; }
+  /* ③ 60分近12根实体占比低（影线长、方向不明）→ 多空拉锯 */
+  const h1=A.h1||[];
+  if(h1.length>=12){
+    const rec=h1.slice(-12), rng=rec.reduce((s,b)=>s+(b.h-b.l),0)/12;
+    const body=rec.reduce((s,b)=>s+Math.abs(b.c-b.o),0)/12;
+    if(rng>0&&body/rng<0.38){ out.hits.push('60分K线实体占比仅'+Math.round(body/rng*100)+'%（影线拉锯）'); out.score+=2; }
+    const rhi=Math.max(...rec.map(b=>b.h)), rlo=Math.min(...rec.map(b=>b.l));
+    if(rhi>0&&(rhi-rlo)<3*(atrD||60)*0.15&&rec.filter(b=>b.c>=b.o).length>=5&&rec.filter(b=>b.c<b.o).length>=5){ out.hits.push('60分近12根多空对半、区间极窄'); out.score+=1; }
+  }
+  /* ④ 威科夫"努力无结果"+ 对倒假放量同时在场（已有字段）*/
+  const wy=A.wy||{};
+  if(wy.effortNoResult&&wy.washFlag){ out.hits.push('努力无结果+对倒假放量并存'); out.score+=2; }
+  out.state = out.score>=4 ? '震荡' : (out.score>=2 ? '警戒' : '正常');
+  return out;
+}
+
+/* ---- v16-中5: 资金风控校验（总资金×2% 单笔亏损上限 → 最大手数） ---- */
+function v16Riskcap(){
+  const eq=parseFloat($('rcEquity').value);
+  const eIn=$('rcEntry').value, sIn=$('rcStop').value;
+  const price=(eIn!=='')?parseFloat(eIn):(S.live?S.live.price:NaN);
+  const stop=parseFloat(sIn);
+  const out=$('rcOut');
+  if(isNaN(eq)||eq<=0){ out.innerHTML='<span style="color:var(--faint)">请先输入账户总资金。</span>'; return; }
+  const riskAmt=eq*0.02;
+  if(isNaN(stop)||stop<=0){ out.innerHTML='单笔最大亏损上限（2%）：<b class="num" style="color:var(--warn)">'+riskAmt.toFixed(0)+' 元</b>；再填止损价即可算最大手数。'; return; }
+  const entry=(!isNaN(price)&&price>0)?price:NaN;
+  if(isNaN(entry)){ out.innerHTML='<span style="color:var(--faint)">开盘价未加载，请手动填写开仓价。</span>'; return; }
+  const pts=Math.abs(entry-stop);
+  if(pts<=0){ out.innerHTML='<span style="color:var(--risk)">⚠ 开仓价与止损价相同，风险价差无效。</span>'; return; }
+  const perLot=pts*10;               /* 1点=10元/手 */
+  let lots=Math.floor(riskAmt/perLot);
+  const capped2=(S.losses&&S.losses.n===2);
+  const locked=(S.losses&&S.losses.n>=3);
+  let note='';
+  if(locked){ lots=0; note='<br><span style="color:var(--risk)">⛔ 当日连亏'+S.losses.n+'笔已触发锁仓：今日禁止开新单（纪律优先）。</span>'; }
+  else if(capped2&&lots>0){ lots=Math.max(0,Math.floor(lots/2)); note='<br><span style="color:var(--warn)">⚠ 当日连亏2笔：按纪律仓位再减半 → 建议手数 <b class="num">'+lots+'</b>。</span>'; }
+  out.innerHTML='单笔最大亏损（2%）：<b class="num" style="color:var(--warn)">'+riskAmt.toFixed(0)+' 元</b>'+
+    ' · 风险价差：<b class="num">'+pts.toFixed(0)+' 点</b>（'+entry.toFixed(0)+'→'+stop.toFixed(0)+'）'+
+    ' · 单手风险：<b class="num">'+perLot.toFixed(0)+' 元/手</b>'+
+    ' → 最大可开 <b class="num" style="color:var(--up);font-size:15px">'+lots+'</b> 手'+note+
+    (lots===0&&!locked?'<br><span style="color:var(--risk)">计算结果为0手：止损太远或资金太小，本笔放弃或收紧止损。</span>':'');
+}
+
+/* ---- v16-低7: 研判流水复盘统计（胜率/盈亏比 + CSV 导出；仅统计 type=judge 流水） ---- */
+function v16JstatCalc(list){
+  /* 信号质量估次：每条 judge 流水带 grade（A~C/D）与 total；以评级≥B 且 多周期通过 记为"有效信号"，
+     用其后行情无法回测的客观约束下，改用"信号落地的当时质量分布"口径：
+     胜率 = 高质量信号（B级及以上）占比；盈亏比 = 高低质量信号的平均分差（启发式，非交易收益）。 */
+  const jd=list.filter(x=>x.type==='judge');
+  if(!jd.length) return null;
+  const hi=jd.filter(x=>x.grade==='A'||x.grade==='B');
+  const lo=jd.filter(x=>x.grade==='C'||x.grade==='D');
+  const avgTotal=a=>a.length?a.reduce((s,x)=>s+(x.total||0),0)/a.length:null;
+  const hiAvg=avgTotal(hi), loAvg=avgTotal(lo);
+  return { total:jd.length, hi:hi.length, lo:lo.length,
+    hiRate:jd.length?hi.length/jd.length*100:null,
+    rrProxy:(hiAvg!=null&&loAvg!=null&&loAvg>0)?hiAvg/loAvg:null,
+    hiAvg, loAvg,
+    days:new Set(jd.map(x=>x.day)).size,
+    last:jd[jd.length-1] };
+}
+function v16RenderJstat(){
+  const box=$('jstatCard'); if(!box) return;
+  const st=v16JstatCalc(jLoad());
+  const tag=$('jsTag'), body=$('jsBody');
+  if(!st){ tag.textContent='0 条'; body.innerHTML='<span style="color:var(--faint)">暂无研判流水：每次研判结论实质变化会自动记一条（含评级/盈亏比/多周期/否决数），积累后此处出统计。</span>'; return; }
+  tag.textContent=st.total+' 条';
+  const pct=v=>v==null?'--':v.toFixed(0)+'%';
+  body.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px">'+
+    `<span class="tag">研判流水 ${st.total} 条 / ${st.days} 个交易日</span>`+
+    `<span class="tag">高质量信号（A/B级）<b class="num" style="color:var(--ok)">${st.hi}</b> 条</span>`+
+    `<span class="tag">信号质量胜率 <b style="color:${st.hiRate>=50?'var(--ok)':'var(--risk)'}">${pct(st.hiRate)}</b></span>`+
+    `<span class="tag">强弱分比 <b class="num">${st.rrProxy!=null?st.rrProxy.toFixed(2):'--'}</b></span>`+
+    `<span class="tag">高质量均分 <b class="num">${st.hiAvg!=null?st.hiAvg.toFixed(0):'--'}</b></span>`+
+    `<span class="tag">低质量均分 <b class="num">${st.loAvg!=null?st.loAvg.toFixed(0):'--'}</b></span></div>`+
+    (st.last?`<div style="margin-top:6px;font-size:11px;color:var(--dim)">最近一条流水：${esc(st.last.day||'')} ${esc(st.last.time||'')} · ${esc(st.last.grade||'--')}级 · 总分 ${st.last.total!=null?st.last.total:'--'}</div>`:'')+
+    '<div style="margin-top:4px;font-size:10px;color:var(--faint)">人工交易的胜率/盈亏比请看「交易日志」卡（两套口径互相独立：流水=信号质量，日志=实际交易结果）。</div>';
+}
+function v16CsvCell(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
+function v16ExportCsv(judgeOnly){
+  const list=jLoad();
+  const rows=judgeOnly?list.filter(x=>x.type==='judge'):list;
+  if(!rows.length){ alert('暂无'+(judgeOnly?'研判流水':'日志')+'可导出'); return; }
+  const head=['类型','日期','时间','评级','总分','盈亏比R','多周期','威科夫行为','方向','开仓价','止损','手数','盈亏点','结果','笔记','签名'];
+  const lines=[head.join(',')].concat(rows.map(x=>[
+    x.type||'manual', x.day||'', x.time||'', x.grade||'', x.total!=null?x.total:'',
+    x.rr!=null?x.rr:'', x.mtf!=null?(x.mtf?'过':'阻'):'', x.wy||'', x.phase||'',
+    x.dir||'', x.entry||'', x.stop||'', x.lots||'', x.pts!=null?x.pts:'', x.result||'', x.note||'', x.sig||''
+  ].map(v16CsvCell).join(',')));
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='jd_'+(judgeOnly?'judge_flow':'journal')+'_'+bjStr(bj())+'.csv'; a.click(); URL.revokeObjectURL(a.href);
 }
 
 /* ---------------- 交互绑定 ---------------- */
@@ -3991,6 +4396,30 @@ function bindUI(){
   /* n10 交易日志标签初始化（列表默认折叠，展开时才渲染明细） */
   $('jTag').textContent=jLoad().length+' 笔';
   lossRender(); ddRender();
+
+  /* ---- v16 绑定：策略模板 / 简易K线绘图 / 资金风控 / 流水统计导出 ---- */
+  try{
+    /* 高1 简易K线绘图 */
+    $('kdAdd').onclick=()=>{ v16KdAdd(); };
+    $('kdClear').onclick=()=>{ if(confirm('清空全部手绘K线数据？')){ v16KdSave([]); v16KdDraw(); $('kdCount').textContent='0 根'; } };
+    $('kdLineToggle').onclick=()=>{ v16KdLines=!v16KdLines; $('kdLineToggle').textContent='📐 支撑压力/箱体：'+(v16KdLines?'开':'关'); v16KdDraw(); };
+    ['kdH','kdL','kdO','kdC'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('keydown',ev=>{ if(ev.key==='Enter') v16KdAdd(); }); });
+    v16KdDraw();
+
+    /* 中5 资金风控：输入即算，总资金持久化 */
+    const rcSave=()=>{ try{ LS.set('v16rcEq',$('rcEquity').value||''); }catch(e){} v16Riskcap(); };
+    ['rcEquity','rcEntry','rcStop'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input',rcSave); });
+    const _rcEq=LS.get('v16rcEq',''); if(_rcEq) $('rcEquity').value=_rcEq;
+    if(_rcEq) v16Riskcap();
+
+    /* 低7 流水统计导出 */
+    $('jsExport').onclick=()=>{ v16ExportCsv(true); };
+    $('jsExportAll').onclick=()=>{ v16ExportCsv(false); };
+
+    /* 高3 策略模板 + 低7 统计首渲染 */
+    v16TplRender();
+    v16RenderJstat();
+  }catch(e){ /* v16 绑定失败不影响主流程 */ }
 }
 
 /* ---------------- 启动 ---------------- */
