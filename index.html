@@ -227,9 +227,25 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 .v16big{font-size:22px;font-weight:800;line-height:1.1}
 .v16gauge{height:10px;border-radius:6px;background:rgba(127,127,127,.15);overflow:hidden;margin:6px 0 2px}
 .v16gauge i{display:block;height:100%;border-radius:6px;transition:width .4s}
-.tplitem{padding:7px 9px;border:1px solid rgba(127,127,127,.22);border-radius:8px;margin-bottom:6px;background:rgba(127,127,127,.05);font-size:12px;line-height:1.8}
-.tplitem.on{border-color:var(--sup);background:rgba(45,212,170,.08)}
-.tplitem b{color:var(--fg)}
+/* v17: tplitem 样式已随模板切换卡移除；以下为 v17 分组导航样式 */
+#v17nav{position:sticky;top:0;z-index:95;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:1560px;margin:8px auto 0;padding:8px 14px;background:rgba(10,14,21,.93);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+#v17nav .nvlogo{font-size:11px;font-weight:800;color:var(--gold2);letter-spacing:.05em;margin-right:2px}
+#v17nav .nvbtn{font:inherit;font-size:12px;font-weight:700;color:var(--dim);background:rgba(127,127,127,.07);border:1px solid var(--line);border-radius:16px;padding:3px 11px;cursor:pointer;transition:color .2s,border-color .2s;white-space:nowrap}
+#v17nav .nvbtn:hover{color:var(--txt);border-color:var(--line2)}
+#v17nav .nvbtn.on{color:#171004;background:var(--grad-gold);border-color:transparent;box-shadow:0 0 10px rgba(232,182,76,.25)}
+#v17nav .nvinfo{margin-left:auto;font-size:10px;color:var(--faint)}
+.vgrp{max-width:1560px;margin:0 auto;padding:2px 14px 0;scroll-margin-top:56px}
+.vgrptitle{display:flex;align-items:center;gap:9px;margin:14px 0 2px;font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--dim)}
+.vgrptitle::after{content:"";flex:1;height:1px;background:var(--line)}
+.vgrptitle .gvtag{font-size:10px;font-weight:400;color:var(--faint);letter-spacing:0}
+.vgrptitle.foldable{cursor:pointer;user-select:none}
+.vgrptitle.foldable:hover{color:var(--txt)}
+.vfoldarr{display:inline-block;transition:transform .2s;font-size:10px;color:var(--faint)}
+.vgrp.open .vfoldarr{transform:rotate(90deg)}
+.vgrpbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(420px,100%),1fr));gap:10px;padding:8px 0 4px;align-items:start}
+.vgrpbody>.card.wide{grid-column:1/-1}
+.vgrp.folded .vgrpbody{display:none}
+@media(max-width:960px){#v17nav .nvinfo{display:none}}
 </style>
 </head>
 <body>
@@ -252,6 +268,18 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
     </div>
   </div>
 </header>
+
+<!-- v17: 吸顶分组导航条（六个锚点跳转；nvinfo 由分组引擎回写当前视口分组） -->
+<div id="v17nav">
+  <span class="nvlogo">◈ 快速跳转</span>
+  <button class="nvbtn" data-goto="grp-concl">结论速览</button>
+  <button class="nvbtn" data-goto="grp-mkt">盘面研判</button>
+  <button class="nvbtn" data-goto="grp-pos">持仓风控</button>
+  <button class="nvbtn" data-goto="grp-tools">录入工具</button>
+  <button class="nvbtn" data-goto="grp-log">复盘日志</button>
+  <button class="nvbtn" data-goto="grp-plan">策略预案</button>
+  <span class="nvinfo" id="nvinfo">v17 · 分组视图</span>
+</div>
 
 <div id="chips"></div>
 <div class="errbox" id="errbox"></div>
@@ -290,12 +318,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
   <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">流程：截图留在本机不上传云端 → Trae 视觉模型解析 → 识别结果写入推送包 → 页面自动取回并填入上方行情文本框。识别失败自动提示重传；所有数据仅辅助研判，不构成交易建议。</div>
 </div>
 
-<!-- v16-高1: 策略模板切换（威科夫势位态 / 傅海棠基本面 两套模板一键切换，localStorage 持久化；纯展示层，不改变任何计算逻辑） -->
-<div class="card" id="tplCard">
-  <h3>🧭 策略模板切换 <span class="tag">两套体系 · 一键切换</span><span class="tag" id="tplState">--</span></h3>
-  <div id="tplList"></div>
-  <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">模板仅决定研判侧重与提示口径（威科夫：势/位/态三段结构；傅海棠：供需/成本/安全边际），不改动四项打分、一票否决与评级引擎。当前侧重会在「策略输出」卡片顶部标注。</div>
-</div>
+<!-- v17: 策略模板切换卡片已移除（纯展示层，无计算作用） -->
 
 <!-- v16-高2: 简易K线绘图面板（手动录入高低点价格，纯 canvas 手绘静态K线+支撑压力线+箱体边界；不做图片AI识别） -->
 <div class="card" id="kdrawCard">
@@ -392,7 +415,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
   <!-- 右：分析面板 -->
   <aside style="display:flex;flex-direction:column;gap:10px;min-width:0">
 
-    <div class="card">
+    <div class="card" id="scoreCard">
       <h3>四项打分 <span class="tag">规则引擎 · 每项0~25</span></h3>
       <div id="scoretotal">
         <div id="totalwrap">
@@ -415,12 +438,12 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div class="sec" id="mtfBody" style="margin-top:6px"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="levelsCard2">
       <h3>位 · 关键价位 <span class="tag">仅保留重要波段点</span></h3>
       <div id="levelsBody"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="wyCard">
       <h3>资金鹰眼 · 威科夫量仓 <span class="tag" id="wytag">--</span></h3>
       <div class="sec" id="wyBody" style="margin-bottom:8px">加载中…</div>
       <div id="events"></div>
@@ -578,12 +601,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       </div>
     </div>
 
-    <!-- n3: Chart.js 简易K线速览（5分钟K线+成交量柱，纯可视化不参与计算；CDN加载失败自动隐藏） -->
-    <div class="card" id="cjsCard" style="display:none">
-      <h3>5分钟K线速览 <span class="tag">Chart.js · 近60根</span></h3>
-      <div style="height:280px;position:relative"><canvas id="chartjs5m"></canvas></div>
-      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">红=涨 / 绿=跌（量柱同色），黄线为收盘价参考；量柱见底部下轴。仅作速览，精确看盘请用上方主图（自研渲染，无外部依赖）。</div>
-    </div>
+    <!-- v17: Chart.js 简易K线速览已移除（与主图数据重复，避免CDN依赖） -->
 
     <!-- n5: 历史策略回查（localStorage 每日自动存档，支持导出JSON/清空） -->
     <div class="card" id="histCard" style="display:none">
@@ -594,7 +612,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">每个交易日收盘复盘时自动存档当日研判与策略（同日刷新覆盖，最多保留 90 条），保存在本机浏览器中，不上传任何服务器。</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="spotCard">
       <h3>现货基本面 · 人工输入 <span class="tag">半量化人工因子</span></h3>
       <div class="inp">
         <div><label>今日现货均价（元/斤）</label><input id="spotToday" type="number" step="0.01" placeholder="如 5.27"></div>
@@ -631,7 +649,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px;line-height:1.7">返回需为 JSON 数组，每根K线一个对象；字段名兼容 <b>d/date/time</b>（日期串或秒/毫秒时间戳）、<b>o/open · h/high · l/low · c/close · v/volume · p/oi/open_interest</b>，自动经统一管线（toBars）清洗后写入 K线数据。配置后每个数据周期自动同步（60秒一次，与主流程同频），失败时静默保留内置源数据。跨域限制：目标接口需允许 CORS，否则请经自建代理转发。</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="riskTipCard">
       <h3>风险提示 <span class="tag" id="risktag">--</span></h3>
       <div class="sec" id="riskBody">--</div>
     </div>
@@ -664,8 +682,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 <!-- v12 大师级终端 · 主题版本标记 -->
 <span id="themeVer" data-theme="v12-master" style="display:none"></span>
 
-<!-- n3: Chart.js CDN（简易K线速览用；加载失败时主图与全部功能不受影响，仅隐藏速览卡片） -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- v17: Chart.js CDN 已移除（速览卡删除后无外部依赖） -->
 <script>
 /* =====================================================================
  *  JD2611 鸡蛋期货 AI 半量化研判系统
@@ -3632,24 +3649,7 @@ function onTick(){
   if(S.A && (S.mode==='live')){
     mergeLiveTick();
     chart.draw();      /* n13: 主图每秒重绘（已含最新价合成），不重置缩放/平移状态 */
-    /* n13: Chart.js 速览轻量同步——只更新最后一个点（收盘价/量），update('none') 无动画，
-       避免整图销毁重建的性能开销；主图与速览图同步跳动 */
-    if(typeof Chart!=='undefined' && cjsChart && cjsChart.$bars && cjsChart.$bars.length){
-      try{
-        const ds=cjsChart.data.datasets;
-        if(ds[1]&&ds[1].data.length) ds[1].data[ds[1].data.length-1]=S.live.price;   /* 只同步收盘价折线 */
-        /* n15: 量柱秒级同步——m5周期下用槽内1分钟聚合量更新最后一根量柱，与主图同一数据源 */
-        if(ds[0]&&ds[0].data.length&&S.tf==='m5'&&chart._slot){
-          const n=ds[0].data.length;
-          ds[0].data[n-1]=chart._slot.v;
-          if(ds[0].backgroundColor&&ds[0].backgroundColor.length===n){
-            const lb=cjsChart.$bars[n-1];
-            if(lb) ds[0].backgroundColor[n-1]=lb.c>=lb.o?C.volUp:C.volDn;
-          }
-        }
-        cjsChart.update('none');
-      }catch(e){ /* 速览图更新失败不影响主图 */ }
-    }
+    /* v17: Chart.js 速览同步块已随速览卡移除 */
     /* 持仓中：轻量刷新持仓监测行（浮盈亏/止损参考随最新价变动，不重跑 analyze） */
     if(S.pos&&S.pos.on){ renderTrack(); try{ v16RenderPosmon(); }catch(e){} } /* v16-高2：逐秒刷新 */
   }
@@ -3690,68 +3690,8 @@ function setChartData(){
   const last=bars[bars.length-1];
   if(last) $('lastts').textContent='最近K线: '+bjStr(new Date(last.t))+' '+(S.tf==='d'?'日线收盘':fmtT(last.t))+' · 可在行情软件对应周期定位';
   else $('lastts').textContent='最近K线: --';
-  renderChartJS();   /* n3: 精简K线速览（Chart.js），与主图同步刷新 */
+  /* v17: renderChartJS 调用已随速览卡移除 */
   try{ chart.draw(); }catch(e){}   /* v10: 末次重绘，确保 AI 画线在数据渲染后生效 */
-}
-/* =====================================================================
- *  n3 简易K线速览（Chart.js 4）：纯可视化，不参与任何计算。
- *  方案：bar 图承载成交量（y1 下方轴）+ inline plugin 自绘蜡烛+收盘价折线，
- *  不引入 financial 插件/日期适配器；Chart 未加载成功则整卡隐藏，主图不受影响。
- * ===================================================================== */
-let cjsChart=null;
-function renderChartJS(){
-  const card=$('cjsCard'), cvs=$('chartjs5m');
-  if(typeof Chart==='undefined'){ card.style.display='none'; return; }   /* CDN 失败降级 */
-  const bars=S.bars.m5.slice(-60);
-  if(!bars.length){ card.style.display='none'; if(cjsChart){cjsChart.destroy(); cjsChart=null;} return; }
-  card.style.display='block';
-  const labels=bars.map(b=>fmtT(b.t));
-  const vols=bars.map(b=>b.v);
-  const vc  =bars.map(b=>b.c>=b.o?C.volUp:C.volDn);
-  /* 内联蜡烛绘制插件：每根K线画影线+实体（涨红跌绿，与主图配色一致）；数据直接读闭包 bars，首次渲染即可绘制 */
-  const candle={id:'candle',afterDatasetsDraw(ch){
-    const {ctx,chartArea:ar,scales:{y}}=ch, data=bars;
-    if(!ar||!data.length) return;
-    const n=data.length, step=ar.width/n, bw=Math.max(1.5,Math.min(9,step*0.62));
-    ctx.save(); ctx.lineWidth=1;
-    data.forEach((b,i)=>{
-      const x=ar.left+step*i+step/2;
-      const up=b.c>=b.o, col=up?C.up:C.dn;
-      const yH=y.getPixelForValue(b.h), yL=y.getPixelForValue(b.l);
-      const yO=y.getPixelForValue(b.o), yC=y.getPixelForValue(b.c);
-      ctx.strokeStyle=col; ctx.fillStyle=col;
-      ctx.beginPath(); ctx.moveTo(x,yH); ctx.lineTo(x,yL); ctx.stroke();          /* 影线 */
-      const top=Math.min(yO,yC), h=Math.max(1,Math.abs(yO-yC));
-      ctx.globalAlpha=up?1:0.85; ctx.fillRect(x-bw/2,top,bw,h); ctx.globalAlpha=1; /* 实体 */
-    });
-    ctx.restore();
-  }};
-  const cfg={
-    type:'bar',
-    data:{labels:labels,datasets:[
-      {label:'成交量',data:vols,backgroundColor:vc,yAxisID:'yv',order:3,barPercentage:0.62,borderWidth:0},
-      {label:'收盘价',data:bars.map(b=>b.c),type:'line',borderColor:C.ma5,backgroundColor:'rgba(232,182,76,.08)',borderWidth:1.5,pointRadius:0,tension:.25,yAxisID:'y',order:2}
-    ]},
-    options:{
-      responsive:true,maintainAspectRatio:false,animation:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,14,22,.94)',borderColor:'rgba(120,140,180,.24)',borderWidth:1,titleColor:'#dbe4f3',bodyColor:'#8d9ab3',callbacks:{
-        label:c=>c.datasetIndex===1? '收 '+c.parsed.y.toFixed(0) : '量 '+c.parsed.y.toFixed(0),
-        afterBody:items=>{ const b=(typeof cjsChart!=='undefined'&&cjsChart&&cjsChart.$bars||[])[items[0].dataIndex]; if(!b) return '';
-          return ['开 '+b.o.toFixed(0)+'  高 '+b.h.toFixed(0)+'  低 '+b.l.toFixed(0)]; }
-      }}},
-      scales:{
-        x:{ticks:{color:C.axis,font:{size:9},maxTicksLimit:8,maxRotation:0},grid:{color:'rgba(28,35,51,.35)'}},
-        y:{position:'right',grace:'8%',ticks:{color:C.axis,font:{size:9},maxTicksLimit:6},grid:{color:'rgba(28,35,51,.35)'}},
-        yv:{position:'left',display:false,beginAtZero:true,weight:0}
-      }
-    },
-    plugins:[candle]
-  };
-  if(cjsChart){ cjsChart.destroy(); cjsChart=null; }
-  cvs.style.position='absolute';
-  cjsChart=new Chart(cvs.getContext('2d'),cfg);
-  cjsChart.$bars=bars;   /* tooltip afterBody 读取 OHLC 用 */
 }
 /* 定时器管理 */
 let timerFast=null, timerSlow=null, timerClock=null;
@@ -3796,32 +3736,10 @@ function restartTimers(){
 /* =====================================================================
  *  v16 七模块（对标牛牛Trader）：全部为纯展示/辅助层，不改动四项打分、
  *  一票否决、评级引擎与既有 v11~v15 任何逻辑。
- *  高1 简易K线绘图  高2 持仓监控增强  高3 策略模板切换
+ *  高1 简易K线绘图  高2 持仓监控增强
  *  中4 震荡噪音过滤  中5 资金风控校验  中6 研判置信度  低7 研判流水复盘
+ *  （v17-瘦身：原高3 策略模板切换为纯展示摆设，已整体移除）
  * ===================================================================== */
-
-/* ---- v16-高3: 策略模板（威科夫势位态 / 傅海棠基本面） ---- */
-const V16_TPLS={
-  wyckoff:{ name:'威科夫势位态', focus:'势（多周期趋势结构）→ 位（关键支撑压力与位置高低）→ 态（量价行为/努力结果）',
-    tips:['以 5分钟结构服从 60分/日线方向，只做顺势段','关键位（支撑/压力/假突破密集区）附近观察量价配合再动手','重点盯：假突破、努力无结果、巨量刺破——出现即放弃该方向'],
-    side:'结构派' },
-  fu:{ name:'傅海棠基本面', focus:'供需（存栏/淘汰/补栏）→ 成本（饲料/养殖利润）→ 安全边际（基差/贴水）',
-    tips:['远月合约优先看供需缺口与补栏周期，现货只作短期扰动','安全边际优先：期货深贴水+成本支撑附近才考虑做多','供需平衡附近不硬做，等矛盾积累后再出手'],
-    side:'基本面派' }
-};
-function v16TplGet(){ const v=LS.get('v16tpl',''); return V16_TPLS[v]?v:'wyckoff'; }
-function v16TplSet(k){ if(!V16_TPLS[k]) return; LS.set('v16tpl',k); v16TplRender(); }
-function v16TplRender(){
-  const cur=v16TplGet(), box=$('tplList'); if(!box) return;
-  box.innerHTML=Object.keys(V16_TPLS).map(k=>{
-    const t=V16_TPLS[k];
-    return `<div class="tplitem ${k===cur?'on':''}" id="tpl_${k}" style="cursor:pointer"><b>${t.name}</b> <span class="tag">${t.side}</span><br>${t.focus}<br><span style="color:var(--dim)">${t.tips.map(x=>'· '+x).join('<br>· ')}</span></div>`;
-  }).join('');
-  const t=V16_TPLS[cur];
-  $('tplState').textContent='当前：'+t.name;
-  const strat=$('stratTitle16'); if(strat) strat.textContent='研判侧重：'+t.name+'（v16模板）';
-  Object.keys(V16_TPLS).forEach(k=>{ const el=$('tpl_'+k); if(el) el.onclick=()=>v16TplSet(k); });
-}
 
 /* ---- v16-高2: 持仓监控（复用 S.pos 与 trackPosition 引擎，金额口径 1点=10元/手） ---- */
 function v16PosMoney(){
@@ -4006,9 +3924,7 @@ function v16RenderConf(){
   $('noiseBanner').style.display = isNoise?'block':'none';
   $('confBody').innerHTML=c.reasons.map(r=>'· '+r).join('<br>')+
     '<br><span style="color:var(--dim)">'+(c.score>=70?'置信度较高：可按预案执行（仍需人工确认）。':c.score>=45?'置信度中等：观望或轻仓试错，严格执行止损。':'置信度偏低：以观望为主，等待信号改善。')+'</span>';
-  /* 策略输出卡顶部模板侧重标注 */
-  const t=V16_TPLS[v16TplGet()];
-  $('confBody').innerHTML+='<br><span style="color:var(--faint);font-size:10px">当前模板侧重：'+t.name+'（'+t.focus+'）</span>';
+  /* v17: 模板侧重标注已随模板切换模块移除 */
 }
 
 /* ---- v16-中4: 震荡噪音识别（复用 crossConflict/ATR 收缩/60分振幅等既有字段） ---- */
@@ -4416,14 +4332,122 @@ function bindUI(){
     $('jsExport').onclick=()=>{ v16ExportCsv(true); };
     $('jsExportAll').onclick=()=>{ v16ExportCsv(false); };
 
-    /* 高3 策略模板 + 低7 统计首渲染 */
-    v16TplRender();
+    /* 低7 统计首渲染（v17: 模板渲染已移除） */
     v16RenderJstat();
   }catch(e){ /* v16 绑定失败不影响主流程 */ }
 }
 
 /* ---------------- 启动 ---------------- */
+/* ============ v17: 六组分类重排引擎（纯 DOM 节点移动，不改任何卡片内部逻辑与绑定） ============
+ * 将原「顶部全宽卡 + main 双列」扁平结构重组为六个分组容器：
+ *   结论速览 grp-concl / 盘面研判 grp-mkt / 持仓风控 grp-pos
+ *   录入工具 grp-tools（默认折叠）/ 复盘日志 grp-log / 策略预案 grp-plan
+ * 节点移动保留全部 id → 后续 $('id') 与 bindUI 绑定不受影响；
+ * fixed 弹层（gear/settings/modeCard）与 <main> 内联样式保持原位不动。
+ * ========================================================================= */
+function v17Rearrange(){
+  try{
+    const GROUPS=[
+      {id:'grp-concl', name:'结论速览', tag:'评级 / 打分 / 策略结论', wide:['gradeBanner','aiCard','nnCard'],
+       cards:['scoreCard','shiweiCard','stratCard']},
+      {id:'grp-mkt',   name:'盘面研判', tag:'K线主图 / 势位态 / 资金面', wide:['chartcard','eagleCard','mfCard'],
+       cards:['wyCard','levelsCard2','ifindCard','mtfxCard','levelsCard','fprobCard']},
+      {id:'grp-pos',   name:'持仓风控', tag:'持仓监测 / 仓位校验 / 风控审核', wide:['posmonCard','trackCard','riskcapCard'],
+       cards:['confCard','riskCard','riskTipCard']},
+      {id:'grp-tools', name:'录入工具', tag:'截图识别 / 手绘K线 / 数据源（默认收起）', wide:['ocrCard','kdrawCard','spotCard','apiCard'],
+       cards:[], folded:true},
+      {id:'grp-log',   name:'复盘日志', tag:'流水统计 / 交易日志 / 历史存档', wide:['jstatCard','journalCard'],
+       cards:['caseCard','recapCard','ailogCard','histCard']},
+      {id:'grp-plan',  name:'策略预案', tag:'多空沙盘 / 历史案例 / AI盯盘', wide:['planCard'],
+       cards:['nnCard2','caseCard2']},
+    ];
+    /* 头部锚点：v17nav 之后的一切常规内容都搬入分组；chips/errbox 保持原位 */
+    const anchor=document.getElementById('v17nav');
+    if(!anchor) return;
+    /* 兼容修正：grp-plan 内的 nnCard2/caseCard2 是防御性占位（正常情况下 nnCard/caseCard 已在前列被取走） */
+    const grpPlan=GROUPS[GROUPS.length-1];
+    grpPlan.cards=grpPlan.cards.filter(id=>document.getElementById(id));
+
+    /* 1. 建立分组 DOM：容器 + 标题条 + 分组体 */
+    const containers={};
+    GROUPS.forEach(g=>{
+      const wrap=document.createElement('div');
+      wrap.className='vgrp open'+(g.folded?' folded':'');
+      wrap.id=g.id;
+      const title=document.createElement('div');
+      title.className='vgrptitle'+(g.wide.length?' foldable':'');
+      /* 项数只统计当前可见卡（display:none 的按需展开卡不计入，避免虚报） */
+      const vis=id=>{const el=document.getElementById(id);return !!(el&&getComputedStyle(el).display!=='none');};
+      const cnt=g.wide.filter(vis).length+g.cards.filter(vis).length;
+      title.innerHTML='<span class="vfoldarr">▶</span> '+g.name+' <span class="gvtag">'+g.tag+' · '+cnt+' 项</span>';
+      const body=document.createElement('div');
+      body.className='vgrpbody';
+      wrap.appendChild(title); wrap.appendChild(body);
+      containers[g.id]={wrap,body,title,def:g};
+    });
+    /* 2. 插入位置：紧跟 v17nav 之后（chips/errbox 移到导航之前，保持顶部状态区紧凑） */
+    /* 反向遍历插入：每次都插到 v17nav 紧后，先插的会被后插的推下去；反序遍历→正序排列 */
+    const chipsEl=document.getElementById('chips'), errEl=document.getElementById('errbox');
+    [...GROUPS].reverse().forEach(g=>{ anchor.parentNode.insertBefore(containers[g.id].wrap, anchor.nextSibling); });
+    /* chips/errbox 放到导航前（头部之下），不属于任何分组 */
+    if(chipsEl) anchor.parentNode.insertBefore(chipsEl, anchor);
+    if(errEl) anchor.parentNode.insertBefore(errEl, anchor);
+
+    /* 3. 按组搬卡：wide 卡贴组头通栏（加 .wide），普通卡进网格并排（不加） */
+    GROUPS.forEach(g=>{
+      const c=containers[g.id];
+      const put=(id,isWide)=>{
+        const el=document.getElementById(id);
+        if(!el||el.dataset.v17moved) return false;
+        if(isWide) el.classList.add('wide');
+        c.body.appendChild(el);
+        el.dataset.v17moved='1';
+        return true;
+      };
+      g.wide.forEach(id=>put(id,true));
+      g.cards.forEach(id=>put(id,false));
+      /* 标题条折叠（仅当组内没有任何卡时可隐藏标题，防御空组） */
+      if(c.body.children.length===0){ c.wrap.style.display='none'; }
+      else if(g.wide.length){ c.title.addEventListener('click',()=>{ c.wrap.classList.toggle('folded'); c.wrap.classList.toggle('open'); }); }
+    });
+
+    /* 4. 清理空壳：main/aside 搬空后移除，避免残留空双列骨架 */
+    const mainEl=document.querySelector('main');
+    if(mainEl && !mainEl.querySelector('.card')) mainEl.remove();
+    const asideEl=document.querySelector('aside');
+    if(asideEl && asideEl.isConnected && !asideEl.querySelector('.card')) asideEl.remove();
+
+    /* 5. 导航按钮：锚点滚动 + 当前分组高亮 */
+    const navBtns=[...document.querySelectorAll('#v17nav .nvbtn')];
+    navBtns.forEach(b=>{
+      b.addEventListener('click',()=>{
+        const t=document.getElementById(b.dataset.goto);
+        if(!t) return;
+        /* 目标组若处于折叠态则先展开再跳转 */
+        if(t.classList.contains('folded')){ t.classList.remove('folded'); t.classList.add('open'); }
+        t.scrollIntoView({behavior:'smooth',block:'start'});
+      });
+    });
+    /* 滚动监听：视口所在分组 → 导航高亮 */
+    const onScroll=()=>{
+      let cur=null;
+      GROUPS.forEach(g=>{
+        const el=document.getElementById(g.id);
+        if(!el) return;
+        const r=el.getBoundingClientRect();
+        if(r.top<=80) cur=g.id;
+      });
+      navBtns.forEach(b=>b.classList.toggle('on', b.dataset.goto===cur));
+    };
+    window.addEventListener('scroll', onScroll, {passive:true});
+    onScroll();
+
+    console.log('[v17] 分组重排完成：六组分类已生效（录入工具默认收起）');
+  }catch(e){ console.warn('[v17] 分组重排失败，回退原布局：', e); }
+}
+
 (async function boot(){
+  v17Rearrange();            /* v17: 先重排 DOM 再做绑定，id 随节点移动保留 */
   $('contract').value=S.contract;
   chart.init();
   bindUI();
