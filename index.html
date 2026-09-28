@@ -537,7 +537,14 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">红=BUY（看多）/ 绿=SELL（看空）/ 灰=HOLD，附启发式置信度（RSI+均线+量能倾斜映射，非统计模型）。表内保留最近8次快照对照。D1/H1 为日线·1小时真实结构，M15 由5分钟K聚合重构，M1 为逐笔脉冲。≥3个周期同向才视为共振成立；共振不足时一切开仓信号降级处理。</div>
     </div>
 
-    <!-- v14-b: 关键价位分级表（短线/强/极端 三级支撑压力，由日线摆动高低点聚类推导） -->
+    <!-- v17.5: 技术指标卡（日线 MA排列/MACD/KDJ/BOLL，与盯盘清单 2.2-2.5 对应；纯展示不参与打分） -->
+    <div class="card" id="techCard" style="display:none">
+      <h3>📊 技术指标 <span class="tag">日线 · MA / MACD / KDJ / BOLL</span></h3>
+      <div id="techBody"></div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">与盘前简报【技术指标】块同口径同参数（MA 5/10/60、MACD(12,26,9)、KDJ(9,3,3)、BOLL(20,2)），仅展示事实与关注提示：不参与四维打分、不产生买卖信号。红涨绿跌；BOLL 带宽收窄=蓄势变盘窗口（关注方向选择）。</div>
+    </div>
+
+    <!-- v14-b: 关键价位分级表（短线/强/极端 三级支撑压力，由日线摆动高低点聚类推导) -->
     <div class="card" id="levelsCard" style="display:none">
       <h3>📐 关键价位分级表 <span class="tag">短线 / 强 / 极端</span></h3>
       <div id="lvBody2"></div>
@@ -1242,6 +1249,46 @@ function atr(bars,n=14){
   for(let i=n;i<tr.length;i++) a=(a*(n-1)+tr[i])/n;
   return a;
 }
+/* ---- v17.5 技术指标四件套（与 jd_rule_engine.js 同口径：MA排列/MACD/KDJ/BOLL，纯展示不参与打分） ---- */
+function ema(vals,n){ const k=2/(n+1); const out=new Array(vals.length); let prev=vals[0];
+  for(let i=0;i<vals.length;i++){ prev=i===0?vals[0]:vals[i]*k+prev*(1-k); out[i]=prev; } return out; }
+function macdCalc(closes,fast=12,slow=26,sig=9){
+  if(closes.length<slow+sig) return null;
+  const ef=ema(closes,fast), es=ema(closes,slow);
+  const dif=closes.map((_,i)=>ef[i]-es[i]), dea=ema(dif,sig);
+  const i=closes.length-1, j=i-1;
+  const hist=(dif[i]-dea[i])*2, pHist=(dif[j]-dea[j])*2;
+  const cross=dif[i]>dea[i]&&dif[j]<=dea[j]?'金叉':dif[i]<dea[i]&&dif[j]>=dea[j]?'死叉':'';
+  let since=0;
+  for(let t=i;t>0;t--){ if((dif[t]>dea[t])!==(dif[t-1]>dea[t-1])) break; since++; }
+  return { dif:dif[i], dea:dea[i], hist, histRising:hist>pHist, cross, since, above:dif[i]>dea[i] };
+}
+function kdjCalc(bars,n=9){
+  if(bars.length<n+3) return null;
+  let k=50, dv=50; const ks=[], ds=[];
+  for(let i=0;i<bars.length;i++){
+    const st=Math.max(0,i-n+1); let hh=-Infinity, ll=Infinity;
+    for(let j=st;j<=i;j++){ if(bars[j].h>hh) hh=bars[j].h; if(bars[j].l<ll) ll=bars[j].l; }
+    const rsv=hh===ll?50:(bars[i].c-ll)/(hh-ll)*100;
+    k=2/3*k+1/3*rsv; dv=2/3*dv+1/3*k; ks.push(k); ds.push(dv);
+  }
+  const i=ks.length-1, j=i-1;
+  const cross=ks[i]>ds[i]&&ks[j]<=ds[j]?'金叉':ks[i]<ds[i]&&ks[j]>=ds[j]?'死叉':'';
+  return { k:ks[i], d:ds[i], j:3*ks[i]-2*ds[i], cross, overbought:ks[i]>80, oversold:ks[i]<20 };
+}
+function bollCalc(closes,n=20,k=2){
+  if(closes.length<n) return null;
+  const seg=closes.slice(-n), mid=seg.reduce((s,x)=>s+x,0)/n;
+  const sd=Math.sqrt(seg.reduce((s,x)=>s+(x-mid)*(x-mid),0)/n);
+  const widths=[];
+  for(let i=closes.length-1;i>=n-1&&widths.length<60;i--){
+    const sg=closes.slice(i-n+1,i+1), m=sg.reduce((s,x)=>s+x,0)/n;
+    if(m>0){ const sdv=Math.sqrt(sg.reduce((s,x)=>s+(x-m)*(x-m),0)/n); widths.push(2*k*sdv/m); }
+  }
+  const w=2*k*sd/mid;
+  const wAvg=widths.reduce((s,x)=>s+x,0)/(widths.length||1);
+  return { up:mid+k*sd, mid, low:mid-k*sd, width:w, squeeze:widths.length>=20&&w<wAvg*0.85 };
+}
 function volZ(bars,i,look=40){
   const st=Math.max(0,i-look), seg=bars.slice(st,i);
   if(seg.length<10) return 0;
@@ -1661,6 +1708,20 @@ function analyze(){
   A.d={ trend:classifyTrend(swD,atrD), rsi:rsi(closesD,14), atr:atrD };
   A.h1={ trend:classifyTrend(swH, atr(h1,14)||atr(m5,14)||15), rsi:rsi(h1.map(b=>b.c),14) };
   A.m5={ rsi:rsi(m5.map(b=>b.c),14) };
+  /* v17.5 技术指标（日线口径，与引擎同参数：MA排列/MACD(12,26,9)/KDJ(9,3,3)/BOLL(20,2)；只展示事实，不参与打分不发信号） */
+  {
+    const [ma5a,ma10a,ma60a]=[sma(closesD,5),sma(closesD,10),sma(closesD,60)];
+    const ma5=ma5a[ma5a.length-1], ma10=ma10a[ma10a.length-1], ma60=ma60a[ma60a.length-1];
+    let maState='数据不足';
+    if(ma5!=null&&ma10!=null&&ma60!=null){
+      maState = ma5>ma10&&ma10>ma60 ? '多头排列' : ma5<ma10&&ma10<ma60 ? '空头排列' : '均线交织';
+    }
+    const tech={ ma:{ ma5, ma10, ma60, state:maState, above60:(ma60!=null&&price>ma60) } };
+    if(closesD.length>=35) tech.macd=macdCalc(closesD);
+    if(d.length>=12) tech.kdj=kdjCalc(d);
+    if(closesD.length>=20) tech.boll=bollCalc(closesD);
+    A.tech=tech;
+  }
   const lv=keyLevels(d,price,atrD);
   A.res=lv.res; A.sup=lv.sup;
   A.pos=positionInRange(price, A.sup[0]?A.sup[0].price:null, A.res[0]?A.res[0].price:null);
@@ -1816,6 +1877,7 @@ function analyze(){
    * 抛错会静默连带跳过 renderPlans，planCard 永久隐藏且无任何报错；现拆分隔离+console.warn 可诊断 */
   const safeRender=(fn,tag)=>{ try{ fn(); }catch(e){ console.warn('[v14] 渲染器异常 '+tag+':', e); } };
   safeRender(renderMtfx,'mtfx');
+  safeRender(renderTech,'tech'); /* v17.5: 技术指标卡（纯展示，不参与打分） */
   safeRender(renderLevels,'levels');
   safeRender(renderPlans,'plans');
   safeRender(renderFProb,'fprob');
@@ -2160,7 +2222,57 @@ function renderMtfx(){
   }
   $('mtfxSls').insertAdjacentHTML('beforeend', aiV14Block('matrix'));
 }
-function resoTag(n,ok){ return '<span style="color:'+(ok?'var(--ok)':'var(--warn)')+';font-weight:600">'+n+'/4</span>'; }
+/* ---- v17.5: 技术指标卡渲染（MA排列/MACD/KDJ/BOLL，日线口径；纯展示，风格对齐 renderMtfx） ---- */
+  function f2(x,d=1){ return x==null?'--':x.toFixed(d); }
+  function techLine(label,color,val,extra){
+    return '<b style="color:var(--gold)">【'+label+'】</b> <span style="color:'+color+';font-weight:600">'+esc(val)+'</span>'+
+      (extra?'　<span style="font-size:10px;color:var(--faint)">'+esc(extra)+'</span>':'')+'<br>';
+  }
+  function renderTech(){
+    const card=$('techCard'); if(!card) return;
+    const A=S.A, t=A&&A.tech;
+    if(!A||!S.live||!t){ card.style.display='none'; return; }
+    card.style.display='block';
+    const px=S.live.price;
+    const C_UP='var(--up)', C_DN='var(--dn)', C_W='var(--warn)';
+    let h='';
+    /* MA：多头排列红/空头排列绿/交织琥珀 */
+    const ma=t.ma||{};
+    if(ma.ma5!=null){
+      const mc=ma.state==='多头排列'?C_UP:ma.state==='空头排列'?C_DN:C_W;
+      h+=techLine('MA排列', mc, ma.state,
+        'MA5 '+f2(ma.ma5,0)+' / MA10 '+f2(ma.ma10,0)+' / MA60 '+f2(ma.ma60,0)+' · 现价在60日线'+(ma.above60?'上':'下')+'方');
+    }
+    /* MACD */
+    const md=t.macd;
+    if(md){
+      const mc=md.above?C_UP:C_DN;
+      let extra='DIF '+f2(md.dif)+' / DEA '+f2(md.dea)+' / 柱 '+f2(md.hist)+(md.histRising?'(扩张)':'(收缩)');
+      if(md.cross) extra+=' · '+md.cross+'（'+md.since+'根前）';
+      else extra+=' · '+(md.above?'DIF位于DEA上方':'DIF位于DEA下方')+md.since+'根';
+      h+=techLine('MACD', mc, md.above?'多头动能':'空头动能', extra);
+    }
+    /* KDJ：K>80 超买（琥珀，涨多注意回落）、K<20 超卖 */
+    const kd=t.kdj;
+    if(kd){
+      const st=kd.overbought?'超买区 K>'+80:kd.oversold?'超卖区 K<'+20:'中性区';
+      const kc=kd.overbought||kd.oversold?C_W:(kd.k>kd.d?C_UP:C_DN);
+      let extra='K '+f2(kd.k)+' / D '+f2(kd.d)+' / J '+f2(kd.j);
+      if(kd.cross) extra+=' · '+kd.cross;
+      h+=techLine('KDJ', kc, st, extra);
+    }
+    /* BOLL：squeeze 收窄琥珀提示蓄势 */
+    const bo=t.boll;
+    if(bo){
+      const pos = px>=bo.up?'触及上轨':px<=bo.low?'触及下轨':px>bo.mid?'轨道上半部':'轨道下半部';
+      const bc=bo.squeeze?C_W:(px>bo.mid?C_UP:C_DN);
+      h+=techLine('BOLL', bc, pos,
+        '上轨 '+f2(bo.up,0)+' / 中轨 '+f2(bo.mid,0)+' / 下轨 '+f2(bo.low,0)+
+        (bo.squeeze?' · 带宽收窄（蓄势变盘窗口，留意方向选择）':''));
+    }
+    $('techBody').innerHTML=h||'<span style="color:var(--faint)">日线数据不足，指标暂不可算</span>';
+  }
+  function resoTag(n,ok){ return '<span style="color:'+(ok?'var(--ok)':'var(--warn)')+';font-weight:600">'+n+'/4</span>'; }
 
 /* ---- v14-b: 关键价位分级表（短线/强/极端 三级） ---- */
 function v14LevelsTable(A){
