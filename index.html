@@ -729,7 +729,7 @@ const S = {
   bars:{ m5:[], h1:[], d:[] },
   m1:[],               // 1分钟K线（420根≈一个交易日，供微观资金脉冲/诱多诱空识别）
   live:null,           // {price,dayH,dayL,dayOpen,prevSettle,prevOI,oi,oiDelta,dayVol,volRatio,t,srcDate}
-  spot:{ today:LS.get('spotToday',''), yest:LS.get('spotYest',''), bias:LS.get('bias',0) },
+  spot:{ today:LS.get('spotToday',''), yest:LS.get('spotYest',''), bias:LS.get('bias',0), stamp:LS.get('spotStamp','') },   /* v17.4: stamp=现货录入时间，供每日开盘旧数据分级提醒 */
   /* n14: 频率钳制——localStorage 损坏值（0/负数/字符串）会让 setInterval 被浏览器钳到 4ms，
      等于高频轰炸行情接口（会被封IP），故强制落到合法档位 1000/3000/5000/10000 */
   freq: [1000,3000,5000,10000].includes(+LS.get('freq',1000)) ? +LS.get('freq',1000) : 1000,
@@ -893,9 +893,14 @@ function applyFundamentals(fu){
   try{
     if(!fu||typeof fu!=='object') return;
     /* ① 现货价自动回填（仅空字段，绝不覆盖人工录入） */
-    const fillSpot=(id,v)=>{ if(v==null||v==='') return; const el=$(id); if(el&&(el.value===''||el.value==null)){ el.value=String(v); LS.set(id,String(v)); } };
+    let v174Filled=false;   /* v17.4: 自动回填也记录录入时间戳，时效提醒口径一致 */
+    const fillSpot=(id,v)=>{ if(v==null||v==='') return; const el=$(id); if(el&&(el.value===''||el.value==null)){ el.value=String(v); LS.set(id,String(v)); v174Filled=true; } };
     fillSpot('spotToday',fu.spotToday); fillSpot('spotYest',fu.spotYest);
     S.spot.today=$('spotToday').value; S.spot.yest=$('spotYest').value;
+    if(v174Filled){
+      S.spot.stamp=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
+      LS.set('spotStamp',S.spot.stamp);
+    }
     /* ② 消息清单存入状态并渲染（news: [{text, impact: 'bull'|'bear'|'flat', src}]） */
     const news=Array.isArray(fu.news)?fu.news.filter(n=>n&&n.text).slice(0,10):[];
     S.fundNews={ region:fu.region||'', news };
@@ -2890,6 +2895,16 @@ function renderPanels(){
     if(!isNaN(hen)){ if(hen>=3) tips.push(`🐤 在产蛋鸡存栏同比 <b>+${hen}%</b>：供给偏宽松，中期压制蛋价上方空间（偏空）；若连续走低则利多远月。`); else if(hen<=-3) tips.push(`🐤 在产蛋鸡存栏同比 <b>${hen}%</b>：供给偏紧，支撑远月估值（偏多）。`); else tips.push(`🐤 在产蛋鸡存栏同比 <b>${hen}%</b>：供给中性，对盘面指引有限。`); }
     if(!isNaN(prof)){ if(prof>=0.6) tips.push(`💰 养殖利润 <b>+${prof}</b> 元/斤：补栏积极性趋于上升，利于远月新增供给（利空远月）；高利润期警惕补栏过热。`); else if(prof<=0) tips.push(`💰 养殖利润 <b>${prof}</b> 元/斤：处于亏损/微利区间，淘汰预期增强、补栏放缓，中期利多远月估值。`); else tips.push(`💰 养殖利润 <b>+${prof}</b> 元/斤：微利状态，供给节奏平稳。`); }
     if(!isNaN(cull)&&!isNaN(feed)&&cull-feed>=2.5) tips.push('🐔 淘汰鸡价格显著高于饲料成本折算价：延淘意愿强，短期在栏量偏大，压制近月；关注老鸡集中淘汰时点对远月的传导。');
+    /* v17.4: 现货录入时效分级 —— 今天录入不提示；距录入≥1天按 1/2/3+ 分级提醒（dim/gold/risk），与牛牛卡时效条同一套节奏 */
+    try{
+      const tstr=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
+      const sAge=S.spot.stamp?Math.round((Date.parse(tstr+'T00:00:00+08:00')-Date.parse(S.spot.stamp+'T00:00:00+08:00'))/86400000):null;
+      if(!A.spotMissing && sAge!=null && sAge>=1){
+        const sev=sAge>=3?'var(--risk)':(sAge>=2?'var(--gold)':'var(--dim)');
+        const ageTxt=sAge>=3?'已过期 '+sAge+' 天，参考价值很低':(sAge===2?'已隔 2 天，建议尽快补录':'昨日留存值，建议开盘后补录今日价');
+        tips.push(`<span style="color:${sev}">⏳ <b>现货价为 ${S.spot.stamp} 录入的留存值</b>：${ageTxt}，基差与现货涨跌结论均基于旧数据。</span>`);
+      }
+    }catch(e){}
     if(!isNaN(feed)) tips.push(`🌽 饲料成本 <b>${feed}</b> 元/斤蛋：构成价格底部的锚，${prof!=null&&!isNaN(prof)?`当前单斤利润 ${prof>=0?'+':''}${prof} 元/斤`:''}，成本抬升将压缩利润并强化挺价意愿。`);
     $('spotHint').style.display='block';
     $('spotHint').innerHTML=tips.join('<br>');
@@ -4119,6 +4134,11 @@ function bindUI(){
   const spotChange=()=>{
     S.spot.today=$('spotToday').value; S.spot.yest=$('spotYest').value;
     LS.set('spotToday',S.spot.today); LS.set('spotYest',S.spot.yest);
+    /* v17.4: 任一现货字段变更即刷新录入时间戳（当天录入=当日新鲜；隔日留存触发分级提醒） */
+    if(String(S.spot.today).trim()!=='' || String(S.spot.yest).trim()!==''){
+      S.spot.stamp=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
+      LS.set('spotStamp',S.spot.stamp);
+    } else { S.spot.stamp=''; LS.set('spotStamp',''); }
     analyze(); if(S.mode==='close') S.recap=buildRecap();
     renderPanels(); renderHeader();
   };
@@ -4352,7 +4372,7 @@ function bindUI(){
   $('maSel').value=String(S.showMA);
   $('maSel').addEventListener('change',e=>{ S.showMA=+e.target.value; LS.set('showMA',S.showMA); chart.draw(); });
   /* 恢复已存现货输入 */
-  $('spotToday').value=S.spot.today||''; $('spotYest').value=S.spot.yest||'';
+  $('spotToday').value=S.spot.today||''; $('spotYest').value=S.spot.yest||'';   /* v17.4: S.spot.stamp 随 LS 键恢复，无需额外处理 */
   $('biasSel').value=String(S.spot.bias||0);
   /* 恢复持仓录入与连亏计数显示 */
   $('posDir').value = S.pos.on ? (S.pos.dir==='空'?'short':'long') : 'none';
