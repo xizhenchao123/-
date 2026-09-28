@@ -824,7 +824,7 @@ async function tryLoadTraePush(){
       S.aiLines=(Array.isArray(j.meta.ai.annotations)?j.meta.ai.annotations:[]).filter(a=>a&&a.p!=null).slice(0,6);
     }
     /* v13: 牛牛 Trader 策略卡 —— meta.ai.strategy 存在即渲染（独立于 lines，无K线也可展示） */
-    if(j.meta&&j.meta.ai&&j.meta.ai.strategy){ renderNiuNiuCard(j.meta.ai.strategy); } else { hideNiuNiuCard(); }
+    if(j.meta&&j.meta.ai&&j.meta.ai.strategy){ renderNiuNiuCard(j.meta.ai.strategy, j.ts); } else { hideNiuNiuCard(); }
     /* v14: AI独立研判对照包 —— meta.ai.v14 驱动矩阵/基本面/风控三卡「AI对照」块（纯展示，不覆盖页面计算） */
     if(j.meta&&j.meta.ai&&j.meta.ai.v14){ S.aiV14=j.meta.ai.v14; try{ if(S.A){ renderMtfx(); renderFProb(); renderRisk(); } }catch(e){} }
     else S.aiV14=null;
@@ -1049,13 +1049,31 @@ const NN_TPL={
   '大周期压力空':{dir:'空',plan:'价格拉升到大周期压力区间，H1/M15 出现滞涨、假突破信号'}
 };
 const NN_KCOLOR={'长上影':'var(--res)','长下影':'var(--sup)','阳包阴':'var(--sup)','阴包阳':'var(--res)'};
-function renderNiuNiuCard(st){
+function renderNiuNiuCard(st, packTs){
   const box=$('nnCard'), body=$('nnBody'), tag=$('nnTag');
   if(!box||!body) return;
   if(!st||!st.entry||!st.stop||!Array.isArray(st.tp)||st.tp.length<3){ box.style.display='none'; return; }
+  /* v17.3: 时效提示 —— 推送包距今天数（优先取包 ts 转北京时间日期，回退解析 stamp 内日期），旧包一眼可辨 */
+  let nnStaleDays=null, nnStaleDate='';
+  try{
+    const todayStr=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
+    let dstr='';
+    if(packTs){ const t=Date.parse(packTs); if(!isNaN(t)) dstr=new Date(t).toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'}); }
+    if(!dstr && st.stamp){ const m=String(st.stamp).match(/(\d{4})-(\d{2})-(\d{2})/); if(m) dstr=m[1]; }
+    if(dstr){
+      nnStaleDays=Math.round((Date.parse(todayStr+'T00:00:00+08:00')-Date.parse(dstr+'T00:00:00+08:00'))/86400000);
+      nnStaleDate=dstr;
+    }
+  }catch(e){}
+  let ageHtml='';
+  if(nnStaleDays!=null && nnStaleDays>=1){
+    const sev=nnStaleDays>=3?'var(--risk)':(nnStaleDays>=2?'var(--gold)':'var(--dim)');
+    ageHtml=`<div class="sec" style="margin-bottom:4px;font-size:11px"><b style="color:${sev}">⏳ 预案数据距今 ${nnStaleDays} 天（${nnStaleDate} 收盘）</b><span style="color:var(--faint)"> · 非今日数据，仅供复盘参考，实时行情以主图为准</span></div>`;
+  }
   const zc={短线:'var(--dim)',次级:'var(--gold)',强:'var(--risk)',重要:'var(--gold)',深度:'var(--purple)',极端:'var(--risk)'};
   const row=(a,cls,icon)=>`<tr><td><b class="num" style="color:${cls||'var(--txt)'}">${(+a.p).toFixed(0)}</b></td><td><span class="tag" style="font-size:10px">${esc(a.tf||'--')}</span></td><td>${esc(a.level||'--')}</td><td>${icon?icon+' ':''}${esc(a.label||'')}</td></tr>`;
   let html='';
+  html+=ageHtml;   /* v17.3: 旧包时效提示置顶 */
   if(st.summary) html+=`<div class="sec" style="margin-bottom:4px"><b>${esc(st.summary)}</b></div>`;
   const tpl=NN_TPL[st.template];
   html+=`<div class="lvlwrap"><table class="lvl"><tr><th style="width:96px">项目</th><th>内容</th></tr>`;
