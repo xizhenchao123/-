@@ -835,6 +835,14 @@ async function tryLoadTraePush(){
     if(j.contract && S.contract && String(j.contract).toUpperCase()!==String(S.contract).toUpperCase()) return false;
     const stamp = j.ts || '';
     const firstLoad = !S.bars.d.length;   /* 首次加载：即使 ts 未变也要注入 */
+    /* v17.2: 新鲜度闸门 —— 推送包最新bar日期必须等于今天(Asia/Shanghai)，否则拒绝注入改走新浪实时源（防止节前/隔夜旧包整早占坑） */
+    const todayStr = new Date().toLocaleDateString('sv-SE', {timeZone:'Asia/Shanghai'});
+    const freshArr = (j.klines.m5&&j.klines.m5.length? j.klines.m5 : j.klines.d);
+    const lastDate = String((freshArr[freshArr.length-1]||{}).d||'').slice(0,10);
+    if(lastDate !== todayStr){
+      console.warn('[Trae推送] 推送包数据已过期(最新 '+lastDate+'，今天 '+todayStr+')，跳过注入改用实时源');
+      return false;
+    }
     if(!firstLoad && stamp===traePushStamp) return true;   /* 已注入过且无更新：视为命中，跳过浏览器拉取 */
     const kb=(a,cap)=>(a||[]).map(b=>{
       const ds=String(b.d);
@@ -3698,6 +3706,7 @@ async function fullCycle(){
     if(S.mode==='close') S.recap=buildRecap();
     if(S.mode==='close') accumulateCase();
     renderHeader(); renderPanels();
+    try{ window.__v17RefreshCounts && window.__v17RefreshCounts(); }catch(e){}   /* v17.2: 组头计数每周期刷新 */
     setChartData();
     if(S.mode==='close') ensureJD0Daily().then(m=>{ if(m){ caseKey=''; renderCases(); } });
     $('errbox').style.display='none';
@@ -4468,6 +4477,20 @@ function v17Rearrange(){
     window.addEventListener('scroll', onScroll, {passive:true});
     onScroll();
 
+    /* v17.2: 组头"·N 项"计数刷新 —— 卡片初始 display:none，fullCycle 渲染后可见卡数会变化，需每周期重算 */
+    window.__v17RefreshCounts=function(){
+      try{
+        GROUPS.forEach(g=>{
+          const el=document.getElementById(g.id);
+          if(!el) return;
+          const vis=id=>{const c=document.getElementById(id);return !!(c&&getComputedStyle(c).display!=='none');};
+          const cnt=g.wide.filter(vis).length+g.cards.filter(vis).length;
+          const tag=el.querySelector('.gvtag');
+          if(tag) tag.textContent=g.tag+' · '+cnt+' 项';
+        });
+      }catch(e){}
+    };
+
     console.log('[v17] 分组重排完成：六组分类已生效（录入工具默认收起）');
   }catch(e){ console.warn('[v17] 分组重排失败，回退原布局：', e); }
 }
@@ -4479,6 +4502,7 @@ function v17Rearrange(){
   bindUI();
   renderHistStrategies();   /* n5: 页面加载时恢复历史策略面板（如有存档） */
   renderHeader();
+  try{ renderPlans(); }catch(e){}   /* v17.2: 开屏先渲染预案占位，消除"策略预案"组首次空白 */
   await fullCycle();
   restartTimers();
   /* 模式可能在运行中切换（开盘/收盘跨越），每分钟检测 */
