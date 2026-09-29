@@ -289,6 +289,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
   <div id="gbRow">
     <div class="gbcell"><div id="gbScore" class="num gbnum">--</div><div class="gblab">综合得分</div></div>
     <div class="gbcell"><div id="gbGrade" class="num gbnum">--</div><div class="gblab">机会评级</div></div>
+    <div class="gbcell"><div id="gbDir" class="num gbnum">--</div><div class="gblab">今日走向</div></div>
     <div id="gbVeto">--</div>
   </div>
   <!-- n2: 一句话行情结论（评级横幅旁） -->
@@ -416,20 +417,20 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
   <aside style="display:flex;flex-direction:column;gap:10px;min-width:0">
 
     <div class="card" id="scoreCard">
-      <h3>四项打分 <span class="tag">规则引擎 · 每项0~25</span></h3>
+      <h3>今日走向 <span class="tag">三要素 · 节假日 / 季节性 / 现货</span></h3>
       <div id="scoretotal">
         <div id="totalwrap">
           <div id="totalnum" class="num" style="font-family:var(--serif)">--</div>
-          <div id="totallabel">综合总分</div>
+          <div id="totallabel">今日走向</div>
         </div>
         <div style="flex:1;min-width:180px">
-          <div class="sbar"><div class="lab"><span>① 趋势结构</span><b class="num" id="s_trend">--</b></div><div class="track"><div class="fill" id="f_trend" style="background:var(--gold);width:0"></div></div></div>
-          <div class="sbar"><div class="lab"><span>② 量仓资金</span><b class="num" id="s_vol">--</b></div><div class="track"><div class="fill" id="f_vol" style="background:var(--blue);width:0"></div></div></div>
-          <div class="sbar"><div class="lab"><span>③ 现货基本面</span><b class="num" id="s_spot">--</b></div><div class="track"><div class="fill" id="f_spot" style="background:var(--purple);width:0"></div></div></div>
-          <div class="sbar"><div class="lab"><span>④ 异动风险</span><b class="num" id="s_risk">--</b></div><div class="track"><div class="fill" id="f_risk" style="background:var(--ok);width:0"></div></div></div>
+          <div class="sbar"><div class="lab"><span>① 节假日</span><b class="num" id="s_holiday">--</b></div><div class="track"><div class="fill" id="f_holiday" style="background:var(--gold);width:0"></div></div></div>
+          <div class="sbar"><div class="lab"><span>② 季节性</span><b class="num" id="s_season">--</b></div><div class="track"><div class="fill" id="f_season" style="background:var(--blue);width:0"></div></div></div>
+          <div class="sbar"><div class="lab"><span>③ 现货涨跌</span><b class="num" id="s_spot">--</b></div><div class="track"><div class="fill" id="f_spot" style="background:var(--purple);width:0"></div></div></div>
         </div>
       </div>
-      <div id="vetobox"><div class="vt">⛔ 一票否决触发：【高风险 · 观望 · 不视为交易机会】</div><ul id="vetolist"></ul><div class="vtnote">规则说明：一票否决是硬阻断，优先级高于四项打分；触发后总分按 ×0.65 折算，最高封顶 45 分——无论打分高低均不视为交易机会，仅供复盘观察。</div></div>
+      <div id="dirReasons" style="margin-top:8px;font-size:12px;line-height:1.7;color:var(--fg2)"></div>
+      <div id="vetobox"><div class="vt">⛔ 一票否决触发：【高风险 · 观望 · 不视为交易机会】</div><ul id="vetolist"></ul><div class="vtnote">规则说明：一票否决是硬阻断，优先级高于三要素走向判断；触发后当日走向强制标为「高风险」，仅供复盘观察。</div></div>
     </div>
 
     <div class="card" id="shiweiCard">
@@ -612,14 +613,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 
     <!-- v17: Chart.js 简易K线速览已移除（与主图数据重复，避免CDN依赖） -->
 
-    <!-- n5: 历史策略回查（localStorage 每日自动存档，支持导出JSON/清空） -->
-    <div class="card" id="histCard" style="display:none">
-      <h3>历史策略回查 <span class="tag" id="histTag">0 条</span>
-        <button class="fbtn" id="histExport" style="float:right;margin-top:-1px">⤓ 导出JSON</button>
-        <button class="fbtn" id="histClear" style="float:right;margin-top:-1px;margin-right:6px">🗑 清空</button></h3>
-      <div id="histBody"></div>
-      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">每个交易日收盘复盘时自动存档当日研判与策略（同日刷新覆盖，最多保留 90 条），保存在本机浏览器中，不上传任何服务器。</div>
-    </div>
+    <!-- v17.12: 历史策略回查卡已按用户要求移除（存档/渲染/导出/清空全链路删除） -->
 
     <div class="card" id="spotCard">
       <h3>现货基本面 · 人工输入 <span class="tag">半量化人工因子</span></h3>
@@ -1706,6 +1700,87 @@ function seasonBonus(){
   if((m===12&&day>=15)||(m===1&&day<=15)) return 5;  // 春节备货
   return 3;
 }
+/* =====================================================================
+ *  v17.12 三要素走向判断（节假日 / 季节性 / 现货）
+ *  仅替换展示层结论；四项总分与评级链照常计算供复盘与置信度使用。
+ * ===================================================================== */
+const HOLIDAYS_2026=[
+  {name:'元旦',   start:'2026-01-01', end:'2026-01-03', reopen:'2026-01-05'},
+  {name:'春节',   start:'2026-02-15', end:'2026-02-23', reopen:'2026-02-24'},
+  {name:'清明节', start:'2026-04-04', end:'2026-04-06', reopen:'2026-04-07'},
+  {name:'劳动节', start:'2026-05-01', end:'2026-05-05', reopen:'2026-05-06'},
+  {name:'端午节', start:'2026-06-19', end:'2026-06-21', reopen:'2026-06-22'},
+  {name:'中秋节', start:'2026-09-25', end:'2026-09-27', reopen:'2026-09-28'},
+  {name:'国庆节', start:'2026-10-01', end:'2026-10-07', reopen:'2026-10-08'}
+];
+/* 节假日状态：'closed' 当日休市 | 'pre' 节前最后交易日 | 'post' 开市首日 | 'normal' 正常 */
+function holidayStatus(){
+  const d=bj(), day=d.getDay();
+  const tstr=d.toLocaleDateString('sv-SE');
+  if(day===0||day===6){
+    const h=HOLIDAYS_2026.find(h=>tstr>=h.start&&tstr<=h.end);
+    return {st:'closed', holi:h?h.name:null, note:'周末'+(h?'（'+h.name+'假期内）':'')+'，市场休市'};
+  }
+  const h=HOLIDAYS_2026.find(h=>tstr>=h.start&&tstr<=h.end);
+  if(h) return {st:'closed', holi:h.name, note:h.name+'假期，市场休市'};
+  const idx=HOLIDAYS_2026.findIndex(h=>tstr<h.start);
+  if(idx>=0){
+    const nx=HOLIDAYS_2026[idx];
+    const dd=Math.round((Date.parse(nx.start+'T00:00:00+08:00')-Date.parse(tstr+'T00:00:00+08:00'))/86400000);
+    if(dd<=4) return {st:'pre', holi:nx.name, days:dd, note:'距'+nx.name+'休市还有'+dd+'个自然日'};
+  }
+  for(const h of HOLIDAYS_2026){
+    if(tstr>h.end){
+      const dd=Math.round((Date.parse(tstr+'T00:00:00+08:00')-Date.parse(h.end+'T00:00:00+08:00'))/86400000);
+      if(dd<=2) return {st:'post', holi:h.name, days:dd, note:h.name+'后开市'+(dd===1?'首日':'次日')};
+    }
+  }
+  return {st:'normal', holi:null, note:'常规交易日'};
+}
+/* 三要素走向：h(节假日状态) s(季节性) p(现货涨跌/基差)，叠加一票否决红线 */
+function computeDirection(A){
+  const hs=holidayStatus();
+  const season=seasonBonus();
+  let dir, reasons=[];
+  /* ① 节假日要素 */
+  let holTxt, holW=0;
+  if(hs.st==='closed'){ holTxt=hs.note; holW=0; }
+  else if(hs.st==='pre'){ holTxt=hs.note+'，节前避险情绪重、仓位宜降'; holW=-1; reasons.push(hs.note+'，节前流动性收缩偏观望'); }
+  else if(hs.st==='post'){ holTxt=hs.note+'，隔夜外盘与节间现货集中定价，波动放大'; holW=1; reasons.push(hs.note+'，跳空与波动放大风险，方向以现货补定价为准'); }
+  else holTxt=hs.note;
+  /* ② 季节性要素（复用 seasonBonus 的档位：5=备货旺季 / 2=节后回落 / 3=中性） */
+  let seaTxt;
+  if(season>=5){ seaTxt='当前处于备货旺季窗口，现货走强概率大'; reasons.push('季节性：备货旺季，现货端偏强支撑盘面'); }
+  else if(season<=2){ seaTxt='当前处于节后淡季回落窗口，现货偏弱压制盘面'; reasons.push('季节性：节后淡季，现货回落压制盘面'); }
+  else seaTxt='季节性中性，无明确季节性方向贡献';
+  /* ③ 现货要素（自动接入现货均价与前值，含基差结构） */
+  let spotTxt;
+  if(A.spotMissing){ spotTxt='现货价未录入，现货要素缺位'; }
+  else{
+    const chg=A.spotChgPct;
+    const bp=A.basisPct;
+    const chgTxt=chg==null?'现货环比未知':(chg>0?'现货上涨 +'+chg.toFixed(2)+'%':chg<0?'现货下跌 '+chg.toFixed(2)+'%':'现货持平');
+    const basTxt=bp==null?'':(bp>10?'，期货大幅贴水现货'+bp.toFixed(0)+'%（升水结构支撑盘面估值）':bp>0?'，期货贴水现货'+bp.toFixed(0)+'%':'，期货升水现货'+Math.abs(bp).toFixed(0)+'%');
+    spotTxt=chgTxt+basTxt;
+    if(chg!=null&&chg>=0.5){ reasons.push('现货今日上涨 '+chg.toFixed(2)+'%'+(bp!=null&&bp>10?'，且深贴水基差提供安全边际':'')); }
+    else if(chg!=null&&chg<=-0.5){ reasons.push('现货今日下跌 '+Math.abs(chg).toFixed(2)+'%'+(bp!=null&&bp<=0?'，且期货升水基差偏空':'')); }
+  }
+  /* 综合：现货方向权重最高，季节性次之，节假日调节 */
+  let score=0;
+  if(!A.spotMissing&&A.spotChgPct!=null){
+    if(A.spotChgPct>=0.5) score+=2; else if(A.spotChgPct>=0.1) score+=1;
+    else if(A.spotChgPct<=-0.5) score-=2; else if(A.spotChgPct<=-0.1) score-=1;
+  }
+  if(season>=5) score+=1; else if(season<=2) score-=1;
+  if(A.basisPct!=null){ if(A.basisPct>25) score+=1; else if(A.basisPct<=0) score-=1; }
+  score+=holW;
+  if(score>=2) dir='偏多';
+  else if(score<=-2) dir='偏空';
+  else dir='震荡';
+  /* 一票否决红线覆盖：硬阻断优先 */
+  if(A.veto&&A.veto.length) dir='高风险';
+  return {dir, reasons:reasons.slice(0,3), holiday:hs, season, holTxt, seaTxt, spotTxt};
+}
 function analyze(){
   const d=S.bars.d, h1=S.bars.h1, m5=S.bars.m5, live=S.live;
   if(!d.length||!m5.length||!live) return null;
@@ -1872,6 +1947,7 @@ function analyze(){
   let total=A.scoreTrend+A.scoreVol+A.scoreSpot+A.scoreRisk;
   if(A.veto.length){ A.capped=true; total=Math.min(45,Math.round(total*0.65)); }
   A.total=clamp(total,0,100);
+  A.direction=computeDirection(A); /* v17.12 三要素走向判断（展示层主结论，评级链照常计算） */
   /* ---- 新框架五步链条（固定顺序）：①基本面定性 ②多周期校验 ④盈亏比 → 评级 ---- */
   A.fu=fuFundamental(A);
   A.mtfRes=mtfFilter(A);        /* 写入 A.mtf / A.m1p，硬性过滤矛盾→观望（结论存 A.mtfRes） */
@@ -2975,9 +3051,21 @@ function renderPanels(){
     $('mtfBody').innerHTML=`<span style="color:${cls}">⇅ 多周期解读：</span>${mtf}`;
   }
   /* 分数 */
-  $('s_trend').textContent=A.scoreTrend+'/25'; $('f_trend').style.width=A.scoreTrend/25*100+'%';
-  $('s_vol').textContent=A.scoreVol+'/25'; $('f_vol').style.width=A.scoreVol/25*100+'%';
-  $('s_spot').textContent=(A.spotMissing?A.scoreSpot+'/25 [待输入]':A.scoreSpot+'/25'+(A.newsScore!=null?'（含消息'+(A.newsScore>0?'+':'')+A.newsScore+'）':'')); $('f_spot').style.width=A.scoreSpot/25*100+'%';
+  /* v17.12 三要素走向展示（替换原趋势/量仓分数条） */
+  const dirm=A.direction||{dir:'--',reasons:[],holiday:{st:'normal',note:'--'},season:null,holTxt:'--',seaTxt:'--',spotTxt:'--'};
+  const dcol=dirm.dir==='偏多'?'var(--up)':dirm.dir==='偏空'?'var(--dn)':dirm.dir==='高风险'?'var(--risk)':'var(--dim)';
+  $('totalnum').textContent=dirm.dir;
+  $('totalnum').style.color=dcol;
+  $('totalnum').style.fontSize='34px';
+  $('totallabel').textContent='今日走向 · 三要素';
+  const holPct=dirm.holiday.st==='closed'?100:dirm.holiday.st==='pre'?70:dirm.holiday.st==='post'?55:12;
+  $('s_holiday').textContent=dirm.holiday.st==='closed'?'休市':dirm.holiday.st==='pre'?'节前':dirm.holiday.st==='post'?'开市首':'正常';
+  $('f_holiday').style.width=holPct+'%';
+  $('s_season').textContent=(dirm.season>=5?'备货旺季':dirm.season<=2?'节后回落':'中性')+(dirm.season!=null?'（'+dirm.season+'）':'');
+  $('f_season').style.width=(dirm.season!=null?Math.min(100,dirm.season/5*100):0)+'%';
+  $('s_spot').textContent=A.spotMissing?'[待录入]':(A.spotChgPct==null?'环比未知':(A.spotChgPct>0?'+':'')+A.spotChgPct.toFixed(2)+'%');
+  $('f_spot').style.width=(A.spotChgPct!=null?Math.min(100,Math.abs(A.spotChgPct)/3*100):0)+'%';
+  $('dirReasons').innerHTML=(dirm.reasons&&dirm.reasons.length?dirm.reasons.map(r=>'· '+r).join('<br>'):'· 三要素暂无明确方向信号，以震荡对待');
   /* k2-4 基本面解读提示：远月提示 + 可信度提示 + 补充因子解读 */
   {
     const hen=parseFloat($('fHenRatio').value), prof=parseFloat($('fProfit').value), cull=parseFloat($('fCull').value), feed=parseFloat($('fFeed').value);
@@ -3011,9 +3099,7 @@ function renderPanels(){
     $('spotHint').style.display='block';
     $('spotHint').innerHTML=tips.join('<br>');
   }
-  $('s_risk').textContent=A.scoreRisk+'/25'; $('f_risk').style.width=A.scoreRisk/25*100+'%';
-  $('totalnum').textContent=A.total;
-  $('totalnum').style.color = A.veto.length? 'var(--risk)' : (A.total>=70?'var(--ok)':A.total>=45?'var(--gold)':'var(--dim)');
+  /* v17.12：原风险分数条已并入三要素走向卡；totalnum 已在上方置为走向文字，此处不再用数字覆盖 */
   if(A.veto.length){
     $('vetobox').style.display='block';
     $('vetolist').innerHTML=A.veto.map(v=>'<li>'+v+'</li>').join('');
@@ -3032,6 +3118,11 @@ function renderPanels(){
     $('gbGrade').style.textShadow=grGlow[gr]||'none';
     $('gbGrade').style.fontFamily='var(--serif)';
     $('gbGrade').style.fontSize='30px';
+    /* v17.12 今日走向单元格 */
+    $('gbDir').textContent=dirm.dir;
+    $('gbDir').style.color=dcol;
+    $('gbDir').style.fontFamily='var(--serif)';
+    $('gbDir').style.fontSize='22px';
     $('gbVeto').innerHTML = A.veto.length
       ? `<b style="color:var(--risk)">⛔ 一票否决已触发（${A.veto.length}项）</b>：硬阻断，优先级高于打分，总分已按 ×0.65 折算并封顶 45 分，不视为交易机会。<br><span style="color:var(--risk)">${A.veto[0]}${A.veto.length>1?' 等':''}</span>`
       : `<b style="color:var(--ok)">✔ 未触发一票否决</b>${A.riskFlags.length?`（另有异动风险提示 ${A.riskFlags.length} 项，见风险提示卡片）`:''}。评级规则：A≥80 · B≥65 · C≥45 · D&lt;45。`;
@@ -3039,7 +3130,7 @@ function renderPanels(){
     {
       const ol=$('gbOneLiner');
       const eg=A.eagle||{};
-      const sc=`总分${A.total}（趋势${A.scoreTrend}·量仓${A.scoreVol}·现货${A.scoreSpot}·风险${A.scoreRisk}）`;
+      const sc=`今日走向【${dirm.dir}】（${dirm.holTxt}；${dirm.seaTxt}；${dirm.spotTxt}）`;
       const extras=[];
       if(A.mtfRes) extras.push(A.mtfRes.pass?'多周期共振':'多周期矛盾');
       if(A.fu&&A.fu.verdict) extras.push('基本面'+A.fu.verdict);
@@ -3613,71 +3704,8 @@ function renderStrategy(){
    `<div class="recaph" style="border-left-color:var(--purple)">🤖 AI 策略输出（评级+价位+一票否决自动生成，非交易指令）</div>`+
    `<div class="lvlwrap"><table class="lvl"><tr><th style="width:130px">项目</th><th>内容</th></tr>${rows.join('')}</table></div>`+
    `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">本区块由既有打分（总分 ${A.total}）、关键价位（支撑 ${A.sup[0]?A.sup[0].price.toFixed(0):'--'} / 压力 ${A.res[0]?A.res[0].price.toFixed(0):'--'}）与一票否决规则自动汇总生成，未新增任何计算；参数为量化参考位，是否开仓与实际执行由人工决定，盈亏自负。</div>`;
-  if(S.mode==='close') saveStrategyToLS();   /* n5: 收盘复盘渲染成功后自动存档当日策略 */
 }
-/* =====================================================================
-     *  n5 策略保存 + 历史策略回查
-     *  - 存档时机：renderStrategy 渲染成功后自动调用（仅收盘复盘模式）；
-     *  - 结构：{ day, ts, total, grade, vetos[], qual, entry, stop, t1, t2,
-     *            rr, pos, recapText, stratText }；
-     *  - 存储：localStorage 'strategies'，按 day 去重覆盖，上限 90 条（FIFO）。
-     * ===================================================================== */
-    function saveStrategyToLS(){
-      try{
-        const A=S.A; if(!A||!S.recap||!S.live) return;
-        const gr=A.grade?A.grade.grade:'--';
-        const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
-        let side, qualNote='';
-        if(A.veto.length){ side='观望 · 禁止开仓'; qualNote='触发一票否决：'+A.veto[0]; }
-        else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓'; }
-        else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 达标'; }
-        else { side='观望'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':''); }
-        let posTxt;
-        if(A.veto.length) posTxt='0%（一票否决）';
-        else if(S.losses&&S.losses.n>=3) posTxt='0%（连亏'+S.losses.n+'笔锁仓）';
-        else if(gr==='A') posTxt='≤30%'+((S.losses&&S.losses.n===2)?'（连亏减半→≤15%）':'');
-        else if(gr==='B') posTxt='≤20%'+((S.losses&&S.losses.n===2)?'（连亏减半→≤10%）':'');
-        else if(gr==='C') posTxt='≤10% 或观望'+((S.losses&&S.losses.n===2)?'（连亏减半→≤5%）':'');
-        else posTxt='0%（D级观察）';
-        const rec={
-          day:S.recap.day, ts:Date.now(), total:A.total, grade:gr, vetos:A.veto.slice(0,3),
-          qual:side, qualNote:qualNote,
-          entry:R?+R.entry.toFixed(0):null, stop:R?+R.stop.toFixed(0):null,
-          t1:R?+R.target.toFixed(0):null, t2:R?+(R.entry+2*(R.target-R.entry)).toFixed(0):null,
-          rr:R&&R.rr!=null?+R.rr.toFixed(2):null, pos:posTxt,
-          recapText:$('recapBody').innerText.trim(), stratText:$('strategyBody').innerText.trim()
-        };
-        const list=JSON.parse(LS.get('strategies')||'[]');
-        const i=list.findIndex(x=>x.day===rec.day);
-        if(i>=0) list[i]=rec; else list.push(rec);
-        while(list.length>90) list.shift();
-        LS.set('strategies',JSON.stringify(list));
-        renderHistStrategies();
-      }catch(e){}
-    }
-    function renderHistStrategies(){
-      const card=$('histCard'), body=$('histBody');
-      let list=[];
-      try{ list=JSON.parse(LS.get('strategies')||'[]'); }catch(e){}
-      $('histTag').textContent=list.length+' 条';
-      if(!list.length){ card.style.display='none'; body.innerHTML=''; return; }
-      card.style.display='block';
-      const rows=list.slice().reverse().map(r=>{
-        const gc=r.grade==='A'?'var(--ok)':(r.grade==='B'?'var(--gold)':(r.grade==='C'?'var(--txt)':'var(--risk)'));
-        const vt=r.vetos&&r.vetos.length?`　<span style="color:var(--risk);font-size:10px">⛔ ${esc(r.vetos[0])}</span>`:'';
-        const px=r.entry!=null?`　<span style="color:var(--faint)">入 ${r.entry} / 损 ${r.stop} / 目标 ${r.t1}→${r.t2} / ${(r.rr!=null?r.rr:'--')}R</span>`:'';
-        return `<tr><td style="white-space:nowrap"><b class="num">${esc(r.day)}</b></td>`+
-          `<td style="white-space:nowrap">评级 <b style="color:${gc}">${esc(r.grade)}</b>（${r.total} 分）</td>`+
-          `<td>${esc(r.qual)}${vt}</td>`+
-          `<td>${px||'<span style="color:var(--faint)">--</span>'}</td>`+
-          `<td style="color:var(--dim)">${r.pos}</td></tr>`;
-      }).join('');
-      body.innerHTML=
-        `<div class="lvlwrap"><table class="lvl"><tr><th style="width:88px">交易日</th><th style="width:110px">评级</th><th style="width:190px">定性</th><th>策略参数</th><th style="width:110px">仓位</th></tr>${rows}</table></div>`+
-        `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:var(--dim)">展开最近一日完整研判与策略原文</summary><pre id="histDetail" style="white-space:pre-wrap;font-size:11px;line-height:1.7;color:var(--dim);background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:6px;max-height:300px;overflow:auto"></pre></details>`;
-      const last=list[list.length-1];
-      $('histDetail').textContent=(last.day||'')+'\n\n'+(last.recapText||'')+'\n\n'+(last.stratText||'');
-    }
+/* v17.12: 历史策略回查（saveStrategyToLS / renderHistStrategies）已按用户要求整块移除 */
 
 /* =====================================================================
  *  历史案例库
@@ -4485,21 +4513,6 @@ function bindUI(){
     $('apiFetchBtn').disabled=false; $('apiFetchBtn').textContent='⤓ 立即拉取（自定义源）';
     if(S.bars.m5.length){ deriveLive(); analyze(); renderPanels(); setChartData(); }   /* 全流程刷新 */
   };
-  /* n5 历史策略回查：导出 JSON / 清空 */
-  $('histExport').onclick=()=>{
-    let list=[];
-    try{ list=JSON.parse(LS.get('strategies')||'[]'); }catch(e){}
-    if(!list.length){ alert('暂无存档：收盘复盘模式下会自动保存当日研判与策略'); return; }
-    const blob=new Blob([JSON.stringify(list,null,2)],{type:'application/json'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='jd_strategies_'+bjStr(bj())+'.json'; a.click(); URL.revokeObjectURL(a.href);
-  };
-  $('histClear').onclick=()=>{
-    let n=0; try{ n=JSON.parse(LS.get('strategies')||'[]').length; }catch(e){}
-    if(!n){ alert('暂无存档可清空'); return; }
-    if(!confirm('确认清空全部 '+n+' 条历史策略存档？此操作不可恢复。')) return;
-    LS.set('strategies','[]'); renderHistStrategies();
-  };
   $('lossReset').onclick=()=>{
     S.losses.n=0; S.losses.date=bjStr(bj());
     LS.set('lossDate',S.losses.date); LS.set('lossN',0);
@@ -4582,7 +4595,7 @@ function v17Rearrange(){
       {id:'grp-tools', name:'录入工具', tag:'截图识别 / 手绘K线 / 数据源（默认收起）', wide:['ocrCard','kdrawCard','spotCard','apiCard'],
        cards:[], folded:true},
       {id:'grp-log',   name:'复盘日志', tag:'流水统计 / 交易日志 / 历史存档', wide:['jstatCard','journalCard'],
-       cards:['caseCard','recapCard','ailogCard','histCard']},
+       cards:['caseCard','recapCard','ailogCard']},
       {id:'grp-plan',  name:'策略预案', tag:'多空沙盘 / 历史案例 / AI盯盘', wide:['planCard'],
        cards:['nnCard2','caseCard2']},
     ];
@@ -4690,7 +4703,6 @@ function v17Rearrange(){
   $('contract').value=S.contract;
   chart.init();
   bindUI();
-  renderHistStrategies();   /* n5: 页面加载时恢复历史策略面板（如有存档） */
   renderHeader();
   try{ renderPlans(); }catch(e){}   /* v17.2: 开屏先渲染预案占位，消除"策略预案"组首次空白 */
   await fullCycle();
