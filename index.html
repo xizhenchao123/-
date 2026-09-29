@@ -2257,6 +2257,17 @@ function renderMtfx(){
     return '<b style="color:var(--gold)">【'+label+'】</b> <span style="color:'+color+';font-weight:600">'+esc(val)+'</span>'+
       (extra?'　<span style="font-size:10px;color:var(--faint)">'+esc(extra)+'</span>':'')+'<br>';
   }
+  /* v17.7: 滞后偏多识别——节后淡季（seasonBonus≤2）或现价已跌破MA10/日线向下时，
+     MACD/MA 等滞后指标的多头显示降级为琥珀警示，避免与偏空主输出矛盾误导 */
+  function lagBullInfo(){
+    const A=S.A, t=(A&&A.tech)||{}, ma=(t&&t.ma)||{};
+    const px=S.live&&S.live.price;
+    const reasons=[];
+    if(seasonBonus()<=2) reasons.push('节后淡季（需求回落期）');
+    if(ma.ma10!=null&&px!=null&&px<ma.ma10) reasons.push('现价已跌破MA10');
+    if(A&&A.d&&A.d.trend&&A.d.trend.trend==='down') reasons.push('日线趋势向下');
+    return reasons.length?reasons:null;
+  }
   function renderTech(){
     const card=$('techCard'); if(!card) return;
     const A=S.A, t=A&&A.tech;
@@ -2264,22 +2275,27 @@ function renderMtfx(){
     card.style.display='block';
     const px=S.live.price;
     const C_UP='var(--up)', C_DN='var(--dn)', C_W='var(--warn)';
+    const lagR=lagBullInfo();
     let h='';
-    /* MA：多头排列红/空头排列绿/交织琥珀 */
+    if(lagR) h+='<div style="font-size:11px;color:var(--warn);margin-bottom:4px">⚠ 当前处<b>'+esc(lagR.join('、'))+'</b>背景：下方 MACD/MA 等滞后指标若显示多头，仅属节前动能余温，勿单独作为追多依据（主输出已偏空防守）。</div>';
+    /* MA：多头排列红/空头排列绿/交织琥珀；滞后背景下降级为琥珀 */
     const ma=t.ma||{};
     if(ma.ma5!=null){
-      const mc=ma.state==='多头排列'?C_UP:ma.state==='空头排列'?C_DN:C_W;
-      h+=techLine('MA排列', mc, ma.state,
-        'MA5 '+f2(ma.ma5,0)+' / MA10 '+f2(ma.ma10,0)+' / MA60 '+f2(ma.ma60,0)+' · 现价在60日线'+(ma.above60?'上':'下')+'方');
+      let mc=ma.state==='多头排列'?C_UP:ma.state==='空头排列'?C_DN:C_W;
+      let ms=ma.state, mx='MA5 '+f2(ma.ma5,0)+' / MA10 '+f2(ma.ma10,0)+' / MA60 '+f2(ma.ma60,0)+' · 现价在60日线'+(ma.above60?'上':'下')+'方';
+      if(ma.state==='多头排列'&&lagR){ mc=C_W; ms='多头排列（滞后）'; mx+=' · 滞后于现价走势'; }
+      h+=techLine('MA排列', mc, ms, mx);
     }
-    /* MACD */
+    /* MACD：滞后指标——节后淡季/价格走弱背景下，DIF在DEA上方≠当下多头，降级为琥珀警示 */
     const md=t.macd;
     if(md){
-      const mc=md.above?C_UP:C_DN;
+      let mc=md.above?C_UP:C_DN;
+      let ms=md.above?'多头动能':'空头动能';
       let extra='DIF '+f2(md.dif)+' / DEA '+f2(md.dea)+' / 柱 '+f2(md.hist)+(md.histRising?'(扩张)':'(收缩)');
       if(md.cross) extra+=' · '+md.cross+'（'+md.since+'根前）';
       else extra+=' · '+(md.above?'DIF位于DEA上方':'DIF位于DEA下方')+md.since+'根';
-      h+=techLine('MACD', mc, md.above?'多头动能':'空头动能', extra);
+      if(md.above&&lagR){ mc=C_W; ms='多头动能（滞后）'; extra+=' · 滞后信号：价格已走弱/节后淡季，勿作追多依据'; }
+      h+=techLine('MACD', mc, ms, extra);
     }
     /* KDJ：K>80 超买（琥珀，涨多注意回落）、K<20 超卖 */
     const kd=t.kdj;
@@ -2434,14 +2450,15 @@ function renderFProb(){
   if(!S.A||!fp){ card.style.display='none'; return; }
   card.style.display='block';
   $('fprobVerdict').textContent=fp.verdict;
-  const col=fp.bullP>=62?'var(--up)':fp.bullP<=38?'var(--dn)':'var(--warn)';
+  const lagR=lagBullInfo();
+  const col=fp.bullP>=62?(lagR?'var(--warn)':'var(--up)'):fp.bullP<=38?'var(--dn)':'var(--warn)';
   let h='<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px">';
   h+='<div style="flex:1;min-width:220px">';
   h+='<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:var(--up);font-weight:600">做多概率 '+fp.bullP+'%</span><span style="color:var(--dn);font-weight:600">做空概率 '+fp.bearP+'%</span></div>';
   h+='<div style="height:14px;border-radius:7px;overflow:hidden;display:flex;background:rgba(120,140,180,.12)">';
   h+='<div style="width:'+fp.bullP+'%;background:linear-gradient(90deg,rgba(255,90,82,.55),rgba(255,90,82,.85))"></div>';
   h+='<div style="width:'+fp.bearP+'%;background:linear-gradient(90deg,rgba(45,212,170,.85),rgba(45,212,170,.55))"></div></div></div>';
-  h+='<div style="font-size:22px;font-weight:800;color:'+col+'">'+(fp.bullP>=62?'偏多':fp.bullP<=38?'偏空':'中性拉锯')+'</div></div>';
+  h+='<div style="font-size:22px;font-weight:800;color:'+col+'">'+(fp.bullP>=62?(lagR?'偏多（滞后背景，谨慎）':'偏多'):fp.bullP<=38?'偏空':'中性拉锯')+'</div></div>';
   if(fp.reasons.length){
     h+='<div style="font-size:11px">';
     fp.reasons.forEach(r=>{ h+='<div style="padding:2px 0;border-bottom:1px dashed var(--line2)"><span class="tag" style="font-size:9px;color:'+r.c+'">'+r.d+'</span> '+esc(r.t)+'</div>'; });
@@ -2981,8 +2998,9 @@ function renderPanels(){
   const tTxt=t=>t.trend==='up'?'上涨趋势':t.trend==='down'?'下跌趋势':'震荡';
   const dSub=A.d.trend.sub?'（'+A.d.trend.sub+'阶段）':'';
   const hSub=A.h1.trend.sub?'（'+A.h1.trend.sub+'）':'';
+  const lagR=lagBullInfo();
   /* RSI 文字解读（k2-2） */
-  const rsiTxt=r=>r==null?'':(r>=70?'超买（短线过热，追多易被套，留意冲高回落）':r>=55?'偏强（多头占优，回踩不破前低仍偏多对待）':r>=45?'中性（多空均衡，方向待量能选择）':r>=30?'偏弱（空头占优，反弹多为修复，反抽压力位易受阻）':'超卖（短线超跌，随时技术性反弹，但不等于反转）');
+  const rsiTxt=r=>r==null?'':(r>=70?'超买（短线过热，追多易被套，留意冲高回落）':r>=55?(lagR?'偏强（多头占优，但节后淡季/价格走弱背景下属滞后修复，追多需谨慎）':'偏强（多头占优，回踩不破前低仍偏多对待）'):r>=45?'中性（多空均衡，方向待量能选择）':r>=30?'偏弱（空头占优，反弹多为修复，反抽压力位易受阻）':'超卖（短线超跌，随时技术性反弹，但不等于反转）');
   /* 势·位·态 */
   $('swtag').textContent=A.pos+' · '+tTxt(A.d.trend).replace('趋势','');
   $('shiBody').innerHTML=
@@ -3015,8 +3033,8 @@ function renderPanels(){
     const dT=A.d.trend.trend, hT=A.h1.trend.trend;
     let mtf,cls;
     if(dT==='down'&&hT==='up'){ mtf='日线下跌 + 60分钟上涨 → 判定为<b>下跌趋势里的反弹</b>，不是反转；大周期压制小周期，反弹至日线压力区易再受阻，做多需日线率先止跌企稳。'; cls='var(--warn)'; }
-    else if(dT==='up'&&hT==='down'){ mtf='日线上涨 + 60分钟下跌 → 判定为<b>上涨趋势里的回调</b>，不是反转；大周期支撑小周期，回调至日线支撑区缩量企稳后仍偏多对待。'; cls='var(--warn)'; }
-    else if(dT===hT&&dT!=='range'){ mtf=dT==='up'?'日线与60分钟同向向上 → <b>多周期共振偏多</b>，顺势回踩做多胜率更高，注意不追高。':'日线与60分钟同向向下 → <b>多周期共振偏空</b>，反弹至压力位承压做空胜率更高，注意不追空。'; cls='var(--ok)'; }
+    else if(dT==='up'&&hT==='down'){ mtf='日线上涨 + 60分钟下跌 → 判定为<b>上涨趋势里的回调</b>，不是反转；大周期支撑小周期，回调至日线支撑区缩量企稳后仍偏多对待'+(lagR?'（但当前处'+lagR.join('、')+'背景，反弹高度受限，仓位从紧）':'')+'。'; cls='var(--warn)'; }
+    else if(dT===hT&&dT!=='range'){ mtf=dT==='up'?'日线与60分钟同向向上 → <b>多周期共振偏多</b>，顺势回踩做多胜率更高，注意不追高'+(lagR?'（节后淡季/价格走弱背景下滞后性偏多，需日线放量确认再进）':'')+'。':'日线与60分钟同向向下 → <b>多周期共振偏空</b>，反弹至压力位承压做空胜率更高，注意不追空。'; cls='var(--ok)'; }
     else if(dT==='range'){ mtf=`日线震荡${hT==='up'?'、60分钟偏强':hT==='down'?'、60分钟偏弱':''} → 以<b>区间思路</b>对待：下沿支撑试多、上沿压力试空，突破区间并放量确认才升级为趋势单。`; cls='var(--dim)'; }
     else { mtf='60分钟震荡、日线有方向 → <b>小周期等待大周期方向确认</b>，此时信号质量一般，建议降仓位或观望。'; cls='var(--dim)'; }
     $('mtfBody').innerHTML=`<span style="color:${cls}">⇅ 多周期解读：</span>${mtf}`;
@@ -3216,11 +3234,12 @@ function renderIfind(){
     + row('MACD DIF', num(IF.macdDif,3), IF.macdDif>0?'var(--up)':'var(--dn)') + row('RSI(6)·官方', num(IF.rsi6,2));
   /* 与昨值对比的短线解读 */
   let tips='';
+  const lagR=lagBullInfo();
   if(IF.ma5!=null&&IF.ma20!=null) tips+= (IF.ma5>IF.ma20)
-    ? '<div style="font-size:11px;color:var(--up);margin-top:4px">MA5 > MA20：日线短均线在长均线上方，短周期结构偏多。</div>'
+    ? '<div style="font-size:11px;color:'+(lagR?'var(--warn)':'var(--up)')+';margin-top:4px">MA5 > MA20：日线短均线在长均线上方，短周期结构偏多'+(lagR?'（但处'+lagR.join('、')+'背景，属滞后信号，勿单独追多）':'')+'。</div>'
     : '<div style="font-size:11px;color:var(--dn);margin-top:4px">MA5 ≤ MA20：日线短均线在长均线下方，短周期结构偏弱。</div>';
   if(IF.macdDif!=null&&IF.difPrev!=null) tips+= (IF.macdDif>IF.difPrev)
-    ? '<div style="font-size:11px;color:var(--up);margin-top:2px">DIF 较昨上行（'+IF.difPrev.toFixed(3)+' → '+IF.macdDif.toFixed(3)+'）：动能修复中。</div>'
+    ? '<div style="font-size:11px;color:'+(lagR?'var(--warn)':'var(--up)')+';margin-top:2px">DIF 较昨上行（'+IF.difPrev.toFixed(3)+' → '+IF.macdDif.toFixed(3)+'）：动能修复中'+(lagR?'（滞后修复，未确认反转）':'')+'。</div>'
     : '<div style="font-size:11px;color:var(--dn);margin-top:2px">DIF 较昨回落（'+IF.difPrev.toFixed(3)+' → '+IF.macdDif.toFixed(3)+'）：动能走弱。</div>';
   if(IF.rsi6!=null&&IF.rsi6Prev!=null) tips+= '<div style="font-size:11px;color:var(--dim);margin-top:2px">RSI(6) 较昨：'+IF.rsi6Prev.toFixed(1)+' → '+IF.rsi6.toFixed(1)+'。系统内部 RSI(14)='+((S.A&&S.A.d.rsi!=null)?S.A.d.rsi.toFixed(1):'--')+'（口径不同，背离属正常）。</div>';
   /* 2) 会员持仓结构（posHistory） */
