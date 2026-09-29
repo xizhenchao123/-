@@ -456,6 +456,13 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据源：iFinD 同花顺（JD2611.DCE）。日线指标/持仓为权威值；当日5分钟/60分钟为按日线锚点重建的形态拟合（收盘价/量/仓已精确锚定）。系统内部 RSI 为14周期自算值，本面板展示 iFinD 官方 RSI(6) 供交叉校验——两者口径不同，出现背离属正常现象。</div>
     </div>
 
+    <!-- v17.8: 历史回测卡（3年日线规则重放，验证框架有效性；纯展示，不参与打分） -->
+    <div class="card" id="btCard" style="display:none">
+      <h3>📜 框架历史回测 <span class="tag">3年日线规则重放</span><span class="tag" id="btTag">--</span></h3>
+      <div class="sec" id="btBody">加载中…</div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px" id="btNote"></div>
+    </div>
+
     <!-- n9: 主力资金动向分析（方案A：独立辅助风险预警模块，不参与四项打分/一票否决/评级计算） -->
     <div class="card" id="mfCard">
       <h3>🐋 主力资金动向分析 <span class="tag">方案A · 辅助风险预警</span><span class="tag">不参与总分计算</span><span class="tag" id="mfTag">未录入</span></h3>
@@ -874,7 +881,11 @@ async function tryLoadTraePush(){
     if(j.meta&&j.meta.fundamentals) applyFundamentals(j.meta.fundamentals);
     /* v17.6: 现货价自动消费（人工录入优先；放在 fundamentals 之后，自动值只填空不抢） */
     if(j.spot) applySpotAuto(j.spot);
-    console.log('[Trae推送] 已注入 jd_latest.json @'+stamp+' 日线'+d.length+'根/60分'+h1.length+'根/5分'+m5.length+'根'+(S.ifind?' · iFinD权威指标已捕获':'')+(j.meta&&j.meta.fundamentals?' · 基本面消息已捕获':''));
+    /* v17.8: 饲料成本线捕获（玉米/豆粕 → 元/斤蛋成本），供 iFind 面板展示 */
+    if(j.feed && j.feed.costPerJin>0) S.feed=j.feed;
+    /* v17.8: 历史回测结果捕获（3年日线规则重放统计），供回测卡展示 */
+    if(j.backtest && j.backtest.stats && j.backtest.stats.trades>0) S.backtest=j.backtest;
+    console.log('[Trae推送] 已注入 jd_latest.json @'+stamp+' 日线'+d.length+'根/60分'+h1.length+'根/5分'+m5.length+'根'+(S.ifind?' · iFinD权威指标已捕获':'')+(j.meta&&j.meta.fundamentals?' · 基本面消息已捕获':'')+(S.feed?' · 饲料成本线已捕获':''));
     return true;
   }catch(e){ return false; }   /* 本地文件不存在（file:// 或纯静态）→ 静默降级新浪源 */
 }
@@ -3130,6 +3141,7 @@ function renderPanels(){
   renderEagle();
   renderMF();     /* n9 主力资金动向（方案A：独立辅助预警，不参与打分） */
   try{ renderIfind(); }catch(e){}   /* n-ifind2 iFinD 权威指标面板（纯展示+交叉校验，注入失败不影响主流程） */
+  try{ renderBacktest(); }catch(e){} /* v17.8 历史回测卡（纯展示，不参与打分） */
   renderTrack();
   try{ v16RenderPosmon(); }catch(e){} /* v16-高2：持仓监控（浮盈浮亏+移损建议） */
   renderRecap();
@@ -3235,6 +3247,13 @@ function renderIfind(){
   /* 与昨值对比的短线解读 */
   let tips='';
   const lagR=lagBullInfo();
+  /* v17.8: 饲料成本线行（玉米/豆粕 → 元/斤蛋成本；现货利润率代理） */
+  const FD=S.feed;
+  if(FD&&FD.costPerJin>0){
+    const st=parseFloat(S.spot&&S.spot.today);
+    const mRow=(isNaN(st)||st<=0)?null:((st-FD.costPerJin)/FD.costPerJin*100);
+    tips+='<div style="font-size:11px;color:var(--dim);margin-top:4px">🌽 饲料成本线 <b class="num" style="color:var(--gold)">'+FD.costPerJin.toFixed(2)+'</b> 元/斤蛋（玉米'+FD.corn+' / 豆粕'+FD.meal+' 元/吨，'+String(FD.date).slice(4,6)+'/'+String(FD.date).slice(6,8)+'）'+(mRow!=null?'：现货利润率 <b style="color:'+(mRow>15?'var(--up)':mRow<-10?'var(--dn)':'var(--dim)')+'">'+(mRow>0?'+':'')+mRow.toFixed(0)+'%</b>'+(mRow>15?'（高盈利，补栏积极→中期供给增）':mRow<-10?'（亏损，淘鸡去产能→中期供给减）':'（均衡区）'):'')+'</div>';
+  }
   if(IF.ma5!=null&&IF.ma20!=null) tips+= (IF.ma5>IF.ma20)
     ? '<div style="font-size:11px;color:'+(lagR?'var(--warn)':'var(--up)')+';margin-top:4px">MA5 > MA20：日线短均线在长均线上方，短周期结构偏多'+(lagR?'（但处'+lagR.join('、')+'背景，属滞后信号，勿单独追多）':'')+'。</div>'
     : '<div style="font-size:11px;color:var(--dn);margin-top:4px">MA5 ≤ MA20：日线短均线在长均线下方，短周期结构偏弱。</div>';
@@ -3254,6 +3273,49 @@ function renderIfind(){
       }).join('')+'</table></div>';
   }
   body.innerHTML='<div class="lvlwrap"><div class="lvl" style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 12px">'+dRow+'</div></div>'+tips+posHtml;
+}
+
+/* ================= v17.8: 框架历史回测卡 =================
+ * 数据源：jd_latest.json 的 backtest 字段（jd_backtest.py 生成，引擎透传）
+ * 内容：3年日线规则重放统计——胜率/平均R/累计R/PF/最大回撤/分年分方向
+ * 边界：纯展示，不参与打分/评级/否决任何计算
+ * ===================================================================== */
+function renderBacktest(){
+  const card=$('btCard'), body=$('btBody'), tag=$('btTag'), note=$('btNote');
+  const BT=S.backtest;
+  if(!BT||!BT.stats||!BT.stats.trades){ card.style.display='none'; return; }
+  card.style.display='block';
+  const ST=BT.stats;
+  tag.textContent=BT.window?('回测区间 '+String(BT.window.start).slice(0,4)+'/'+String(BT.window.start).slice(4,6)+' ~ '+String(BT.window.end).slice(0,4)+'/'+String(BT.window.end).slice(4,6)):'已注入';
+  const num=(v,fix)=>v==null?'--':(fix!=null?v.toFixed(fix):v);
+  const row=(k,v,cls)=>`<div class="lvlrow"><span><span class="lv" style="color:var(--dim)">${k}</span></span><b class="num" ${cls?`style="color:${cls}"`:''}>${v}</b></div>`;
+  /* 核心统计（2列网格） */
+  const core=row('信号数', ST.trades+' 笔')
+    + row('胜率', ST.winRate+'%', ST.winRate>=55?'var(--up)':ST.winRate<45?'var(--dn)':'var(--dim)')
+    + row('平均盈亏', (ST.avgR>0?'+':'')+ST.avgR+'R', ST.avgR>0?'var(--up)':'var(--dn)')
+    + row('累计盈亏', (ST.sumR>0?'+':'')+ST.sumR+'R', ST.sumR>0?'var(--up)':'var(--dn)')
+    + row('盈亏比(PF)', ST.profitFactor==null?'∞':ST.profitFactor, ST.profitFactor==null||ST.profitFactor>=1.5?'var(--up)':'var(--warn)')
+    + row('最大回撤', ST.maxDrawdownR+'R', 'var(--dn)')
+    + row('最长连亏', ST.maxConsecLoss+' 笔', 'var(--warn)')
+    + row('平均持仓', ST.avgHoldDays+' 日');
+  /* 分年表现 */
+  let yearly='';
+  if(BT.yearly&&BT.yearly.length){
+    yearly='<div class="lvlwrap" style="margin-top:6px"><table class="lvl"><tr><th>年份</th><th>信号数</th><th>胜率</th><th>平均R</th><th>累计R</th></tr>'
+      + BT.yearly.map(y=>`<tr><td>${y.year}</td><td>${y.trades}</td><td style="color:${y.winRate>=55?'var(--up)':y.winRate<45?'var(--dn)':'var(--dim)'}">${y.winRate}%</td><td style="color:${y.avgR>0?'var(--up)':y.avgR<0?'var(--dn)':'var(--dim)'}">${y.avgR>0?'+':''}${y.avgR}</td><td style="color:${y.sumR>0?'var(--up)':y.sumR<0?'var(--dn)':'var(--dim)'}">${y.sumR>0?'+':''}${y.sumR}</td></tr>`).join('')
+      + '</table></div>';
+  }
+  /* 分方向 */
+  let dirHtml='';
+  if(BT.byDir){
+    const seg=(k,v)=>v?`<span style="font-size:11px;color:var(--dim);margin-right:10px">${k}头：${v.trades}笔 / 胜率${v.winRate}% / 均${v.avgR>0?'+':''}${v.avgR}R</span>`:'';
+    dirHtml='<div style="margin-top:6px">'+(seg('多',BT.byDir['多'])+seg('空',BT.byDir['空']))+'</div>';
+  }
+  /* 离场分布 */
+  const ex=ST.exitBreakdown||{};
+  const exHtml='<div style="font-size:11px;color:var(--dim);margin-top:4px">离场分布：止盈 '+(ex['止盈']||0)+' / 止损 '+(ex['止损']||0)+' / 到期 '+(ex['到期']||0)+'；过滤规则跳过 '+(ST.skipped?Object.values(ST.skipped).reduce((a,b)=>a+b,0):'--')+' 次机会（趋势不确认/盈亏比不足1.5R/季节过滤等）。</div>';
+  body.innerHTML='<div class="lvlwrap"><div class="lvl" style="display:grid;grid-template-columns:repeat(2,1fr);gap:2px 12px">'+core+'</div></div>'+yearly+dirHtml+exHtml;
+  note.innerHTML='口径：'+(BT.rules||'日线规则重放')+'。'+(BT.notes||[]).map(x=>'<br>'+x).join('');
 }
 
 /* ================= 研判输出 · 双模板自动切换 =================
