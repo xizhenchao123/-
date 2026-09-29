@@ -456,7 +456,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据源：iFinD 同花顺（JD2611.DCE）。日线指标/持仓为权威值；当日5分钟/60分钟为按日线锚点重建的形态拟合（收盘价/量/仓已精确锚定）。系统内部 RSI 为14周期自算值，本面板展示 iFinD 官方 RSI(6) 供交叉校验——两者口径不同，出现背离属正常现象。</div>
     </div>
 
-    <!-- v17.8: 历史回测卡（3年日线规则重放，验证框架有效性；纯展示，不参与打分） -->
+    <!-- v17.8: 历史回测卡（3年日线规则重放，验证框架有效性；纯展示，不参与打分）；v17.10.1 精简为核心6项+一行汇总 -->
     <div class="card" id="btCard" style="display:none">
       <h3>📜 框架历史回测 <span class="tag">3年日线规则重放</span><span class="tag" id="btTag">--</span></h3>
       <div class="sec" id="btBody">加载中…</div>
@@ -3249,35 +3249,23 @@ function renderBacktest(){
   card.style.display='block';
   const ST=BT.stats;
   tag.textContent=BT.window?('回测区间 '+String(BT.window.start).slice(0,4)+'/'+String(BT.window.start).slice(4,6)+' ~ '+String(BT.window.end).slice(0,4)+'/'+String(BT.window.end).slice(4,6)):'已注入';
-  const num=(v,fix)=>v==null?'--':(fix!=null?v.toFixed(fix):v);
   const row=(k,v,cls)=>`<div class="lvlrow"><span><span class="lv" style="color:var(--dim)">${k}</span></span><b class="num" ${cls?`style="color:${cls}"`:''}>${v}</b></div>`;
-  /* 核心统计（2列网格） */
-  const core=row('信号数', ST.trades+' 笔')
-    + row('胜率', ST.winRate+'%', ST.winRate>=55?'var(--up)':ST.winRate<45?'var(--dn)':'var(--dim)')
+  /* v17.10.1: 回测卡精简——核心6项(3列2行) + 一行汇总(分年/分方向/离场) + 一句话口径；完整规则全文与备注移出页面 */
+  const core=row('胜率', ST.winRate+'%', ST.winRate>=55?'var(--up)':ST.winRate<45?'var(--dn)':'var(--dim)')
     + row('平均盈亏', (ST.avgR>0?'+':'')+ST.avgR+'R', ST.avgR>0?'var(--up)':'var(--dn)')
     + row('累计盈亏', (ST.sumR>0?'+':'')+ST.sumR+'R', ST.sumR>0?'var(--up)':'var(--dn)')
     + row('盈亏比(PF)', ST.profitFactor==null?'∞':ST.profitFactor, ST.profitFactor==null||ST.profitFactor>=1.5?'var(--up)':'var(--warn)')
     + row('最大回撤', ST.maxDrawdownR+'R', 'var(--dn)')
-    + row('最长连亏', ST.maxConsecLoss+' 笔', 'var(--warn)')
-    + row('平均持仓', ST.avgHoldDays+' 日');
-  /* 分年表现 */
-  let yearly='';
-  if(BT.yearly&&BT.yearly.length){
-    yearly='<div class="lvlwrap" style="margin-top:6px"><table class="lvl"><tr><th>年份</th><th>信号数</th><th>胜率</th><th>平均R</th><th>累计R</th></tr>'
-      + BT.yearly.map(y=>`<tr><td>${y.year}</td><td>${y.trades}</td><td style="color:${y.winRate>=55?'var(--up)':y.winRate<45?'var(--dn)':'var(--dim)'}">${y.winRate}%</td><td style="color:${y.avgR>0?'var(--up)':y.avgR<0?'var(--dn)':'var(--dim)'}">${y.avgR>0?'+':''}${y.avgR}</td><td style="color:${y.sumR>0?'var(--up)':y.sumR<0?'var(--dn)':'var(--dim)'}">${y.sumR>0?'+':''}${y.sumR}</td></tr>`).join('')
-      + '</table></div>';
-  }
-  /* 分方向 */
-  let dirHtml='';
-  if(BT.byDir){
-    const seg=(k,v)=>v?`<span style="font-size:11px;color:var(--dim);margin-right:10px">${k}头：${v.trades}笔 / 胜率${v.winRate}% / 均${v.avgR>0?'+':''}${v.avgR}R</span>`:'';
-    dirHtml='<div style="margin-top:6px">'+(seg('多',BT.byDir['多'])+seg('空',BT.byDir['空']))+'</div>';
-  }
-  /* 离场分布 */
+    + row('最长连亏', ST.maxConsecLoss+' 笔', 'var(--warn)');
+  /* 分年 + 分方向 + 离场 → 紧凑汇总（原分年明细表/离场长文删除） */
+  const yr=(BT.yearly||[]).map(y=>`${y.year} ${(y.sumR>0?'+':'')}${y.sumR}R`).join(' · ');
+  const bd=BT.byDir||{};
+  const seg=(k,v)=>v?`${k}头 ${v.trades}笔/胜率${v.winRate}%/均${(v.avgR>0?'+':'')}${v.avgR}R`:'';
   const ex=ST.exitBreakdown||{};
-  const exHtml='<div style="font-size:11px;color:var(--dim);margin-top:4px">离场分布：止盈 '+(ex['止盈']||0)+' / 止损 '+(ex['止损']||0)+' / 到期 '+(ex['到期']||0)+'；过滤规则跳过 '+(ST.skipped?Object.values(ST.skipped).reduce((a,b)=>a+b,0):'--')+' 次机会（趋势不确认/盈亏比不足1.5R/季节过滤等）。</div>';
-  body.innerHTML='<div class="lvlwrap"><div class="lvl" style="display:grid;grid-template-columns:repeat(2,1fr);gap:2px 12px">'+core+'</div></div>'+yearly+dirHtml+exHtml;
-  note.innerHTML='口径：'+(BT.rules||'日线规则重放')+'。'+(BT.notes||[]).map(x=>'<br>'+x).join('');
+  const exSum='止盈 '+(ex['止盈']||0)+'/止损 '+(ex['止损']||0)+'/到期 '+(ex['到期']||0);
+  const brief=[`共${ST.trades}笔信号`, yr?('分年 '+yr):'', seg('多',bd['多']), seg('空',bd['空']), ('离场 '+exSum)].filter(Boolean).join('<br>');
+  body.innerHTML='<div class="lvlwrap"><div class="lvl" style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 12px">'+core+'</div></div><div style="font-size:11px;color:var(--dim);margin-top:6px;line-height:1.7">'+brief+'</div>';
+  note.innerHTML='口径：3年日线规则重放（T收盘信号→T+1开盘入场，滑点2点计入R，最长持有10日）；纯展示不参与打分，历史统计不构成未来收益承诺。';
 }
 
 /* ================= 研判输出 · 双模板自动切换 =================
