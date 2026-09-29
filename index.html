@@ -736,7 +736,7 @@ const S = {
   bars:{ m5:[], h1:[], d:[] },
   m1:[],               // 1分钟K线（420根≈一个交易日，供微观资金脉冲/诱多诱空识别）
   live:null,           // {price,dayH,dayL,dayOpen,prevSettle,prevOI,oi,oiDelta,dayVol,volRatio,t,srcDate}
-  spot:{ today:LS.get('spotToday',''), yest:LS.get('spotYest',''), bias:LS.get('bias',0), stamp:LS.get('spotStamp','') },   /* v17.4: stamp=现货录入时间，供每日开盘旧数据分级提醒 */
+  spot:{ today:LS.get('spotToday',''), yest:LS.get('spotYest',''), bias:LS.get('bias',0), stamp:LS.get('spotStamp',''), src:LS.get('spotSrc',''), autoDate:LS.get('spotAutoDate','') },   /* v17.4: stamp=现货录入时间，供每日开盘旧数据分级提醒；v17.6: src=manual/auto（人工录入优先） */
   /* n14: 频率钳制——localStorage 损坏值（0/负数/字符串）会让 setInterval 被浏览器钳到 4ms，
      等于高频轰炸行情接口（会被封IP），故强制落到合法档位 1000/3000/5000/10000 */
   freq: [1000,3000,5000,10000].includes(+LS.get('freq',1000)) ? +LS.get('freq',1000) : 1000,
@@ -872,6 +872,8 @@ async function tryLoadTraePush(){
     ifindAutoFill();
     /* v11 规则6：捕获基本面推送包（现货价/产区/天气消息），自动回填现货输入并纳入打分 */
     if(j.meta&&j.meta.fundamentals) applyFundamentals(j.meta.fundamentals);
+    /* v17.6: 现货价自动消费（人工录入优先；放在 fundamentals 之后，自动值只填空不抢） */
+    if(j.spot) applySpotAuto(j.spot);
     console.log('[Trae推送] 已注入 jd_latest.json @'+stamp+' 日线'+d.length+'根/60分'+h1.length+'根/5分'+m5.length+'根'+(S.ifind?' · iFinD权威指标已捕获':'')+(j.meta&&j.meta.fundamentals?' · 基本面消息已捕获':''));
     return true;
   }catch(e){ return false; }   /* 本地文件不存在（file:// 或纯静态）→ 静默降级新浪源 */
@@ -928,6 +930,33 @@ function fuScoreNews(news){
   let s=0;
   (news||[]).forEach(n=>{ if(n.impact==='bull') s+=1; else if(n.impact==='bear') s-=1; });
   return clamp(s,-3,3);
+}
+/* =====================================================================
+ *  v17.6 现货价自动消费 —— 引擎 jd_bars.json 抓取的生意社现货价（元/斤）
+ *  契约：jd_latest.json.spot = { today, yest, chgPct, basisPct, auto:{date,prevDate,source,domContract} }
+ *  优先级：人工录入（src==='manual'）> 自动值。人工一旦录入，自动值永不覆盖。
+ *  自动值按数据日期刷新：同一数据日不重复写入，数据日推进则覆盖上一版自动值。
+ * ===================================================================== */
+function applySpotAuto(sp){
+  try{
+    if(!sp||sp.today==null) return;
+    if(LS.get('spotSrc','')==='manual') return;            /* 人工录入优先，绝不覆盖 */
+    const d=String((sp.auto&&sp.auto.date)||'');            /* 数据日期 YYYYMMDD */
+    const iso=d.length===8?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:'';
+    if(iso && iso===LS.get('spotAutoDate','') && $('spotToday').value!=='') return;  /* 同一数据日已写入 */
+    $('spotToday').value=String(sp.today);
+    if(sp.yest!=null) $('spotYest').value=String(sp.yest);
+    LS.set('spotToday',String(sp.today));
+    if(sp.yest!=null) LS.set('spotYest',String(sp.yest));
+    LS.set('spotSrc','auto'); LS.set('spotAutoDate',iso);
+    S.spot.src='auto'; S.spot.autoDate=iso;
+    S.spot.today=$('spotToday').value; S.spot.yest=$('spotYest').value;
+    S.spot.stamp=iso||'';                                   /* 自动值的“录入时间”= 数据日期，供时效提醒判定 */
+    LS.set('spotStamp',S.spot.stamp);
+    analyze(); if(S.mode==='close') S.recap=buildRecap();
+    renderPanels(); renderHeader();
+    console.log('[现货自动] 生意社 '+iso+' 今日='+sp.today+' 前值='+sp.yest+'（'+(sp.auto&&sp.auto.source||'')+'）');
+  }catch(e){}
 }
 /* v10: AI 盯盘提醒卡片渲染（lines 数组 → 提醒条；severity 高→红 中→黄 低→灰） */
 function renderAiCard(ai){
@@ -3008,13 +3037,21 @@ function renderPanels(){
     if(!isNaN(prof)){ if(prof>=0.6) tips.push(`💰 养殖利润 <b>+${prof}</b> 元/斤：补栏积极性趋于上升，利于远月新增供给（利空远月）；高利润期警惕补栏过热。`); else if(prof<=0) tips.push(`💰 养殖利润 <b>${prof}</b> 元/斤：处于亏损/微利区间，淘汰预期增强、补栏放缓，中期利多远月估值。`); else tips.push(`💰 养殖利润 <b>+${prof}</b> 元/斤：微利状态，供给节奏平稳。`); }
     if(!isNaN(cull)&&!isNaN(feed)&&cull-feed>=2.5) tips.push('🐔 淘汰鸡价格显著高于饲料成本折算价：延淘意愿强，短期在栏量偏大，压制近月；关注老鸡集中淘汰时点对远月的传导。');
     /* v17.4: 现货录入时效分级 —— 今天录入不提示；距录入≥1天按 1/2/3+ 分级提醒（dim/gold/risk），与牛牛卡时效条同一套节奏 */
+    /* v17.6: 自动抓取值（src=auto）单列口径——生意社正常滞后 1 个交易日，阈值放宽到 3 天才告警，避免天天误报 */
     try{
       const tstr=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
       const sAge=S.spot.stamp?Math.round((Date.parse(tstr+'T00:00:00+08:00')-Date.parse(S.spot.stamp+'T00:00:00+08:00'))/86400000):null;
-      if(!A.spotMissing && sAge!=null && sAge>=1){
+      const isAuto=S.spot.src==='auto';
+      const thr=isAuto?3:1;
+      if(!A.spotMissing && sAge!=null && sAge>=thr){
         const sev=sAge>=3?'var(--risk)':(sAge>=2?'var(--gold)':'var(--dim)');
-        const ageTxt=sAge>=3?'已过期 '+sAge+' 天，参考价值很低':(sAge===2?'已隔 2 天，建议尽快补录':'昨日留存值，建议开盘后补录今日价');
-        tips.push(`<span style="color:${sev}">⏳ <b>现货价为 ${S.spot.stamp} 录入的留存值</b>：${ageTxt}，基差与现货涨跌结论均基于旧数据。</span>`);
+        const ageTxt=isAuto
+          ? (sAge>=5?`自动抓取已停滞 ${sAge} 天，请检查取数链路`:`数据日期 ${S.spot.stamp}，已隔 ${sAge} 天未更新`)
+          : (sAge>=3?'已过期 '+sAge+' 天，参考价值很低':(sAge===2?'已隔 2 天，建议尽快补录':'昨日留存值，建议开盘后补录今日价'));
+        const srcTxt=isAuto?`<b>现货价为生意社自动抓取值</b>`:`<b>现货价为 ${S.spot.stamp} 录入的留存值</b>`;
+        tips.push(`<span style="color:${sev}">⏳ ${srcTxt}：${ageTxt}，基差与现货涨跌结论均基于旧数据。</span>`);
+      } else if(!A.spotMissing && isAuto && sAge!=null){
+        tips.push(`<span style="color:var(--ok)">🥚 <b>现货价 ${S.spot.today} 元/斤</b>：生意社自动抓取（数据日期 ${S.spot.stamp}）${S.spot.yest?`，前值 ${S.spot.yest}`:''}，无需人工录入；手动输入将转为人工口径并停止自动覆盖。</span>`);
       }
     }catch(e){}
     if(!isNaN(feed)) tips.push(`🌽 饲料成本 <b>${feed}</b> 元/斤蛋：构成价格底部的锚，${prof!=null&&!isNaN(prof)?`当前单斤利润 ${prof>=0?'+':''}${prof} 元/斤`:''}，成本抬升将压缩利润并强化挺价意愿。`);
@@ -4246,6 +4283,8 @@ function bindUI(){
   const spotChange=()=>{
     S.spot.today=$('spotToday').value; S.spot.yest=$('spotYest').value;
     LS.set('spotToday',S.spot.today); LS.set('spotYest',S.spot.yest);
+    /* v17.6: 人工一旦改动现货输入，即标记为 manual —— 自动抓取值从此不再覆盖 */
+    if(LS.get('spotSrc','')!=='manual'){ LS.set('spotSrc','manual'); S.spot.src='manual'; }
     /* v17.4: 任一现货字段变更即刷新录入时间戳（当天录入=当日新鲜；隔日留存触发分级提醒） */
     if(String(S.spot.today).trim()!=='' || String(S.spot.yest).trim()!==''){
       S.spot.stamp=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
