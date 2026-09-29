@@ -1372,10 +1372,13 @@ function detectPatterns(m5, atr5){
   }
   return out.slice(-4);
 }
-function detectFalseBreak(m5, levels, atr5){
+function detectFalseBreak(m5, levels, atr5, today){
   const out=[]; if(!m5.length) return out;
   const avgV = arr => { const s=arr.slice(-40); return s.reduce((x,b)=>x+b.v,0)/Math.max(1,s.length); };
-  const n=m5.length, st=Math.max(0,n-50);
+  const n=m5.length;
+  /* v17.10: 检测窗口限定当日K线——隔日在旧关键位的假突破与今日无关 */
+  let st=Math.max(0,n-50);
+  if(today){ const fi=m5.findIndex(b=>bjStr(new Date(b.t))===today); if(fi>=0) st=Math.max(st,fi); }
   for(const L of levels){
     if(L==null) continue;
     for(let i=st;i<n;i++){
@@ -1397,13 +1400,16 @@ function detectFalseBreak(m5, levels, atr5){
 }
 /* 突破防抖（用户规则）：盘中刺破不算突破，单根K线收盘越位也不算——必须下一根K线继续收盘站稳关键位外侧才确认有效突破；
  * 最后一根收盘越位但尚无下一根 → 标记 pending（待确认）；有下一根但收回 → 既不确认也不待确认（归入假突破/刺破统计） */
-function detectValidBreak(m5, levels, atr5){
+function detectValidBreak(m5, levels, atr5, today){
   const out=[]; if(!m5.length) return out;
   const n=m5.length;
+  /* v17.10: 检测窗口限定当日K线 */
+  let st=Math.max(0,n-50);
+  if(today){ const fi=m5.findIndex(b=>bjStr(new Date(b.t))===today); if(fi>=0) st=Math.max(st,fi); }
   for(const L of levels){
     if(L==null) continue;
     let crossed=false, crossedT=null, confirmed=false, pending=false;
-    for(let i=Math.max(0,n-50);i<n;i++){
+    for(let i=st;i<n;i++){
       const b=m5[i];
       if(b.c>L+0.3*atr5 && b.v>1.5*avgVB(m5,i) && b.c>b.o){
         crossed=true; crossedT=b.t;
@@ -1422,12 +1428,15 @@ function detectValidBreak(m5, levels, atr5){
 }
 /* 盘中刺破检测（突破防抖配套）：影线越过关键位但收盘收回（无论量能大小）；
  * 其中巨量(z≥1.5)刺破回落=扫止损/诱单特征，单独计数供风控扣分 */
-function detectProbes(m5, levels){
+function detectProbes(m5, levels, today){
   const out={upN:0,dnN:0,heavyN:0,note:''}; if(!m5.length) return out;
   const n=m5.length;
+  /* v17.10: 检测窗口限定当日K线 */
+  let st=Math.max(0,n-50);
+  if(today){ const fi=m5.findIndex(b=>bjStr(new Date(b.t))===today); if(fi>=0) st=Math.max(st,fi); }
   for(const L of levels){
     if(L==null) continue;
-    for(let i=Math.max(0,n-50);i<n;i++){
+    for(let i=st;i<n;i++){
       const b=m5[i], z=volZ(m5,i);
       if(b.h>L && b.c<=L){ out.upN++; if(z>=1.5){ out.heavyN++; if(!out.note) out.note='巨量上刺'+L.toFixed(0)+'后收回('+fmtT(b.t)+')'; } }
       if(b.l<L && b.c>=L){ out.dnN++; if(z>=1.5){ out.heavyN++; if(!out.note) out.note='巨量下探'+L.toFixed(0)+'后收回('+fmtT(b.t)+')'; } }
@@ -1440,8 +1449,13 @@ function avgVB(m5,i){ const st=Math.max(0,i-40),seg=m5.slice(st,i); return seg.l
 /* ---------------- 威科夫量仓 ---------------- */
 function wyckoff(m5, live, fb){
   const n=m5.length; if(n<15) return {supplyDemand:'数据不足',events:[],effortNoResult:false,effortBar:null,realDrive:0,noResN:0,fbCountNear:0,oiState:'--',behavior:'--',actBuyV:0,actSellV:0,actRatio:0,activeSide:'--',washFlag:false,washN:0,washNote:''};
+  /* v17.10: 事件扫描限定当日K线——隔日巨量事件不应触发今日"努力无结果/对倒"否决 */
+  const dayIdx=(live&&live.date)? m5.findIndex(b=>bjStr(new Date(b.t))===live.date) : -1;
+  const st60=Math.max(dayIdx>=0?dayIdx:0, Math.max(0,n-60));
+  const st30=Math.max(dayIdx>=0?dayIdx:0, Math.max(0,n-30));
+  const st24=Math.max(dayIdx>=0?dayIdx:0, Math.max(0,n-24));
   const events=[];
-  for(let i=Math.max(0,n-60);i<n;i++){
+  for(let i=st60;i<n;i++){
     const z=volZ(m5,i);
     if(z>=2){
       const b=m5[i], dir=b.c>=b.o?'up':'down';
@@ -1458,8 +1472,8 @@ function wyckoff(m5, live, fb){
    * 中间(0.35~0.65) → 无明确主动方向。主动占比 = (主动买+主动卖)/总量，过低说明多为被动对倒撮合。
    * 对倒假放量：量≥2×均量 但 closePos落在0.4~0.6中性区（总量大、主动盘缺位）——资金对倒制造假放量的典型特征 */
   let actBuyV=0, actSellV=0, neutralV=0, washN=0, washNote='';
-  for(let i=Math.max(0,n-30);i<n;i++){
-    const b=m5[i], cp=(b.c-b.l)/((b.h-b.l)||1);
+  for(let i=st30;i<n;i++){
+    const b=m5[i], cp=(b.c-b.l)/((b.h-b.l)||1), z=volZ(m5,i);
     if(cp>=0.65) actBuyV+=b.v; else if(cp<=0.35) actSellV+=b.v; else neutralV+=b.v;
     if(b.v>=2*avgVB(m5,i) && cp>=0.4 && cp<=0.6){ washN++; if(!washNote) washNote=fmtT(b.t)+' 放量('+z.toFixed(1)+'σ)收在中位'; }
   }
@@ -1474,14 +1488,14 @@ function wyckoff(m5, live, fb){
    *   中间档（0.35~1.5×ATR5）→ 结果中性，不计入风险 */
   let effortNoResult=false, effortBar=null, realDrive=0, noResN=0, fbCountNear=0;
   const a5=atr(m5,14)||15;
-  for(let i=Math.max(0,n-24);i<n;i++){
+  for(let i=st24;i<n;i++){
     const b=m5[i], amp=b.h-b.l;
     if(b.v>=2.2*avgVB(m5,i)){
       if(amp>=1.5*a5) realDrive++;
       else if(amp<=0.35*a5){ noResN++; if(!effortNoResult){ effortNoResult=true; effortBar=b; } }
     }
   }
-  /* 骗线佐证：努力无结果bar附近（近50根5分钟）出现假突破 → 放量被用于诱多/诱空 */
+  /* 骗线佐证：努力无结果bar附近（当日5分钟）出现假突破 → 放量被用于诱多/诱空 */
   if((effortBar||noResN)&&fb&&fb.length) fbCountNear=fb.length;
   /* 盘中OI变化（最近12根）与当日仓差 */
   const ois=m5.slice(-13).map(b=>b.oi).filter(x=>x>0);
@@ -1726,9 +1740,9 @@ function analyze(){
   A.structIntact = h1Lows.length? price>h1Lows[h1Lows.length-1].price-0.5*atr5 : false;
   A.patterns=detectPatterns(m5,atr5);
   const lvAll=[A.res[0]&&A.res[0].price, A.res[1]&&A.res[1].price, A.sup[0]&&A.sup[0].price, A.sup[1]&&A.sup[1].price, live.prevSettle].filter(x=>x!=null);
-  A.falseBreaks=detectFalseBreak(m5,lvAll,atr5);
-  A.validBreaks=detectValidBreak(m5,lvAll,atr5);
-  A.probes=detectProbes(m5,lvAll);
+  A.falseBreaks=detectFalseBreak(m5,lvAll,atr5,live.date);
+  A.validBreaks=detectValidBreak(m5,lvAll,atr5,live.date);
+  A.probes=detectProbes(m5,lvAll,live.date);
   A.wy=wyckoff(m5,live,A.falseBreaks);
   A.eagle=eagleEye(m5,live,A);
   /* 日线5日涨跌量对比（按结算价口径） */
@@ -1815,7 +1829,7 @@ function analyze(){
     if(A.falseBreaks.length){
       const fbTxt=A.falseBreaks.map(x=>x.type+'@'+fmtT(x.t)).join('、');
       const parts=[]; if(fbL.length) parts.push('诱多假突破×'+fbL.length); if(fbS.length) parts.push('诱空假突破×'+fbS.length);
-      push('假突破', 6, '近50根5分钟出现'+fbTxt+'（'+parts.join('、')+'，level='+A.falseBreaks.map(x=>x.level.toFixed(0)).join('/')+'）');
+      push('假突破', 6, '当日5分钟出现'+fbTxt+'（'+parts.join('、')+'，level='+A.falseBreaks.map(x=>x.level.toFixed(0)).join('/')+'）');
       if(A.falseBreaks.length>=3) push('连续假突破', 3, '假突破已达'+A.falseBreaks.length+'次（'+fbTxt+'）：突破节奏被反复收割，趋势可靠性下降');
     }
     const eg=A.eagle;
@@ -1832,14 +1846,14 @@ function analyze(){
     }
     /* 威科夫努力-结果量化：真驱动 vs 无效放量骗线 */
     const wy=A.wy||{};
-    if(wy.effortNoResult) push('努力无结果', 3, '近24根5分钟出现'+(wy.noResN||1)+'次放量（≥2.2×均量）但振幅≤0.35×ATR5：量大价不动，疑似吸筹/派发'+((wy.fbCountNear||0)>0?'，且伴随假突破——无效放量骗线特征':''));
-    if((wy.realDrive||0)>0 && !wy.effortNoResult) push('真放量驱动', 0, '近24根出现'+wy.realDrive+'次放量+振幅≥1.5×ATR5的真驱动bar：放量行情可信（提示项，不扣分）');
+    if(wy.effortNoResult) push('努力无结果', 3, '当日5分钟出现'+(wy.noResN||1)+'次放量（≥2.2×均量）但振幅≤0.35×ATR5：量大价不动，疑似吸筹/派发'+((wy.fbCountNear||0)>0?'，且伴随假突破——无效放量骗线特征':''));
+    if((wy.realDrive||0)>0 && !wy.effortNoResult) push('真放量驱动', 0, '当日出现'+wy.realDrive+'次放量+振幅≥1.5×ATR5的真驱动bar：放量行情可信（提示项，不扣分）');
     /* 主动盘识别（用户规则）：区分主动量与普通总成交量，过滤对倒假放量 */
-    if(wy.washFlag) push('对倒假放量', 3, '近30根出现'+wy.washN+'次放量(≥2×均量)但收盘收在中位'+(wy.washNote?'（'+wy.washNote+'）':'')+'：总量大而主动盘缺位，疑似资金对倒');
+    if(wy.washFlag) push('对倒假放量', 3, '当日出现'+wy.washN+'次放量(≥2×均量)但收盘收在中位'+(wy.washNote?'（'+wy.washNote+'）':'')+'：总量大而主动盘缺位，疑似资金对倒');
     else if((wy.actRatio||0)<0.45 && wy.supplyDemand!=='数据不足') push('主动盘缺位', 2, '近12根主动盘占比仅'+Math.round((wy.actRatio||0)*100)+'%：成交多为被动撮合，量能可信度低');
     /* 盘中刺破（突破防抖配套）：巨量影线扫过关键位又收回=扫止损/诱单特征 */
     const pr=A.probes||{upN:0,dnN:0,heavyN:0,note:''};
-    if(pr.heavyN>=1) push('巨量刺破', 3, '近50根出现'+pr.heavyN+'次巨量影线刺过关键位又收回'+(pr.note?'（'+pr.note+'）':'')+'：扫止损/诱单特征，关键位不可信');
+    if(pr.heavyN>=1) push('巨量刺破', 3, '当日出现'+pr.heavyN+'次巨量影线刺过关键位又收回'+(pr.note?'（'+pr.note+'）':'')+'：扫止损/诱单特征，关键位不可信');
     else if((pr.upN+pr.dnN)>=3) push('频繁刺破', 1, '关键位被影线刺破又收回×'+(pr.upN+pr.dnN)+'次（上'+pr.upN+'/下'+pr.dnN+'）：价位反复争夺，突破信号可信度打折');
     if(!A.spotMissing && A.spotChgPct!=null && A.spotChgPct<-2 && dayUp) push('期现背离', 3, '现货单日跌'+A.spotChgPct.toFixed(1)+'%而期货收涨');
     if(A.crossConflict===2) push('多周期严重冲突', 4, A.crossNotes[0]+'：趋势结构项已扣7分，风险项再扣4分');
@@ -1850,11 +1864,12 @@ function analyze(){
   /* ---- 一票否决 ---- */
   A.veto=[];
   const egv=A.eagle;
-  if(A.fbL>=1) A.veto.push('出现诱多假突破×'+A.fbL+'（向上假信号，5分钟K线@'+(A.falseBreaks||[]).filter(x=>x.type==='诱多假突破').map(x=>fmtT(x.t)).join('、')+'）');
-  if(A.fbS>=1) A.veto.push('出现诱空假突破×'+A.fbS+'（向下假信号，5分钟K线@'+(A.falseBreaks||[]).filter(x=>x.type==='诱空假突破').map(x=>fmtT(x.t)).join('、')+'）');
+  /* v17.10: 假突破否决降级——单次(×1)不再一票否决（已有风险扣6分兜底），同向×2才否决；检测窗口已限定当日 */
+  if(A.fbL>=2) A.veto.push('诱多假突破×'+A.fbL+'（向上假信号）：同向假信号≥2次，向上突破不可信（5分钟K线@'+(A.falseBreaks||[]).filter(x=>x.type==='诱多假突破').map(x=>fmtT(x.t)).join('、')+'）');
+  if(A.fbS>=2) A.veto.push('诱空假突破×'+A.fbS+'（向下假信号）：同向假信号≥2次，向下突破不可信（5分钟K线@'+(A.falseBreaks||[]).filter(x=>x.type==='诱空假突破').map(x=>fmtT(x.t)).join('、')+'）');
   if((A.falseBreaks||[]).length>=3) A.veto.push('多次连续假突破（共'+A.falseBreaks.length+'次）：突破节奏被反复收割');
   if(egv&&egv.ok&&egv.enr) A.veto.push('量价背离：大量成交价格走不动（努力-结果失效）');
-  if((A.wy||{}).noResN>=2) A.veto.push('放量与价格结果完全背离（努力-结果失效）：近24根'+A.wy.noResN+'次大量滞涨');
+  if((A.wy||{}).noResN>=2) A.veto.push('放量与价格结果完全背离（努力-结果失效）：当日'+A.wy.noResN+'次大量滞涨');
   if(egv&&egv.ok&&(egv.shocks.length||egv.openShock)) A.veto.push('突发大额资金冲击/剧烈放量');
   if((A.wy||{}).washFlag) A.veto.push('对倒假放量：放量无主动盘配合，量能信号不可信');
   if((A.probes||{}).heavyN>=2) A.veto.push('关键位反复巨量刺破×'+A.probes.heavyN+'：扫止损/诱单密集，突破信号不可信');
