@@ -2044,7 +2044,7 @@ function tname(t){ return t==='up'?'上涨':(t==='down'?'下跌':'震荡'); }
 
 /* ---- ④ 盈亏比评估（预期盈亏比≥1.5R才过滤通过） ---- */
 function rrCalc(A){
-  const out={ rr:null, pass:false, entry:null, stop:null, target:null, note:'' };
+  const out={ rr:null, pass:false, dirOk:true, side:null, entry:null, stop:null, target:null, note:'' };
   if(!A||!S.live) return out;
   const price=S.live.price, atrD=A.d.atr||50;
   const sup=A.sup[0]?A.sup[0].price:null, res=A.res[0]?A.res[0].price:null;
@@ -2054,14 +2054,25 @@ function rrCalc(A){
   const longRR  = price<res ? (res-price)/Math.max(price-sup+stopW*0.5, stopW*0.5) : 0;
   const shortRR = price>sup ? (price-sup)/Math.max(res-price+stopW*0.5, stopW*0.5) : 0;
   out.longRR=clamp(longRR,0,9); out.shortRR=clamp(shortRR,0,9);
-  out.rr=Math.max(out.longRR,out.shortRR);
-  const isLong=out.longRR>=out.shortRR;
+  /* v17.8.1: 趋势方向约束（与引擎/回测同款口径）——多向需日线上涨且当日收涨，空向需日线下跌且当日收跌，逆势方向不再双向择优 */
+  const trend=A.d.trend.trend, dayUp=A.dayUp===true;
+  const wantLong=trend==='up'&&dayUp, wantShort=trend==='down'&&!dayUp;
+  if(!wantLong&&!wantShort){
+    out.dirOk=false;
+    out.rr=Math.max(out.longRR,out.shortRR);
+    out.side=out.longRR>=out.shortRR?'多':'空';
+    const whyDir=trend==='range'?'日线为震荡（无方向）':trend==='up'?'日线上涨但当日未收涨（回踩未确认）':'日线下跌但当日未收跌（反弹未确认）';
+    out.note=whyDir+'，方向条件不满足（多向需日线上涨且当日收涨，空向需日线下跌且当日收跌），双向均不通过过滤，优先观望';
+    return out;
+  }
+  const isLong=wantLong;
+  out.rr=isLong?out.longRR:out.shortRR;
   out.side=isLong?'多':'空';
   out.entry=price;
   out.stop =isLong? Math.min(sup-0.3*atrD, price-stopW) : Math.max(res+0.3*atrD, price+stopW);
   out.target=isLong? res : sup;
   out.pass=out.rr>=1.5;
-  out.note='按'+(isLong?'多':'空')+'向评估：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.pass?'（≥1.5R达标）':'（<1.5R，按框架直接过滤，不推荐开仓）');
+  out.note='按'+(isLong?'多':'空')+'向评估（方向与日线趋势一致）：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.pass?'（≥1.5R达标）':'（<1.5R，按框架直接过滤，不推荐开仓）');
   return out;
 }
 
@@ -2077,14 +2088,14 @@ function gradeABCD(A){
   /* D：触发风控 → 禁止开仓（D 级同样给出候选交易参数，仅做观察参考） */
   if(A.veto.length){ g.grade='D'; g.why.push('触发一票否决风控（'+A.veto[0]+'），禁止开仓'); g.rrRef=rrCalc(A); return g; }
   if(S.losses&&S.losses.n>=3){ g.grade='D'; g.why.push('当日连亏已达'+S.losses.n+'笔：按纪律暂停开仓，强制进入复盘模式，不允许新建单子'); g.rrRef=rrCalc(A); return g; }
-  const mtf=A.mtf, rr=rrCalc(A), fu=A.fu||fuFundamental(A);
+  const mtf=A.mtfRes||{pass:false,why:'无分析数据'}, rr=rrCalc(A), fu=A.fu||fuFundamental(A);  /* v17.8.1: 修复 mtf 引用（A.mtf 是方向对象，判定结果在 A.mtfRes） */
   A.rr=rr;
   /* v11 规则1·交易不可能三角：胜率、盈亏比、交易频率无法同时最优——
      所有入场机会预期盈亏比必须≥1.5R，不足直接判定 D 级禁止开仓
      （优先级仅次于一票否决风控与当日连亏锁仓）。 */
   if(rr.rr!=null&&!rr.pass){
     g.grade='D';
-    g.why.push('⛔ 交易不可能三角过滤：预期盈亏比 '+rr.rr.toFixed(2)+'R＜1.5R 纪律阈值，直接判 D 级、禁止开仓——赔率不划算的机会一律放弃，宁可错过不做劣质单。'+rr.note);
+    g.why.push('⛔ 交易不可能三角过滤：预期盈亏比 '+rr.rr.toFixed(2)+'R'+(rr.rr>=1.5?'虽≥1.5R但方向条件不满足':'＜1.5R纪律阈值')+'，直接判 D 级、禁止开仓。'+rr.note);
     if(!mtf.pass) g.why.push('另：'+mtf.why);
     return g;
   }
