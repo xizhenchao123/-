@@ -430,7 +430,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
   <aside style="display:flex;flex-direction:column;gap:10px;min-width:0">
 
     <div class="card" id="scoreCard">
-      <h3>今日走向 <span class="tag">三要素 · 节假日 / 季节性 / 现货</span></h3>
+      <h3>今日走向 <span class="tag">三要素+1 · 节假日 / 季节性 / 现货 / 持仓量</span></h3>
       <div id="scoretotal">
         <div id="totalwrap">
           <div id="totalnum" class="num" style="font-family:var(--serif)">--</div>
@@ -440,6 +440,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
           <div class="sbar"><div class="lab"><span>① 节假日</span><b class="num" id="s_holiday">--</b></div><div class="track"><div class="fill" id="f_holiday" style="background:var(--gold);width:0"></div></div></div>
           <div class="sbar"><div class="lab"><span>② 季节性</span><b class="num" id="s_season">--</b></div><div class="track"><div class="fill" id="f_season" style="background:var(--blue);width:0"></div></div></div>
           <div class="sbar"><div class="lab"><span>③ 现货涨跌</span><b class="num" id="s_spot">--</b></div><div class="track"><div class="fill" id="f_spot" style="background:var(--purple);width:0"></div></div></div>
+          <div class="sbar"><div class="lab"><span>④ 持仓量</span><b class="num" id="s_oi">--</b></div><div class="track"><div class="fill" id="f_oi" style="background:var(--sup);width:0"></div></div></div>
         </div>
       </div>
       <div id="dirReasons" style="margin-top:8px;font-size:12px;line-height:1.7;color:var(--fg2)"></div>
@@ -639,7 +640,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px;flex-wrap:wrap">
         <button class="fbtn" id="rlAdd" style="background:rgba(45,212,170,.15);border-color:var(--sup)">＋ 记一条迭代</button>
         <button class="fbtn" id="rlSeed">🌱 载入版本历史种子</button>
-        <span style="font-size:10px;color:var(--faint)">种子来自 32 个版本的真实迭代史，首次载入后可编辑补充</span>
+        <span style="font-size:10px;color:var(--faint)">种子来自 36 个版本的真实迭代史，首次载入后可编辑补充</span>
       </div>
       <div class="sec" id="rlList" style="max-height:300px;overflow-y:auto"></div>
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据存本地浏览器（jdq_rulesLog），随 JSON 备份/导入一并迁移。闭环理念：每条规则改动都要回答「何时/何条/为何/效果」，防止改规则变成拍脑袋。</div>
@@ -1785,13 +1786,15 @@ function eagleEye(m5, live, A){
 function seasonBonus(){
   const d=bj(), m=d.getMonth()+1, day=d.getDate();
   if((m===9&&day<=24)||(m===8&&day>=25)) return 5;   // 中秋备货
-  if((m===9&&day>=25)||(m===10&&day<=10)) return 2;  // 节后回落
+  if((m===9&&day>=25&&day<=27)||(m===10&&day<=10)) return 2;  // 节后回落（v17.19：9/28-9/30 两节间隙摘出，避免与国庆 pre 双重扣分）
   if((m===12&&day>=15)||(m===1&&day<=15)) return 5;  // 春节备货
   return 3;
 }
 /* =====================================================================
  *  v17.12 三要素走向判断（节假日 / 季节性 / 现货）
  *  仅替换展示层结论；四项总分与评级链照常计算供复盘与置信度使用。
+ *  v17.19 修订：① 9/28-9/30 从"节后回落"窗口摘出（两节间隙）；② post 判定优先于 pre；
+ *  ③ 节前窗口季节因子强制中性不计分；④ 展示层新增④持仓量环比（A.oiChgPct，先展示不进分）。
  * ===================================================================== */
 const HOLIDAYS_2026=[
   {name:'元旦',   start:'2026-01-01', end:'2026-01-03', reopen:'2026-01-05'},
@@ -1802,7 +1805,7 @@ const HOLIDAYS_2026=[
   {name:'中秋节', start:'2026-09-25', end:'2026-09-27', reopen:'2026-09-28'},
   {name:'国庆节', start:'2026-10-01', end:'2026-10-07', reopen:'2026-10-08'}
 ];
-/* 节假日状态：'closed' 当日休市 | 'pre' 节前最后交易日 | 'post' 开市首日 | 'normal' 正常 */
+/* 节假日状态：'closed' 当日休市 | 'post' 开市首日 | 'pre' 节前最后交易日 | 'normal' 正常（v17.19：post 判定优先于 pre，修复两节相邻时开市首日被节前遮蔽） */
 function holidayStatus(){
   const d=bj(), day=d.getDay();
   const tstr=d.toLocaleDateString('sv-SE');
@@ -1812,17 +1815,17 @@ function holidayStatus(){
   }
   const h=HOLIDAYS_2026.find(h=>tstr>=h.start&&tstr<=h.end);
   if(h) return {st:'closed', holi:h.name, note:h.name+'假期，市场休市'};
+  for(const h of HOLIDAYS_2026){ /* v17.19：post 优先于 pre，9/28 类日期恢复"节后开市首日"而非"节前" */
+    if(tstr>h.end){
+      const dd=Math.round((Date.parse(tstr+'T00:00:00+08:00')-Date.parse(h.end+'T00:00:00+08:00'))/86400000);
+      if(dd<=2) return {st:'post', holi:h.name, days:dd, note:h.name+'后开市'+(dd===1?'首日':'次日')};
+    }
+  }
   const idx=HOLIDAYS_2026.findIndex(h=>tstr<h.start);
   if(idx>=0){
     const nx=HOLIDAYS_2026[idx];
     const dd=Math.round((Date.parse(nx.start+'T00:00:00+08:00')-Date.parse(tstr+'T00:00:00+08:00'))/86400000);
     if(dd<=4) return {st:'pre', holi:nx.name, days:dd, note:'距'+nx.name+'休市还有'+dd+'个自然日'};
-  }
-  for(const h of HOLIDAYS_2026){
-    if(tstr>h.end){
-      const dd=Math.round((Date.parse(tstr+'T00:00:00+08:00')-Date.parse(h.end+'T00:00:00+08:00'))/86400000);
-      if(dd<=2) return {st:'post', holi:h.name, days:dd, note:h.name+'后开市'+(dd===1?'首日':'次日')};
-    }
   }
   return {st:'normal', holi:null, note:'常规交易日'};
 }
@@ -1839,7 +1842,8 @@ function computeDirection(A){
   else holTxt=hs.note;
   /* ② 季节性要素（复用 seasonBonus 的档位：5=备货旺季 / 2=节后回落 / 3=中性） */
   let seaTxt;
-  if(season>=5){ seaTxt='当前处于备货旺季窗口，现货走强概率大'; reasons.push('季节性：备货旺季，现货端偏强支撑盘面'); }
+  if(hs.st==='pre'){ seaTxt='节前避险窗口，季节性因子让位于节假日要素（不计分）'; }
+  else if(season>=5){ seaTxt='当前处于备货旺季窗口，现货走强概率大'; reasons.push('季节性：备货旺季，现货端偏强支撑盘面'); }
   else if(season<=2){ seaTxt='当前处于节后淡季回落窗口，现货偏弱压制盘面'; reasons.push('季节性：节后淡季，现货回落压制盘面'); }
   else seaTxt='季节性中性，无明确季节性方向贡献';
   /* ③ 现货要素（自动接入现货均价与前值，含基差结构） */
@@ -1860,7 +1864,7 @@ function computeDirection(A){
     if(A.spotChgPct>=0.5) score+=2; else if(A.spotChgPct>=0.1) score+=1;
     else if(A.spotChgPct<=-0.5) score-=2; else if(A.spotChgPct<=-0.1) score-=1;
   }
-  if(season>=5) score+=1; else if(season<=2) score-=1;
+  if(hs.st!=='pre'){ if(season>=5) score+=1; else if(season<=2) score-=1; } /* v17.19：节前窗口季节因子不计分，避免与节假日要素双重扣分 */
   if(A.basisPct!=null){ if(A.basisPct>25) score+=1; else if(A.basisPct<=0) score-=1; }
   score+=holW;
   if(score>=2) dir='偏多';
@@ -1977,6 +1981,8 @@ function analyze(){
       A.scoreSpot=clamp(Math.round(s),0,25);
   } else A.scoreSpot=12; /* k2-4：现货未录入时保底12分，renderPanels 按 A.spotMissing 提示"可信度低、总分仅作技术面参考" */
   }
+  /* v17.19 ④ 持仓量环比（仅展示不进分）：日级口径 oiDelta/prevOI，先观察两周再定权重 */
+  A.oiChgPct=(live.oiDelta!=null&&live.prevOI)? live.oiDelta/live.prevOI*100 : null;
   /* ---- ④ 异动风险（扣分制，阈值与鹰眼校准版同步） ---- */
   {
     let s=25; A.riskFlags=[];
@@ -3155,7 +3161,7 @@ function renderPanels(){
   $('totalnum').textContent=dirm.dir;
   $('totalnum').style.color=dcol;
   $('totalnum').style.fontSize='34px';
-  $('totallabel').textContent='今日走向 · 三要素';
+  $('totallabel').textContent='今日走向 · 三要素+1';
   const holPct=dirm.holiday.st==='closed'?100:dirm.holiday.st==='pre'?70:dirm.holiday.st==='post'?55:12;
   $('s_holiday').textContent=dirm.holiday.st==='closed'?'休市':dirm.holiday.st==='pre'?'节前':dirm.holiday.st==='post'?'开市首':'正常';
   $('f_holiday').style.width=holPct+'%';
@@ -3163,6 +3169,8 @@ function renderPanels(){
   $('f_season').style.width=(dirm.season!=null?Math.min(100,dirm.season/5*100):0)+'%';
   $('s_spot').textContent=A.spotMissing?'[待录入]':(A.spotChgPct==null?'环比未知':(A.spotChgPct>0?'+':'')+A.spotChgPct.toFixed(2)+'%');
   $('f_spot').style.width=(A.spotChgPct!=null?Math.min(100,Math.abs(A.spotChgPct)/3*100):0)+'%';
+  $('s_oi').textContent=A.oiChgPct==null?'--':((A.oiChgPct>0?'+':'')+A.oiChgPct.toFixed(2)+'%'+(A.oiChgPct>0.5?' 增仓':A.oiChgPct<-0.5?' 减仓':''));
+  $('f_oi').style.width=(A.oiChgPct!=null?Math.min(100,Math.abs(A.oiChgPct)/5*100):0)+'%';
   $('dirReasons').innerHTML=(dirm.reasons&&dirm.reasons.length?dirm.reasons.map(r=>'· '+r).join('<br>'):'· 三要素暂无明确方向信号，以震荡对待');
   /* k2-4 基本面解读提示：远月提示 + 可信度提示 + 补充因子解读 */
   {
@@ -4414,11 +4422,12 @@ function showRulesModalLike(html){
 
 /* ---- v17.16: 规则迭代记录（优化环节落地工具：每条规则改动必须回答 何时/何条/为何/怎么改/效果） ----
    存储：LS 键 'rulesLog'（自动带 jdq_ 前缀），数组 [{d,c,rule,why,how,eff,ts}]，上限 200 条。
-   种子数据提炼自本系统的真实迭代史（版本记录），文案经 v17.18.1 对照核校修正；
+   种子数据提炼自本系统 36 个版本的真实迭代史（截至 v17.19），文案经 v17.18.1 对照核校修正；
    已灌入设备由灌入块按 rule 名自动原位迁移（alias 兼容改名前旧条目），无需手动操作。 */
 function rlLoad(){ try{ return JSON.parse(LS.get('rulesLog','[]'))||[]; }catch(e){ return []; } }
 function rlSave(arr){ try{ LS.set('rulesLog',JSON.stringify(arr.slice(0,200))); }catch(e){} }
 const RL_SEED=[
+  {d:'2026-09-30',c:'修正',rule:'三要素日历双扣分修正 + 持仓量第四要素（v17.19）',why:'三要素评审发现两处日历缝隙：2026 年中秋（9/25-27）与国庆（10/1-7）分离，seasonBonus「节后回落 9/25~10/10」按两节连放旧节奏划分，9/28-9/30 被 season −1 + 国庆 pre −1 双重扣分；且 holidayStatus 检查顺序 pre 先于 post，9/28 开市首日被「距国庆 pre」遮蔽——现货未录入时纯日历即输出「偏空」，无价格证据',how:'seasonBonus 节后回落窗口改为 9/25-9/27 + 10/1-10/10（两节间隙返回中性 3，注意该函数同时供现货基本面分复用，内部评级链同步生效）；holidayStatus 把 post 判定挪到 pre 之前（9/28 类日期恢复「节后开市首日 +1」）；computeDirection 节前窗口季节因子强制中性不计分（seaTxt 同步提示让位）；展示层新增④持仓量环比 A.oiChgPct=oiDelta/prevOI（日级口径，先展示不进分，观察两周再定权重），卡片标题升级「三要素+1」',eff:'今日 9/30 score 从 −2（偏空）修复为 −1（震荡），纯日历不再单独驱动方向'},
   {d:'2026-09-30',c:'修正',rule:'方向闸当日双确认放宽（v17.18）',why:'用户反馈 AI 策略几乎总输出「不建议开仓」——v17.8.1 方向闸要求多向「日线上涨+当日收涨」/空向「日线下跌+当日收跌」，回踩日/反弹日多空双杀，信号频率被过度压缩',how:'rrCalc 方向闸放宽为仅日线趋势确认（多向日线涨、空向日线跌），当日未确认改为提示语「严守止损」；位置风险仍由盈亏比 1.5R 闸把关；震荡市拦截保留（mtfFilter 日线震荡仍观望）',eff:'待观察'},
   {d:'2026-09-30',c:'修正',rule:'八环节·风险/优化项 + 检查清单资金项（v17.16）',why:'审计发现 4 处漏洞：风险环节调 v16Riskcap() 取 void 恒显示未填资金；优化环节直读双重序列化的 journal 显示字符数；手机验证环节无研判时文案误导；检查清单资金项漏连亏锁仓',how:'抽 loopCapCalc() 纯计算函数双处复用；journal 计数改 jLoad().length；手机 tip 分流「等待研判输出」；清单资金项接入锁仓/减半纪律',eff:'待观察'},
   {d:'2026-09-30',c:'新增',rule:'八环节交易闭环（v17.15）',why:'按「八个环节形成完整闭环」框架把既有模块串成数据驱动链路',how:'新增 loopStepsCalc/renderLoop 八环节总览 + 开仓前 7 项检查清单弹窗',eff:'上线当天即审计出风险环节取值漏洞，同日 v17.16 修复；检查清单成为日常开仓门禁'},
