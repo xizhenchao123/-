@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JD2611 交易执行清单</title>
+<style>
+  :root{
+    --bg:#0b0e14; --card:#12161f; --line:#232a38; --txt:#d8dee9; --muted:#8a94a6;
+    --acc:#58a6ff; --up:#3fb950; --dn:#f8514a; --gold:#e3b341;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:14px;line-height:1.75;padding:28px 18px 60px}
+  .wrap{max-width:1060px;margin:0 auto}
+  h1{font-size:24px;margin-bottom:4px;letter-spacing:.5px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:22px}
+  h2{font-size:17px;margin:30px 0 12px;padding-left:10px;border-left:4px solid var(--acc)}
+  h3{font-size:14.5px;margin:14px 0 8px;color:var(--gold)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+  table{width:100%;border-collapse:collapse;margin:8px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:#1a2130;color:#aab6c8;font-weight:600;white-space:nowrap}
+  .up{color:var(--up)} .dn{color:var(--dn)} .acc{color:var(--acc)} .gold{color:var(--gold)}
+  .muted{color:var(--muted);font-size:12.5px}
+  .danger{background:rgba(248,81,74,.07);border:1px solid rgba(248,81,74,.35);border-radius:10px;padding:14px 16px;margin:12px 0}
+  .okbox{background:rgba(63,185,80,.07);border:1px solid rgba(63,185,80,.35);border-radius:10px;padding:14px 16px;margin:12px 0}
+  .tag{display:inline-block;padding:1px 9px;border-radius:10px;font-size:12px;margin-right:6px;white-space:nowrap}
+  .tP1{background:rgba(63,185,80,.15);color:var(--up);border:1px solid rgba(63,185,80,.4)}
+  .tP2{background:rgba(88,166,255,.15);color:var(--acc);border:1px solid rgba(88,166,255,.4)}
+  .tS{background:rgba(248,81,74,.15);color:var(--dn);border:1px solid rgba(248,81,74,.4)}
+  .tT{background:rgba(227,179,65,.15);color:var(--gold);border:1px solid rgba(227,179,65,.4)}
+  .big{font-size:16px;font-weight:bold}
+  .formula{font-family:Consolas,monospace;background:#0e1420;border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin:8px 0;font-size:13px;overflow-x:auto}
+  /* 检查表 */
+  .chk{display:flex;align-items:flex-start;gap:8px;padding:6px 4px;border-bottom:1px dashed var(--line)}
+  .chk:last-child{border-bottom:none}
+  .chk input{margin-top:5px;width:15px;height:15px;accent-color:var(--acc);cursor:pointer;flex:none}
+  .chk label{cursor:pointer;flex:1}
+  .chk.done label{color:var(--muted);text-decoration:line-through}
+  .when{display:inline-block;min-width:52px;font-size:12px;color:var(--muted)}
+  button.reset{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:4px 14px;cursor:pointer;font-size:12px;margin-top:10px}
+  button.reset:hover{color:var(--txt);border-color:var(--muted)}
+  .foot{color:var(--muted);font-size:12px;margin-top:34px;border-top:1px solid var(--line);padding-top:12px}
+  @media print{ body{background:#fff;color:#111} .card,th,td{border-color:#bbb} }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>JD2611 · 交易执行清单</h1>
+<div class="sub">配套《JD2611 路线走向计划 v2》使用｜合约：大连鸡蛋 jd2611（5 吨/手，报价元/500 千克，1 点 = 10 元/手）｜生成于 2026-09-30 晚，10/8 开市起生效</div>
+
+<!-- ═══════════ 〇、使用前提 ═══════════ -->
+<div class="danger">
+  <b>使用前提（三条不满足则本清单不适用）：</b>
+  <ol style="margin:6px 0 0 18px">
+    <li>当前主力合约仍为 <b>jd2611</b>（若主力移仓换月至 jd2612，点位需整体重估）；</li>
+    <li>现价仍在 <b>3651 ~ 3908</b> 的 20 日区间内运行；</li>
+    <li>节后现货蛋价未出现单日 <b>&gt;200 元/500kg</b> 的崩跌（出现则停用技术路线，按当日实际情况重估）。</li>
+  </ol>
+</div>
+
+<!-- ═══════════ 一、开仓计划 ═══════════ -->
+<h2>一、开仓计划（买点 × 条件 × 手数）</h2>
+<div class="card">
+<table>
+  <tr><th>代号</th><th>买点</th><th>触发条件（全部满足才动手）</th><th>计划仓位</th><th>止损位</th><th>性质</th></tr>
+  <tr>
+    <td><span class="tag tP1">P1 试仓</span></td>
+    <td class="big up">3671 ~ 3651<br><span class="muted" style="font-weight:normal">区间内分批限价买，均价按 3661 估</span></td>
+    <td>① 价格回踩入区；② <b>14:00 之后</b>仍在区内且不再创新低；③ 当日非「收盘破 3651」走势；④ 不使用市价单</td>
+    <td><b>总资金的 1% 风险敞口</b><br><span class="muted">示例见下方算例</span></td>
+    <td class="dn">3632（收盘价）</td>
+    <td>左侧低吸，试错仓<br><span class="muted">错了必须马上走</span></td>
+  </tr>
+  <tr>
+    <td><span class="tag tP2">P2 确认仓</span></td>
+    <td class="big acc">3799 收盘站上后<br><span class="muted" style="font-weight:normal">次日开盘 3800~3815 间顺势接</span></td>
+    <td>① 某日<b>放量收盘 ≥3799</b>；② 次日不回补站上 3799（开盘 1 小时内跌破 3780 则放弃）；③ 只在 14:00 后建仓</td>
+    <td><b>总资金的 1.5% 风险敞口</b></td>
+    <td class="dn">确认日最低价 −20 点<br><span class="muted">（示例：3770，见止损表 T1）</span></td>
+    <td>右侧追认仓<br><span class="muted">这是唯一允许的「追」，追的是收盘确认不是盘中突破</span></td>
+  </tr>
+</table>
+<div class="formula">
+单笔手数 = ( 总资金 × 该笔风险比例 ) ÷ ( |买点均价 − 止损位| × 10 元 )，结果向下取整，为 0 则放弃该笔。<br>
+算例（总资金 5 万）：P1 → (50000×1%) ÷ (29点×10元) = 1.7 → <b>1 手</b>；P2 → (50000×1.5%) ÷ (35点×10元) = 2.1 → <b>2 手</b>。
+</div>
+<p class="muted">两笔都成交后的极限状态：合计约 3 手、名义约 11.1 万、占用保证金约 1.1 万（按 10% 估）≈ 总资金 22%，符合上限约束。任何时候实际风险敞口不得超过「P1 1% + P2 1.5%」的加总；空仓观望不亏钱，乱补仓才亏钱。</p>
+</div>
+
+<!-- ═══════════ 二、止损位 ═══════════ -->
+<h2>二、止损位（三条线，先于一切利润目标）</h2>
+<div class="card">
+<table>
+  <tr><th>代号</th><th>止损位</th><th>适用持仓</th><th>执行方式</th><th>说明</th></tr>
+  <tr>
+    <td><span class="tag tS">S1 试仓止损</span></td>
+    <td class="big dn">3632（盘中触价）</td>
+    <td>P1 低吸仓</td>
+    <td>跌破当日 <b>14:45 前</b>无条件平掉 P1（<b>盘中触价即执行，不等收盘</b>）</td>
+    <td>3634 是 60 日低，3632 = 低点下让 2 点缓冲；本线优先于 S2 执行，防崩盘日滑点放大。盘中打掉 3632 而收盘又收回 3651 上方 → 也当日离场，次日重新评估，不做「扛回来」的幻想；两线同日触发不冲突（先 S1 后 S2，结果一致：当日清）</td>
+  </tr>
+  <tr>
+    <td><span class="tag tS">S2 破位清零</span></td>
+    <td class="big dn">3651（日线收盘跌破）</td>
+    <td>全部多头（P1+P2）</td>
+    <td>收盘确认跌破 → <b>当日清零</b>，次日不补、不等反抽</td>
+    <td>这是路线计划的作废线，唯一不允许讨价还价的条款；破位日即便符合「大阴反弹规律」也不救仓（规律让位于风控）</td>
+  </tr>
+  <tr>
+    <td><span class="tag tT">T1 移动止损</span></td>
+    <td class="big gold">3799 → 3847 → 3908<br>逐级上移</td>
+    <td>P2 确认仓（及浮盈后的 P1）</td>
+    <td>收盘站上 3799 后：止损上移至 3770；站稳 3847 后：上移至 3810；逼近 3908：上移至 3847</td>
+    <td>只上移不下移；移动止损一经设置，盘中触碰即执行，不改口</td>
+  </tr>
+</table>
+<div class="danger" style="margin-bottom:0">
+  <b>止损三铁律：</b>① 挂单前先想好止损位再下单，没有止损位的单子不允许进；② 止损以<b>收盘价/预设价位</b>为准，不以「感觉」为准；③ 止损被打是计划内成本，单笔 1% 风险就是为它付的保险费——连亏处理见第五章熔断条款，不因止损而移动止损。
+</div>
+</div>
+
+<!-- ═══════════ 三、止盈兑现 ═══════════ -->
+<h2>三、止盈兑现（卖点表）</h2>
+<div class="card">
+<table>
+  <tr><th>价位</th><th>动作</th><th>触发与执行细节</th><th>依据</th></tr>
+  <tr><td class="big gold">3780 ~ 3799</td><td><b>第一兑现区</b>：P1 试仓仓位于此区间分批平掉 1/2</td><td>14:00 后触价挂限价单；若放量收盘站上 3799，剩余 P1 改挂移动止损 T1 跟随</td><td>MA20/布林中轨重合压制 + 现货养殖利润为正（供应压力未出清，第一关必有真实抛压）</td></tr>
+  <tr><td class="big gold">3847</td><td>第二兑现区：再平剩余仓位的 1/2</td><td>触碰即兑现；只有「放量收盘站稳 3847」才允许剩余仓位留到 3908</td><td>MA60 压制；站稳才算趋势修复</td></tr>
+  <tr><td class="big dn">3908</td><td><b>终点兑现</b>：全部清仓，不留幻想仓</td><td>当日<b>不追突破</b>、挂单等到价即平；到达即完成本计划 A 情景全程（3742 → 3908 约 +5.2%）</td><td>20 日高 +「突破失效」规律（假突破高发，次日延续性≈抛硬币）</td></tr>
+  <tr><td class="acc">3799 冲高遇阻<br>收长上影</td><td>兑现大部分，留 1/4 观察仓</td><td>观察仓止损 3770；后续两日连续收 3770 下方 → 转入 B 情景（区间上沿卖、下沿买）</td><td>裁决位定义：遇阻回落 = 回震荡路线</td></tr>
+  <tr><td class="acc">3671 ~ 3799<br>（B 情景震荡带）</td><td>上沿卖（3780~3799）、下沿买（3671~3651），带内往复</td><td>每次动手仍需叠加「周二附近低吸 / 周四五兑现 + 14:00 后企稳」过滤器；跌破 3651 随时终止一切</td><td>布林带收敛 + 旬节奏（上旬强下旬弱）</td></tr>
+</table>
+</div>
+
+<!-- ═══════════ 四、仓位管理规则 ═══════════ -->
+<h2>四、仓位管理（七条硬规则）</h2>
+<div class="card">
+<ol>
+  <li><b>单笔风险 ≤ 总资金 1%~1.5%</b>：任何一笔开仓，从买点到止损位的亏损额不得超过该上限（手数按第一章公式反推）；</li>
+  <li><b>全组合风险 ≤ 总资金 2.5%</b>：P1+P2 全部持仓的最大同时亏损额封顶 2.5%，达到即不允许任何加仓；</li>
+  <li><b>保证金占用 ≤ 总资金 25%</b>：jd2611 名义杠杆高（1 点=10 元/手），保证金占比超 25% 说明杠杆过重，先减仓再加仓；</li>
+  <li><b>分批不加倍</b>：只允许「低吸试仓 → 确认加仓」的顺路径分批，<b>禁止亏损加仓/摊平成本</b>（补仓=对作废线 3651 讨价还价）；</li>
+  <li><b>连亏衰减</b>：连亏 2 笔 → 下一笔风险比例减半（1%→0.5%）；连亏 3 笔 → <b>锁仓停手</b>，本周不再开新仓，只管理存量仓位；</li>
+  <li><b>单日强平不打折</b>：触发 S1/S2/T1 的平仓单，一律当日执行完毕，不允许「留半仓看看」；</li>
+  <li><b>利润再入场的门槛</b>：兑现后的再入场必须重新满足第一章的完整触发条件，不允许「刚卖就接回」的情绪单（配合第五章第 6 条冷静期）。</li>
+</ol>
+</div>
+
+<!-- ═══════════ 五、资金曲线熔断 ═══════════ -->
+<h2>五、资金曲线熔断（账户级风控，优先于一切行情判断）</h2>
+<div class="card">
+<table>
+  <tr><th>触发条件</th><th>动作</th><th>恢复条件</th></tr>
+  <tr><td>账户权益自本计划启动以来回撤 <b>≥3%</b></td><td>所有风险比例减半，当日只减不加</td><td>权益回到回撤起点上方</td></tr>
+  <tr><td>连亏 2 笔</td><td>下一笔风险比例减半</td><td>下一笔盈利即恢复</td></tr>
+  <tr><td>连亏 3 笔</td><td><b>锁仓停手</b>：清掉浮亏仓位，本周禁止开新仓</td><td>下周起，且需先在《每日检查表》连续 3 天全部通过</td></tr>
+  <tr><td>单日亏损 ≥ 总资金 2%</td><td>当日停止交易，复盘写清原因</td><td>次一交易日</td></tr>
+  <tr><td>单笔亏损达到预设止损额的 <b>120%</b>（滑点/跳空导致）</td><td>立即全面停手，检查是否用了市价单或重仓</td><td>重新核对本清单后手动恢复</td></tr>
+  <tr><td>平仓后 <b>15 分钟内</b>想反向再入场</td><td class="dn">强制冷静期：手离开键盘，写完当日检查表再说</td><td>15 分钟后仍想动手，才允许按第一章条件重新评估</td></tr>
+</table>
+</div>
+
+<!-- ═══════════ 六、违例动作对照表 ═══════════ -->
+<h2>六、违例动作对照表（六不原则 → 监控脚本规则编号）</h2>
+<div class="card">
+<p class="muted">下表每条规则编号（G1~G6）与配套监控脚本 <b>jd_guard.py</b> 一一对应：脚本发现下表左侧行为即弹出提醒并记录违例日志。</p>
+<table>
+  <tr><th>代号</th><th>禁则</th><th>违例动作（出现即违规）</th><th>应做动作</th></tr>
+  <tr><td><span class="tag tP2">G1</span></td><td><b>不追突破</b></td><td>盘中破 20 日高（3908）/破 20 日低（3651）的<b>当时</b>下单追进</td><td>等收盘或次日确认；P2 是唯一例外且必须「收盘站上 + 次日 14:00 后」</td></tr>
+  <tr><td><span class="tag tS">G2</span></td><td><b>不杀大阴</b></td><td>单日跌幅 &gt;1.8% 的阴线当天恐慌割肉（<b>收盘跌破 3651 除外——那不是杀大阴，是执行 S2</b>）</td><td>持有到次日；历史大阴次日反弹率 71.4%，反弹再按卖点表兑现</td></tr>
+  <tr><td><span class="tag tP1">G3</span></td><td><b>不信早盘</b></td><td>09:00~10:30 内做出的任何开仓/加仓决定</td><td>所有买卖决策放 14:00 之后；早盘只记录不动手</td></tr>
+  <tr><td><span class="tag tP1">G4</span></td><td><b>不赶连续</b></td><td>连涨第 3 根还想追多、连跌第 3 根还想杀空</td><td>本品种连续性≈抛硬币（49%/47%）；有利润逢周二/周四五的时间窗调仓</td></tr>
+  <tr><td><span class="tag tP1">G5</span></td><td><b>不赌节后</b></td><td>10/8 首日开盘 2 小时内进场</td><td>10/8 只看不做（长假后 5 日历史 6 次中 4 负）；方向收敛后再按 P1 条件评估</td></tr>
+  <tr><td><span class="tag tS">G6</span></td><td><b>不越作废线</b></td><td>收盘跌破 3651 后继续持仓、补仓、等反弹</td><td>当日清零全部多头，次日按 C 情景预案处理，不回头看</td></tr>
+</table>
+</div>
+
+<!-- ═══════════ 七、每日执行检查表 ═══════════ -->
+<h2>七、每日执行检查表（勾选状态自动保存）</h2>
+<div class="card">
+  <div class="chk"><input type="checkbox" id="c1"><label for="c1"><span class="when">盘前</span>确认主力合约仍是 jd2611，无移仓换月迹象（持仓量骤降需警惕）</label></div>
+  <div class="chk"><input type="checkbox" id="c2"><label for="c2"><span class="when">盘前</span>确认现价在 3651~3908 区间内、且隔夜现货蛋价未现单日 &gt;200 元/500kg 的崩跌（前提校验）</label></div>
+  <div class="chk"><input type="checkbox" id="c3"><label for="c3"><span class="when">盘前</span>写下今天的「如果…那么…」预案（到 3799 怎么办 / 回 3671 怎么办 / 破 3651 怎么办）</label></div>
+  <div class="chk"><input type="checkbox" id="c4"><label for="c4"><span class="when">早盘</span>09:00~10:30 只记录不动手（G3/G5 生效），早盘方向仅作噪音参考</label></div>
+  <div class="chk"><input type="checkbox" id="c5"><label for="c5"><span class="when">午后</span>若触发 P1/P2 条件：核对四项触发条件逐条打钩后才下单，且为限价单</label></div>
+  <div class="chk"><input type="checkbox" id="c6"><label for="c6"><span class="when">午后</span>若触发 S1/S2/T1 止损：当日执行完毕，不做任何「再看一天」的修改</label></div>
+  <div class="chk"><input type="checkbox" id="c7"><label for="c7"><span class="when">午后</span>若触及卖点区（3780~3799 / 3847 / 3908）：按第三张表分批兑现，不恋战</label></div>
+  <div class="chk"><input type="checkbox" id="c8"><label for="c8"><span class="when">盘后</span>记录收盘价与当日盈亏，更新连亏计数与权益回撤（对照第五章熔断条款）</label></div>
+  <div class="chk"><input type="checkbox" id="c9"><label for="c9"><span class="when">盘后</span>检查现货蛋价是否跌破 4000 元/500kg（联动 C 情景置信度的触发线）</label></div>
+  <div class="chk"><input type="checkbox" id="c10"><label for="c10"><span class="when">盘后</span>若今日有违例操作（G1~G6 任一）：在日志写明违例原因，连犯 2 次同类违例 → 次日强制空仓一天</label></div>
+  <button class="reset" onclick="resetChk()">重置今日勾选</button>
+  <p class="muted" id="chkStat" style="margin-top:8px"></p>
+</div>
+
+<!-- ═══════════ 八、速查卡 ═══════════ -->
+<h2>八、一屏速查卡</h2>
+<div class="okbox">
+  <table>
+    <tr><th>动作</th><th>价位</th><th>一句话</th></tr>
+    <tr><td class="up">买</td><td class="up">3671~3651</td><td>14:00 后企稳分批限价吸，止损 3632</td></tr>
+    <tr><td class="acc">确认加</td><td class="acc">收盘站上 3799</td><td>次日不回补再接，止损确认日低 −20 点</td></tr>
+    <tr><td class="gold">卖</td><td class="gold">3780~3799 / 3847 / 3908</td><td>分批兑现：½ / ½ / 清仓，3908 到点即走</td></tr>
+    <tr><td class="dn">砍</td><td class="dn">收盘 &lt;3651</td><td>当日清零全部多头，作废线不还价</td></tr>
+    <tr><td class="dn">试仓熔断</td><td class="dn">盘中触 3632</td><td>P1 试错仓无条件离场，不等收盘</td></tr>
+  </table>
+  <p class="muted" style="margin-bottom:0">配套文件：《JD2611 路线走向计划 v2》（点位依据与三情景）、《jd_guard.py》（六不原则实时监控）。</p>
+</div>
+
+<div class="foot">
+  本清单为《JD2611 路线走向计划》的执行层文档，全部点位、概率、手数算例均来自该计划 v2 及其规律挖掘脚本，不构成投资建议；期货杠杆交易风险极高，算例手数需按实际资金重新计算。数据截至 2026-09-30（节前最后交易日），10/8 开市起生效。
+</div>
+
+<script>
+(function(){
+  var KEY='jd2611_exec_chklist_v1';
+  var boxes=document.querySelectorAll('.chk input[type=checkbox]');
+  var saved={};
+  try{ saved=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
+  boxes.forEach(function(b){
+    if(saved[b.id]) { b.checked=true; b.parentElement.classList.add('done'); }
+    b.addEventListener('change',function(){
+      saved[b.id]=b.checked;
+      try{ localStorage.setItem(KEY,JSON.stringify(saved)); }catch(e){}
+      b.parentElement.classList.toggle('done',b.checked);
+      stat();
+    });
+  });
+  function stat(){
+    var n=0; boxes.forEach(function(b){ if(b.checked)n++; });
+    document.getElementById('chkStat').textContent='今日进度：'+n+' / '+boxes.length+' 项已完成'+(n===boxes.length?' ✔ 全部通过，可以收盘休息了':'');
+  }
+  window.resetChk=function(){
+    saved={}; try{ localStorage.removeItem(KEY); }catch(e){}
+    boxes.forEach(function(b){ b.checked=false; b.parentElement.classList.remove('done'); });
+    stat();
+  };
+  stat();
+})();
+</script>
+</div>
+</body>
+</html>
