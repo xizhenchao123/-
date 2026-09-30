@@ -2343,10 +2343,16 @@ function renderMtfx(){
   if(swt) $('mtfxReso').innerHTML='共振 '+resoTag(swt.resoN,swt.pass);
   /* 新快照行（时间格式对齐快照矩阵：MM-DD HH:MM） */
   const row={ t: bjStr(bj()).slice(5)+' '+fmtT(bj()), px:S.live.price, cells:cols.map(c=>c[1]?{s:c[1].s,c:c[1].c}:null) };
+  /* v17.14: 历史快照行仅在「信号组合变化」时新增——盘中 D1/H1/M15 几乎不动，旧逻辑每分钟存一行导致 8 行全相同纯刷屏。
+     信号相同则只更新最新行的时间/点位（时间跳动仍在推进），信号真正变化才落一行新历史。 */
+  const sigKey=cols.map(c=>c[1]?c[1].s+'|'+c[1].c:'--').join('#');
   let hist=[]; try{ const _hv=LS.get('mtfxHist',[]); hist=Array.isArray(_hv)?_hv.filter(r=>r&&Array.isArray(r.cells)):[]; }catch(e){} /* v17.1: 防御localStorage脏数据（非数组/坏行时渲染抛错曾连带吞掉renderPlans） */
-  /* 同分钟去重：同一点位时间覆盖 */
-  if(!hist.length||hist[0].t!==row.t){ hist.unshift(row); hist=hist.slice(0,8); LS.set('mtfxHist',hist); }
-  else hist[0]=row;
+  /* v17.14: 迁移清理——清掉旧版每分钟刷出来的重复快照（连续相同信号只保留最后一行） */
+  hist=hist.filter((r,i)=> i===0 || r.cells.map(c=>c?c.s+'|'+c.c:'--').join('#') !== hist[i-1].cells.map(c=>c?c.s+'|'+c.c:'--').join('#'));
+  /* 同分钟覆盖 + 同信号只刷新不新增 */
+  if(!hist.length || hist[0].sigKey!==sigKey){ row.sigKey=sigKey; hist.unshift(row); hist=hist.slice(0,8); }
+  else { hist[0].t=row.t; hist[0].px=row.px; row.sigKey=sigKey; hist[0].sigKey=sigKey; }
+  LS.set('mtfxHist',hist);
   /* 表头 + 行 */
   let h='<div style="overflow-x:auto"><table class="lvl" style="width:100%;border-collapse:collapse;font-size:11px"><tr>';
   h+='<th style="padding:5px;border-bottom:1px solid var(--line2)">分析时间</th><th style="padding:5px;border-bottom:1px solid var(--line2)">分析点位</th>';
@@ -3183,13 +3189,12 @@ function renderPanels(){
     $('gbDir').style.fontFamily='var(--serif)';
     $('gbDir').style.fontSize='22px';
     $('gbVeto').innerHTML = A.veto.length
-      ? `<b style="color:var(--risk)">⛔ 一票否决已触发（${A.veto.length}项）</b>：硬阻断，优先级高于打分，总分已按 ×0.65 折算并封顶 45 分，不视为交易机会。<br><span style="color:var(--risk)">${A.veto[0]}${A.veto.length>1?' 等':''}</span>`
+      ? `<b style="color:var(--risk)">⛔ 一票否决已触发（${A.veto.length}项）</b>：硬阻断，优先级高于打分，总分已按 ×0.65 折算并封顶 45 分，不视为交易机会。具体原因见下方「一票否决明细」卡片。`
       : `<b style="color:var(--ok)">✔ 未触发一票否决</b>${A.riskFlags.length?`（另有异动风险提示 ${A.riskFlags.length} 项，见风险提示卡片）`:''}。评级规则：A≥80 · B≥65 · C≥45 · D&lt;45。`;
-    /* n2 一句话行情结论（v17.9 全信号综合）：融合评级+否决/纪律+四板块得分+多周期共振+基本面+量价行为+风险项+基差 */
+    /* n2 一句话行情结论（v17.14 精简去重）：只说评级+动作+关键变量；否决原因见否决明细卡、三要素见今日走向卡，不再复述 */
     {
       const ol=$('gbOneLiner');
       const eg=A.eagle||{};
-      const sc=`今日走向【${dirm.dir}】（${dirm.holTxt}；${dirm.seaTxt}；${dirm.spotTxt}）`;
       const extras=[];
       if(A.mtfRes) extras.push(A.mtfRes.pass?'多周期共振':'多周期矛盾');
       if(A.fu&&A.fu.verdict) extras.push('基本面'+A.fu.verdict);
@@ -3197,11 +3202,11 @@ function renderPanels(){
       if(A.riskFlags&&A.riskFlags.length) extras.push('异动风险'+A.riskFlags.length+'项');
       if(A.basisPct!=null) extras.push(A.basisPct>0?'期货贴水现货'+A.basisPct.toFixed(0)+'%':'期货升水现货'+Math.abs(A.basisPct).toFixed(0)+'%');
       let lin, linC;
-      if(A.veto.length){ lin=`${gr} 级，${A.veto[0]}，仅观望，禁止开仓；${sc}`; linC='var(--risk)'; }
-      else if(S.losses&&S.losses.n>=3){ lin=`${gr} 级，当日连亏${S.losses.n}笔，按纪律暂停开仓，只复盘不开新单；${sc}`; linC='var(--risk)'; }
+      if(A.veto.length){ lin=`${gr} 级，触发一票否决（${A.veto.length}项，原因见下方明细卡），仅观望，禁止开仓`; linC='var(--risk)'; }
+      else if(S.losses&&S.losses.n>=3){ lin=`${gr} 级，当日连亏${S.losses.n}笔，按纪律暂停开仓，只复盘不开新单`; linC='var(--risk)'; }
       else if((gr==='A'||gr==='B')&&A.rr&&A.rr.pass){ lin=`${gr} 级，适合${A.rr.side==='多'?'做多':'做空'}（盈亏比≈${A.rr.rr.toFixed(1)}R），${extras.length?extras.join('，')+'；':''}可按仓位纪律轻仓试单`; linC=gr==='A'?'var(--ok)':'var(--gold)'; }
       else if(gr==='A'||gr==='B'){ lin=`${gr} 级，条件初备但盈亏比未达标（${A.rr&&A.rr.rr!=null?A.rr.rr.toFixed(1)+'R':'--'}）${extras.length?'，'+extras.join('，'):''}，等回踩更好的入场位`; linC='var(--gold)'; }
-      else { lin=`${gr} 级，${sc}，条件不足，观望为主${extras.length?'；'+extras.join('，'):''}`; linC='var(--dim)'; }
+      else { lin=`${gr} 级，今日走向【${dirm.dir}】，条件不足，观望为主${extras.length?'；'+extras.join('，'):''}`; linC='var(--dim)'; }
       ol.textContent='📌 一句话结论：'+lin;
       ol.style.display='block';
       ol.style.borderLeftColor=linC;
