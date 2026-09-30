@@ -640,7 +640,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px;flex-wrap:wrap">
         <button class="fbtn" id="rlAdd" style="background:rgba(45,212,170,.15);border-color:var(--sup)">＋ 记一条迭代</button>
         <button class="fbtn" id="rlSeed">🌱 载入版本历史种子</button>
-        <span style="font-size:10px;color:var(--faint)">种子来自 37 个版本的真实迭代史，首次载入后可编辑补充</span>
+        <span style="font-size:10px;color:var(--faint)">种子来自 38 个版本的真实迭代史，首次载入后可编辑补充</span>
       </div>
       <div class="sec" id="rlList" style="max-height:300px;overflow-y:auto"></div>
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据存本地浏览器（jdq_rulesLog），随 JSON 备份/导入一并迁移。闭环理念：每条规则改动都要回答「何时/何条/为何/效果」，防止改规则变成拍脑袋。</div>
@@ -4404,8 +4404,10 @@ function loopChecklist(){
   /* 6 资金风控（v17.16 复用 loopCapCalc，与八环节风险项同一口径；含连亏减半/锁仓纪律） */
   const cap=loopCapCalc();
   items.push({t:'资金校验通过（单笔≤2%）',ok:cap.ok,detail:cap.locked?'⛔ 连亏'+((S.losses&&S.losses.n)||3)+'笔已触发锁仓，今日禁开新单':(cap.equity<=0?'未填总资金/止损价，无法计算手数':(cap.ok?('可开 '+cap.lots+' 手，单笔风险锁死 2%'+(cap.half?'（连亏2笔·减半后）':'')):'止损太远或资金太小算得 0 手，本笔放弃'))});
-  /* 7 止损价（优先资金校验卡，其次持仓录入） */
+  /* 7 止损价（优先资金校验卡，其次持仓录入；v17.21 修复：rStop 此前从未定义，引用即抛
+     ReferenceError 致点开清单白屏——现显式读资金校验卡止损输入，与 loopCapCalc 同源） */
   const pSl=parseFloat(S.pos&&S.pos.sl)||0;
+  const rStop=parseFloat(($('rcStop')||{}).value)||0;
   const stopPx=rStop>0?rStop:pSl;
   const stopOk=stopPx>0;
   items.push({t:'已定止损价',ok:stopOk,detail:stopOk?('止损 '+stopPx.toFixed(0)+'（开仓前必填，不带止损不开仓）'):'未设止损价——不带止损是爆仓主因'});
@@ -4438,11 +4440,12 @@ function showRulesModalLike(html){
 
 /* ---- v17.16: 规则迭代记录（优化环节落地工具：每条规则改动必须回答 何时/何条/为何/怎么改/效果） ----
    存储：LS 键 'rulesLog'（自动带 jdq_ 前缀），数组 [{d,c,rule,why,how,eff,ts}]，上限 200 条。
-   种子数据提炼自本系统 37 个版本的真实迭代史（截至 v17.20），文案经 v17.18.1 对照核校修正；
+   种子数据提炼自本系统 38 个版本的真实迭代史（截至 v17.21），文案经 v17.18.1 对照核校修正；
    已灌入设备由灌入块按 rule 名自动原位迁移（alias 兼容改名前旧条目），无需手动操作。 */
 function rlLoad(){ try{ return JSON.parse(LS.get('rulesLog','[]'))||[]; }catch(e){ return []; } }
 function rlSave(arr){ try{ LS.set('rulesLog',JSON.stringify(arr.slice(0,200))); }catch(e){} }
 const RL_SEED=[
+  {d:'2026-09-30',c:'修正',rule:'第④风险止损持久化 + 检查清单白屏修复（v17.21）',why:'用户复盘八环节闭环：第④风险恒显「有风险」、第⑥验证恒显「需验证」。排查：④根因是资金校验只持久化总资金（v16rcEq）、止损价 rcStop 刷新即丢，loopCapCalc 算不出手数恒走「未填总资金/止损」警告态；顺带发现开仓前检查清单第7项引用从未定义的 rStop 变量，点开清单即抛 ReferenceError 白屏（v17.15 引入的笔误）。⑥经数据链核验（jd_backtest.json 20 笔回测已注入透传、btOk 为真）排除「回测待注入」，实为当日噪音状态=震荡、置信度被 v16ConfCalc 震荡封顶压到 40 分（<60 阈值）——这是震荡过滤纪律的正确表现',how:'桌面版 rcSave 双写 v16rcEq/v16rcStop，启动恢复两输入、任一非空即触发 v16Riskcap；检查清单第7项补 const rStop=parseFloat(($("rcStop")||{}).value)||0（与 loopCapCalc 同源：优先资金卡止损、其次持仓录入）；第⑥环节判定不动——置信度口径保持震荡封顶40，噪音状态回归正常即自动转绿（手机版无资金校验卡与检查清单模块，两处不涉及）',eff:'止损价填一次后刷新不再丢，无否决且资金校验通过时第④环节转绿；检查清单可正常点开；第⑥环节震荡期琥珀警告为正确纪律，噪音回归后自动转绿'},
   {d:'2026-09-30',c:'修正',rule:'主力资金显著性闸 + AI日志降噪（v17.20）',why:'9/30 主力资金研判：净空仅 41 手（占单边 0.17%）、净增 336 手（占 1.4%），量级均属噪声，却因净方向与增减方向相反命中「投机资金派发离场」重结论——多空比 0.999 的教科书级对峙本该走「多空分歧」分支；另 AI 分析日志每 3 分钟强制留痕，横盘 2 小时刷 40 余条同内容，实质变化被刷屏淹没',how:'mfAnalyze 加 ⓪ 显著性闸：净持仓与增减量均不足单边持仓 2% → 判为噪声级别，跳过「持续增多/持续增空/派发离场」三个方向性分支，直接落「多空对峙/均衡」，文案注明「量级太小不构成资金行为信号」，对峙时提示仓位宜保守；桌面版 AI 日志降噪：留痕签名加价位带（支撑/压力各取最近 3 档取整），心跳 3→30 分钟，横盘价位带不动不重复留痕（手机版无 AI 日志模块，不涉及）',eff:'9/30 资金研判修正为「多空对峙」并提示仓位保守，噪声量级不再输出方向性重结论；AI 日志横盘时段近零留痕'},
   {d:'2026-09-30',c:'修正',rule:'三要素日历双扣分修正 + 持仓量第四要素（v17.19）',why:'三要素评审发现两处日历缝隙：2026 年中秋（9/25-27）与国庆（10/1-7）分离，seasonBonus「节后回落 9/25~10/10」按两节连放旧节奏划分，9/28-9/30 被 season −1 + 国庆 pre −1 双重扣分；且 holidayStatus 检查顺序 pre 先于 post，9/28 开市首日被「距国庆 pre」遮蔽——现货未录入时纯日历即输出「偏空」，无价格证据',how:'seasonBonus 节后回落窗口改为 9/25-9/27 + 10/1-10/10（两节间隙返回中性 3，注意该函数同时供现货基本面分复用，内部评级链同步生效）；holidayStatus 把 post 判定挪到 pre 之前（9/28 类日期恢复「节后开市首日 +1」）；computeDirection 节前窗口季节因子强制中性不计分（seaTxt 同步提示让位）；展示层新增④持仓量环比 A.oiChgPct=oiDelta/prevOI（日级口径，先展示不进分，观察两周再定权重），卡片标题升级「三要素+1」',eff:'今日 9/30 score 从 −2（偏空）修复为 −1（震荡），纯日历不再单独驱动方向'},
   {d:'2026-09-30',c:'修正',rule:'方向闸当日双确认放宽（v17.18）',why:'用户反馈 AI 策略几乎总输出「不建议开仓」——v17.8.1 方向闸要求多向「日线上涨+当日收涨」/空向「日线下跌+当日收跌」，回踩日/反弹日多空双杀，信号频率被过度压缩',how:'rrCalc 方向闸放宽为仅日线趋势确认（多向日线涨、空向日线跌），当日未确认改为提示语「严守止损」；位置风险仍由盈亏比 1.5R 闸把关；震荡市拦截保留（mtfFilter 日线震荡仍观望）',eff:'待观察'},
@@ -5012,11 +5015,13 @@ function bindUI(){
     ['kdH','kdL','kdO','kdC'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('keydown',ev=>{ if(ev.key==='Enter') v16KdAdd(); }); });
     v16KdDraw();
 
-    /* 中5 资金风控：输入即算，总资金持久化 */
-    const rcSave=()=>{ try{ LS.set('v16rcEq',$('rcEquity').value||''); }catch(e){} v16Riskcap(); };
+    /* 中5 资金风控：输入即算，总资金+止损价持久化（v17.21：止损价此前只存内存，
+       刷新即丢——第④风险环节恒卡「未填总资金/止损」警告态的主因） */
+    const rcSave=()=>{ try{ LS.set('v16rcEq',$('rcEquity').value||''); LS.set('v16rcStop',$('rcStop').value||''); }catch(e){} v16Riskcap(); };
     ['rcEquity','rcEntry','rcStop'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input',rcSave); });
     const _rcEq=LS.get('v16rcEq',''); if(_rcEq) $('rcEquity').value=_rcEq;
-    if(_rcEq) v16Riskcap();
+    const _rcStop=LS.get('v16rcStop',''); if(_rcStop) $('rcStop').value=_rcStop;
+    if(_rcEq||_rcStop) v16Riskcap();
 
     /* 低7 流水统计导出 */
     $('jsExport').onclick=()=>{ v16ExportCsv(true); };
