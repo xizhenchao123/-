@@ -4942,6 +4942,18 @@ function bindUI(){
     if(!confirm('导入 '+add.length+' 条版本历史迭代种子（已存在的自动跳过）？')) return;
     rlSave(add.concat(cur)); rlRender();
   };
+  /* v17.17: 首访自动灌入种子（幂等：按 rule 名去重；置 rlSeeded 标记，之后手动删除的种子记录不会被复活；
+     换设备或清缓存后标记丢失会重新触发，去重保证已导入的不重复） */
+  try{
+    if(!LS.get('rlSeeded','')){
+      const cur0=rlLoad();
+      const have0=new Set(cur0.map(x=>x.rule));
+      const add0=RL_SEED.filter(s=>!have0.has(s.rule));
+      if(add0.length) rlSave(add0.concat(cur0));
+      LS.set('rlSeeded','1');
+      rlRender();
+    }
+  }catch(e){ console.warn('[v17.17] 种子自动灌入异常:',e); }
   try{ rlRender(); }catch(e){}
 
   /* ---- v16 绑定：策略模板 / 简易K线绘图 / 资金风控 / 流水统计导出 ---- */
