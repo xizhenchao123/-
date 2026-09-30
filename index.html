@@ -595,7 +595,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
         <button class="fbtn" id="ailogClear" style="float:right;margin-top:-1px;margin-right:6px">🗑 清空</button>
         <button class="fbtn" id="ailogSnap" style="float:right;margin-top:-1px;margin-right:6px">📸 记录当前</button></h3>
       <div id="ailogBody" style="max-height:320px;overflow-y:auto"></div>
-      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">每次分析产生实质变化（评级/结论/共振/风险状态/价位带变化）或每3分钟自动留痕一条完整快照，用于盘后复盘对照。数据存本地浏览器不上传，最多保留120条。</div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">每次分析产生实质变化（评级/结论/共振/风险状态/价位带变化）或每30分钟自动留痕一条完整快照，用于盘后复盘对照（v17.20 降噪：横盘时不再每3分钟重复刷屏）。数据存本地浏览器不上传，最多保留120条。</div>
     </div>
 
     <!-- n10: 交易日志（人工录入每笔交易 + 自动统计胜率/盈亏比/期望值 + 规则化 AI 错误复盘；纯展示层模块，不参与打分/评级） -->
@@ -640,7 +640,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       <div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px;flex-wrap:wrap">
         <button class="fbtn" id="rlAdd" style="background:rgba(45,212,170,.15);border-color:var(--sup)">＋ 记一条迭代</button>
         <button class="fbtn" id="rlSeed">🌱 载入版本历史种子</button>
-        <span style="font-size:10px;color:var(--faint)">种子来自 36 个版本的真实迭代史，首次载入后可编辑补充</span>
+        <span style="font-size:10px;color:var(--faint)">种子来自 37 个版本的真实迭代史，首次载入后可编辑补充</span>
       </div>
       <div class="sec" id="rlList" style="max-height:300px;overflow-y:auto"></div>
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据存本地浏览器（jdq_rulesLog），随 JSON 备份/导入一并迁移。闭环理念：每条规则改动都要回答「何时/何条/为何/效果」，防止改规则变成拍脑袋。</div>
@@ -2626,15 +2626,18 @@ function renderRisk(){
   $('riskBody2').insertAdjacentHTML('beforeend', aiV14Block('risk'));
 }
 
-/* ---- v14-f: AI 分析日志（实质变化或每3分钟留痕，完整快照，最多120条） ---- */
+/* ---- v14-f: AI 分析日志（实质变化或每30分钟留痕，完整快照，最多120条；v17.20 降噪） ---- */
 function v14AiLog(A, force){
   if(!A||!S.live) return;
   const sig=[A.grade?A.grade.grade:'--', A.fu?A.fu.verdict:'--', A.mtfRes?(A.mtfRes.pass?'共振':'矛盾'):'--',
              A.track&&A.track.on?(A.track.risk?'持仓风险':'持仓中'):'空仓', A.veto.length?('否决x'+A.veto.length):'无否决'].join('|');
+  /* v17.20 降噪：签名加价位带（支撑/压力各取最近 3 档取整），横盘时价位带不动→不重复留痕 */
+  const bandSig=(A.sup||[]).slice(0,3).map(x=>Math.round(x.price)).join(',')+'|'+(A.res||[]).slice(0,3).map(x=>Math.round(x.price)).join(',');
+  const fullSig=sig+'|'+bandSig;
   let log=[]; try{ const v=LS.get('ailog',[]); log=Array.isArray(v)?v:[]; }catch(e){}
   const last=log[0];
-  /* 留痕条件：签名变化 or 强制 or 距上条≥3分钟 */
-  if(!force&&last&&last.sig===sig&&(Date.now()-(last.ts||0))<180000) return;
+  /* 留痕条件（v17.20）：完整签名变化 or 强制 or 距上条≥30分钟心跳（原 3 分钟导致横盘 2 小时刷 40 条同内容） */
+  if(!force&&last&&last.sig===fullSig&&(Date.now()-(last.ts||0))<1800000) return;
   const fp=v14FundProb(A), swt=v14ShiWeiTai(A), ra=v14RiskAudit(A);
   const entry={
     ts:Date.now(), t:bjStr(bj())+' '+fmtT(bj()), px:S.live.price, sig,
@@ -2656,7 +2659,7 @@ function renderAiLog(){
   card.style.display='block';
   let log=[]; try{ const v=LS.get('ailog',[]); log=Array.isArray(v)?v:[]; }catch(e){}
   $('ailogTag').textContent=log.length+' 条';
-  if(!log.length){ $('ailogBody').innerHTML='<div style="font-size:11px;color:var(--faint)">暂无日志：分析产生实质变化（评级/共振/风险状态变化）或每3分钟自动留痕。</div>'; return; }
+  if(!log.length){ $('ailogBody').innerHTML='<div style="font-size:11px;color:var(--faint)">暂无日志：评级/结论/共振/价位带变化或每30分钟自动留痕。</div>'; return; }
   const gCol={A:'var(--ok)',B:'var(--blue)',C:'var(--warn)',D:'var(--risk)'};
   let h='';
   log.slice(0,40).forEach(e=>{
@@ -3305,8 +3308,21 @@ function mfAnalyze(){
   if(I.long==null||I.short==null){ out.behaviorTxt='投机多/空持仓未录入完整，资金解读暂不可用（录入后自动生成）。'; return out; }
   out.ready=true;
   const net=I.net, d=I.netDelta;
-  /* ① 主力资金行为判定（四态，方案A约定口径；优先级：同向增减 → 反向增减=派发 → 多空比对峙=分歧） */
-  if(net>0&&d!=null&&d>0){ out.behavior='主力持续增多'; out.behaviorTxt='投机净持仓为多头且较上期增加（净多 '+fmtN(net)+' 手，增 '+fmtN(d)+' 手）：主力资金持续做多，多头动能有资金背书，趋势延续概率相对更高，但仍需价格结构确认。'; }
+  /* ⓪ 显著性闸（v17.20）：净持仓/增减量占单边持仓 <2% 属噪声级别，一律不给方向性重结论。
+     修复背景：9/30 净空仅 41 手（占单边 0.17%）、净增 336 手（占 1.4%），却因「方向相反」
+     命中「投机资金派发离场」重结论——多空比 0.999 的教科书级对峙本该走「多空分歧」分支。 */
+  const oneSide=Math.max(I.long||0, I.short||0);
+  const sigNet=oneSide>0?Math.abs(net||0)/oneSide:0;      /* 净持仓显著性 */
+  const sigD=(d!=null&&oneSide>0)?Math.abs(d)/oneSide:0;  /* 增减量显著性 */
+  const weak=sigNet<0.02&&sigD<0.02;
+  /* ① 主力资金行为判定（四态，方案A约定口径；优先级：同向增减 → 反向增减=派发 → 多空比对峙=分歧；
+     v17.20：量级不足时跳过三个方向性分支，直接落到多空比对峙/均衡） */
+  if(weak){
+    const ratio=(I.long>0&&I.short>0)?I.long/I.short:null;
+    out.behavior='多空均衡';
+    out.behaviorTxt='净持仓 '+(net!=null?fmtN(Math.abs(net))+' 手':'--')+'、本期'+(d!=null&&d!==0?(d>0?'增':'减')+fmtN(Math.abs(d))+' 手':'无变化')+'，均不足单边持仓 2%（噪声级别）'+(ratio!=null?'，多空比 '+ratio.toFixed(2):'')+'：量级太小不构成资金行为信号'+(ratio!=null&&ratio>=0.7&&ratio<=1.43?'，多空对峙格局，方向选择临近但不确定性上升，仓位宜保守':'，资金面中性')+'。';
+  }
+  else if(net>0&&d!=null&&d>0){ out.behavior='主力持续增多'; out.behaviorTxt='投机净持仓为多头且较上期增加（净多 '+fmtN(net)+' 手，增 '+fmtN(d)+' 手）：主力资金持续做多，多头动能有资金背书，趋势延续概率相对更高，但仍需价格结构确认。'; }
   else if(net<0&&d!=null&&d<0){ out.behavior='主力持续增空'; out.behaviorTxt='投机净持仓为空头且空头进一步加码（净空 '+fmtN(Math.abs(net))+' 手，净持仓减 '+fmtN(Math.abs(d))+' 手）：主力资金持续做空，下行压力有资金背书，反弹对待需谨慎。'; }
   else if(d!=null&&d!==0&&((net>0&&d<0)||(net<0&&d>0))){ out.behavior='投机资金派发离场'; out.behaviorTxt='投机净持仓方向与增减方向相反（当前净'+(net>0?'多':'空')+' '+fmtN(Math.abs(net))+' 手，本期'+(d>0?'增':'减')+fmtN(Math.abs(d))+' 手）：'+(net>0?'多头获利了结/派发迹象，涨势资金基础松动，若价格仍在涨需警惕最后一冲':'空头回补离场，跌势资金基础松动，若价格仍在跌需警惕最后一杀')+'。'; }
   else if(I.long!=null&&I.short!=null&&I.long>0&&I.short>0){
@@ -4422,11 +4438,12 @@ function showRulesModalLike(html){
 
 /* ---- v17.16: 规则迭代记录（优化环节落地工具：每条规则改动必须回答 何时/何条/为何/怎么改/效果） ----
    存储：LS 键 'rulesLog'（自动带 jdq_ 前缀），数组 [{d,c,rule,why,how,eff,ts}]，上限 200 条。
-   种子数据提炼自本系统 36 个版本的真实迭代史（截至 v17.19），文案经 v17.18.1 对照核校修正；
+   种子数据提炼自本系统 37 个版本的真实迭代史（截至 v17.20），文案经 v17.18.1 对照核校修正；
    已灌入设备由灌入块按 rule 名自动原位迁移（alias 兼容改名前旧条目），无需手动操作。 */
 function rlLoad(){ try{ return JSON.parse(LS.get('rulesLog','[]'))||[]; }catch(e){ return []; } }
 function rlSave(arr){ try{ LS.set('rulesLog',JSON.stringify(arr.slice(0,200))); }catch(e){} }
 const RL_SEED=[
+  {d:'2026-09-30',c:'修正',rule:'主力资金显著性闸 + AI日志降噪（v17.20）',why:'9/30 主力资金研判：净空仅 41 手（占单边 0.17%）、净增 336 手（占 1.4%），量级均属噪声，却因净方向与增减方向相反命中「投机资金派发离场」重结论——多空比 0.999 的教科书级对峙本该走「多空分歧」分支；另 AI 分析日志每 3 分钟强制留痕，横盘 2 小时刷 40 余条同内容，实质变化被刷屏淹没',how:'mfAnalyze 加 ⓪ 显著性闸：净持仓与增减量均不足单边持仓 2% → 判为噪声级别，跳过「持续增多/持续增空/派发离场」三个方向性分支，直接落「多空对峙/均衡」，文案注明「量级太小不构成资金行为信号」，对峙时提示仓位宜保守；桌面版 AI 日志降噪：留痕签名加价位带（支撑/压力各取最近 3 档取整），心跳 3→30 分钟，横盘价位带不动不重复留痕（手机版无 AI 日志模块，不涉及）',eff:'9/30 资金研判修正为「多空对峙」并提示仓位保守，噪声量级不再输出方向性重结论；AI 日志横盘时段近零留痕'},
   {d:'2026-09-30',c:'修正',rule:'三要素日历双扣分修正 + 持仓量第四要素（v17.19）',why:'三要素评审发现两处日历缝隙：2026 年中秋（9/25-27）与国庆（10/1-7）分离，seasonBonus「节后回落 9/25~10/10」按两节连放旧节奏划分，9/28-9/30 被 season −1 + 国庆 pre −1 双重扣分；且 holidayStatus 检查顺序 pre 先于 post，9/28 开市首日被「距国庆 pre」遮蔽——现货未录入时纯日历即输出「偏空」，无价格证据',how:'seasonBonus 节后回落窗口改为 9/25-9/27 + 10/1-10/10（两节间隙返回中性 3，注意该函数同时供现货基本面分复用，内部评级链同步生效）；holidayStatus 把 post 判定挪到 pre 之前（9/28 类日期恢复「节后开市首日 +1」）；computeDirection 节前窗口季节因子强制中性不计分（seaTxt 同步提示让位）；展示层新增④持仓量环比 A.oiChgPct=oiDelta/prevOI（日级口径，先展示不进分，观察两周再定权重），卡片标题升级「三要素+1」',eff:'今日 9/30 score 从 −2（偏空）修复为 −1（震荡），纯日历不再单独驱动方向'},
   {d:'2026-09-30',c:'修正',rule:'方向闸当日双确认放宽（v17.18）',why:'用户反馈 AI 策略几乎总输出「不建议开仓」——v17.8.1 方向闸要求多向「日线上涨+当日收涨」/空向「日线下跌+当日收跌」，回踩日/反弹日多空双杀，信号频率被过度压缩',how:'rrCalc 方向闸放宽为仅日线趋势确认（多向日线涨、空向日线跌），当日未确认改为提示语「严守止损」；位置风险仍由盈亏比 1.5R 闸把关；震荡市拦截保留（mtfFilter 日线震荡仍观望）',eff:'待观察'},
   {d:'2026-09-30',c:'修正',rule:'八环节·风险/优化项 + 检查清单资金项（v17.16）',why:'审计发现 4 处漏洞：风险环节调 v16Riskcap() 取 void 恒显示未填资金；优化环节直读双重序列化的 journal 显示字符数；手机验证环节无研判时文案误导；检查清单资金项漏连亏锁仓',how:'抽 loopCapCalc() 纯计算函数双处复用；journal 计数改 jLoad().length；手机 tip 分流「等待研判输出」；清单资金项接入锁仓/减半纪律',eff:'待观察'},
