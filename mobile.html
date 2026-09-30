@@ -1454,6 +1454,16 @@ window.__TRAE_PUSH_INLINE__={
 <div class="errbox" id="errbox"></div>
 <div id="sysBanner" style="display:none;margin:10px 12px 0"></div>
 
+<!-- v17.15: 八环节闭环总览（数据→模型→策略→风险→分析→验证→执行→优化，数据驱动闭环） -->
+<div id="loopBanner" style="display:none;margin:10px 12px 0;padding:9px 12px;background:var(--card,#161b24);border:1px solid var(--line,#262c3a);border-radius:10px;font-size:11px">
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px">
+    <span style="font-weight:700;color:var(--gold);white-space:nowrap">🔄 八环节闭环</span>
+    <div style="flex:1;height:2px;background:linear-gradient(to right,var(--gold),var(--ok),var(--ok),var(--gold));border-radius:1px;opacity:.6"></div>
+    <button class="fbtn" id="loopCheckBtn" style="font-size:10px;padding:2px 8px;white-space:nowrap">📋 开仓前检查</button>
+  </div>
+  <div id="loopSteps" style="display:flex;gap:4px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin"></div>
+</div>
+
 <!-- 评级横幅卡片（k1-3）：综合得分 / 机会评级 / 一票否决状态 -->
 <div class="card" id="gradeBanner" style="display:none;margin:10px 12px 0">
   <div id="gbRow">
@@ -2547,6 +2557,99 @@ function computeDirection(A){
   if(A.veto&&A.veto.length) dir='高风险';
   return {dir, reasons:reasons.slice(0,3), holiday:hs, season, holTxt, seaTxt, spotTxt};
 }
+/* ---- v17.15: 八环节交易闭环（数据→模型→策略→风险→分析→验证→执行→优化） ----
+   每个环节映射到本系统既有模块，实时显示各环节状态（就绪/待办/阻塞），数据驱动闭环运转。
+   手机版适配：无回测卡/资金校验卡/置信度体检，验证环节以评级+盈亏比代称，风险环节无资金项。 */
+function loopStepsCalc(){
+  const A=S.A;
+  const st=[];
+  /* ① 数据：行情API + 现货录入 */
+  const dOk=!!S.live, dSpot=parseFloat(S.spot.today)>0;
+  st.push({n:'数据',ok:dOk&&dSpot,warn:dOk&&!dSpot,tip:dOk?(dSpot?'行情+现货就绪':'行情就绪·现货未录入'):'等待行情连接',mod:'行情API/现货录入'});
+  /* ② 模型：四项打分+一票否决 */
+  const mOk=!!A&&A.total!=null;
+  st.push({n:'模型',ok:mOk,warn:!mOk,tip:mOk?'四项打分 '+A.total+' 分':'等待研判输出',mod:'势位态+基本面打分'});
+  /* ③ 策略：双向预案+关键位 */
+  const pOk=!!A&&A.rr&&A.rr.rr!=null;
+  st.push({n:'策略',ok:pOk,warn:!pOk,tip:pOk?(A.rr.pass?'盈亏比 '+A.rr.rr.toFixed(1)+'R 达标':'盈亏比 '+A.rr.rr.toFixed(1)+'R 未达标'):'等待价位计算',mod:'双向预案/分级价位'});
+  /* ④ 风险：一票否决（手机版无资金校验卡） */
+  const vN=A?(A.veto||[]).length:0;
+  st.push({n:'风险',ok:vN===0,block:vN>0,tip:vN>0?'否决×'+vN+' 阻塞':'否决未触发',mod:'风控审核/否决规则'});
+  /* ⑤ 分析：多周期校验+资金鹰眼 */
+  const aOk=!!A&&(!!A.mtfRes||!!A.eagle);
+  st.push({n:'分析',ok:aOk,warn:!aOk,tip:aOk?(A.mtfRes&&A.mtfRes.pass?'多周期共振':'多周期/鹰眼已输出'):'等待盘面分析',mod:'多周期校验/资金鹰眼'});
+  /* ⑥ 验证：评级+盈亏比信号质量（手机版无回测/体检） */
+  const gOk=!!A&&A.grade&&(A.grade.grade==='A'||A.grade.grade==='B');
+  st.push({n:'验证',ok:gOk,warn:!!A&&!gOk,block:!A,tip:gOk?('评级 '+A.grade.grade+' 级·信号合格'):'评级未达标',mod:'评级/盈亏比'});
+  /* ⑦ 执行：持仓监控+开仓前检查 */
+  const hasPos=!!(S.pos&&S.pos.on);
+  st.push({n:'执行',ok:hasPos,warn:!hasPos,tip:hasPos?('持仓中·'+S.pos.dir+' '+(S.pos.entry||'--')):'无持仓·先过检查清单',mod:'持仓跟踪/移损提醒'});
+  /* ⑧ 优化：交易日志+复盘统计 */
+  const jn=(LS.get('journal','[]')||[]).length;
+  st.push({n:'优化',ok:jn>=10,warn:jn>0&&jn<10,block:jn===0,tip:jn>0?'日志 '+jn+' 笔'+(jn<10?'·样本尚少':'·可统计胜率'):'日志为空·每笔必记',mod:'交易日志/复盘'});
+  return st;
+}
+function renderLoop(){
+  const box=$('loopBanner'), steps=$('loopSteps');
+  if(!box||!steps) return;
+  const A=S.A;
+  if(!A){ box.style.display='none'; return; }
+  box.style.display='block';
+  const st=loopStepsCalc();
+  const COL={ok:'var(--ok)',warn:'var(--gold)',block:'var(--risk)'};
+  steps.innerHTML=st.map((s,i)=>{
+    const c=s.block?'block':(s.warn?'warn':'ok');
+    const dot=s.block?'⛔':(s.warn?'⚠':'✔');
+    return '<div title="'+s.n+'：'+s.tip+'（'+s.mod+'）" style="flex:1;min-width:58px;text-align:center;padding:5px 3px;border:1px solid '+(c==='ok'?'rgba(74,227,154,.35)':c==='warn'?'rgba(232,182,76,.35)':'rgba(255,77,66,.35)')+';border-radius:7px;background:'+(c==='ok'?'rgba(74,227,154,.05)':c==='warn'?'rgba(232,182,76,.05)':'rgba(255,77,66,.06)')+'">'
+      +'<div style="font-size:9px;color:var(--faint)">0'+(i+1)+'</div>'
+      +'<div style="font-weight:700;color:'+COL[c]+';font-size:12px">'+dot+' '+s.n+'</div>'
+      +'<div style="font-size:9px;color:var(--dim);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.tip+'</div></div>';
+  }).join('<div style="align-self:center;color:var(--faint);font-size:10px;flex:none">→</div>');
+}
+/* ---- v17.15: 开仓前检查清单（执行环节落地工具；手机版 5 项：无资金卡/置信度，并入止损项） ---- */
+function loopChecklist(){
+  const A=S.A||{};
+  const items=[];
+  /* 1 一票否决 */
+  const vN=(A.veto||[]).length;
+  items.push({t:'一票否决未触发',ok:vN===0,detail:vN===0?'9 条否决规则全部未命中':'已触发 '+vN+' 项：'+(A.veto||[])[0]+((A.veto||[]).length>1?' 等':'')+'——否决期间禁止开仓'});
+  /* 2 评级 */
+  const gr=A.grade?A.grade.grade:'--';
+  items.push({t:'机会评级 ≥ B',ok:gr==='A'||gr==='B',detail:'当前评级 '+gr+'（A≥80 / B≥65），C/D 级仅观摩'});
+  /* 3 盈亏比 */
+  const rr=A.rr&&A.rr.rr!=null?A.rr.rr:null;
+  items.push({t:'盈亏比 ≥ 1.5R',ok:rr!=null&&rr>=1.5,detail:rr!=null?('当前 '+rr.toFixed(2)+'R'+(rr>=1.5?'':'，不足 1.5R 不开仓')):'盈亏比未计算'});
+  /* 4 多周期共振 */
+  items.push({t:'多周期共振通过',ok:!!(A.mtfRes&&A.mtfRes.pass),detail:A.mtfRes?(A.mtfRes.pass?'日线/1小时/5分钟同向':'多周期矛盾，信号互斥'):'校验未输出'});
+  /* 5 止损价（持仓录入） */
+  const pSl=parseFloat(S.pos&&S.pos.sl)||0;
+  items.push({t:'已定止损价',ok:pSl>0,detail:pSl>0?('止损 '+pSl.toFixed(0)+'（开仓前必填，不带止损不开仓）'):'未设止损价——不带止损是爆仓主因'});
+  return items;
+}
+function renderLoopCheck(){
+  const items=loopChecklist();
+  const passN=items.filter(x=>x.ok).length;
+  const allOk=passN===items.length;
+  let h='<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:'+(allOk?'var(--ok)':'var(--gold)')+'">开仓前 5 项检查：'+passN+' / '+items.length+' 通过'+(allOk?' —— 全部通过，可按纪律轻仓执行':' —— 未全过，禁止开仓')+'</div>';
+  h+=items.map(x=>'<div style="display:flex;gap:6px;padding:4px 0;border-bottom:1px dashed var(--line,#262c3a);font-size:11px;line-height:1.5">'
+    +'<span style="flex:none;font-weight:700;color:'+(x.ok?'var(--ok)':'var(--risk)')+'">'+(x.ok?'✔':'✘')+'</span>'
+    +'<div><b style="color:'+(x.ok?'var(--fg,#e8ecf4)':'var(--risk)')+'">'+x.t+'</b><div style="color:var(--dim,#c9d2e0);font-size:10px">'+x.detail+'</div></div></div>').join('');
+  h+='<div style="font-size:10px;color:var(--faint);margin-top:6px">纪律：全部通过才允许开仓；开仓后转持仓跟踪自动接管（浮盈≥1R 保本损 → 1.5R+0.5R → 2R+1R）。检查实时取自打分/校验/持仓录入，不构成交易指令。</div>';
+  showLoopCheckModal(h);
+}
+/* v17.15: 检查清单弹窗（手机版变量回退 card/line，与 rulesModal 同构） */
+function showLoopCheckModal(html){
+  const old=$('loopCheckModal'); if(old) old.remove();
+  const m=document.createElement('div');
+  m.id='loopCheckModal';
+  m.style.cssText='position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.55);overflow:auto;padding:24px 12px';
+  m.innerHTML='<div style="max-width:560px;margin:0 auto;background:var(--card,#141824);border:1px solid var(--line,#262c3a);border-radius:12px;padding:16px 18px;color:var(--dim,#c9d2e0);font-size:12px;line-height:1.9">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:15px">📋 开仓前检查清单（执行环节）</b><button class="fbtn" id="loopCheckClose" style="cursor:pointer">✕ 关闭</button></div>'
+    +html+'</div>';
+  document.body.appendChild(m);
+  $('loopCheckClose').onclick=()=>m.remove();
+  m.onclick=e=>{ if(e.target===m) m.remove(); };
+}
 function analyze(){
   const d=S.bars.d, h1=S.bars.h1, m5=S.bars.m5, live=S.live;
   if(!d.length||!m5.length||!live) return null;
@@ -2708,6 +2811,7 @@ function analyze(){
   A.grade=gradeABCD(A);
   A.track=trackPosition(A);
   S.A=A;
+  try{ renderLoop(); }catch(e){}   /* v17.15: 八环节闭环总览（数据驱动，渲染失败不影响主流程） */
   return A;
 }
 
@@ -4427,6 +4531,9 @@ function bindUI(){
   $('rulesBtn').onclick=()=>{ $('rulesModal').style.display='block'; };
   $('rulesClose').onclick=()=>{ $('rulesModal').style.display='none'; };
   $('rulesModal').addEventListener('click',e=>{ if(e.target===$('rulesModal')) $('rulesModal').style.display='none'; });
+  /* v17.15: 八环节闭环——开仓前检查清单按钮 */
+  const lcb=$('loopCheckBtn');
+  if(lcb) lcb.onclick=()=>{ try{ renderLoopCheck(); }catch(e){ console.warn('[v17.15] 检查清单异常:',e); } };
   /* v17.13: JSON 备份导出/导入——覆盖全部 jdq_ 前缀键（交易日志/现货/持仓/连亏/回撤/鹰眼参数等） */
   const bkStamp=()=>new Date().toLocaleString('sv-SE',{timeZone:'Asia/Shanghai'});
   const bkRender=()=>{
