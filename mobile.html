@@ -2676,16 +2676,16 @@ function showLoopCheckModal(html){
 
 /* ---- v17.16: 规则迭代记录（优化环节落地工具：每条规则改动必须回答 何时/何条/为何/怎么改/效果） ----
    存储：LS 键 'rulesLog'（自动带 jdq_ 前缀），数组 [{d,c,rule,why,how,eff,ts}]，上限 200 条。
-   种子数据提炼自本系统 32 个版本的真实迭代史，仅作示例与留存，可自行增删。 */
+   种子数据提炼自本系统 35 个版本的真实迭代史，文案经 v17.18.1 对照核校修正；已灌入设备由灌入块按 rule 名自动原位迁移（alias 兼容改名前旧条目），无需手动操作，可自行增删。 */
 function rlLoad(){ try{ return JSON.parse(LS.get('rulesLog','[]'))||[]; }catch(e){ return []; } }
 function rlSave(arr){ try{ LS.set('rulesLog',JSON.stringify(arr.slice(0,200))); }catch(e){} }
 const RL_SEED=[
   {d:'2026-09-30',c:'修正',rule:'方向闸当日双确认放宽（v17.18）',why:'用户反馈 AI 策略几乎总输出「不建议开仓」——v17.8.1 方向闸要求多向「日线上涨+当日收涨」/空向「日线下跌+当日收跌」，回踩日/反弹日多空双杀，信号频率被过度压缩',how:'rrCalc 方向闸放宽为仅日线趋势确认（多向日线涨、空向日线跌），当日未确认改为提示语「严守止损」；位置风险仍由盈亏比 1.5R 闸把关；震荡市拦截保留（mtfFilter 日线震荡仍观望）',eff:'待观察'},
   {d:'2026-09-30',c:'修正',rule:'八环节·风险/优化项 + 检查清单资金项（v17.16）',why:'审计发现 4 处漏洞：风险环节调 v16Riskcap() 取 void 恒显示未填资金；优化环节直读双重序列化的 journal 显示字符数；手机验证环节无研判时文案误导；检查清单资金项漏连亏锁仓',how:'抽 loopCapCalc() 纯计算函数双处复用；journal 计数改 jLoad().length；手机 tip 分流「等待研判输出」；清单资金项接入锁仓/减半纪律',eff:'待观察'},
-  {d:'2026-09-25',c:'新增',rule:'八环节交易闭环（v17.15）',why:'按「八个环节形成完整闭环」框架把既有模块串成数据驱动链路',how:'新增 loopStepsCalc/renderLoop + 开仓前 5 项检查清单（手机版）',eff:'上线后即审计出风险项取值漏洞，次日 v17.16 修复；检查清单成为日常开仓门禁'},
-  {d:'2026-09-24',c:'新增',rule:'否决当日窗口（v17.10）',why:'否决检测窗口跨日累计，连日误报「禁止开仓」',how:'检测窗口全部限定当日K线（live.date 北京日期）',eff:'误报消除，隔日恢复正常提示'},
-  {d:'2026-09-20',c:'修正',rule:'评分滞后偏多（v17.7）',why:'复盘发现打分对下跌反应偏慢',how:'调整势位态权重与扣分梯度',eff:'震荡期信号减少（回测样本）'},
-  {d:'2026-09-18',c:'修正',rule:'局部验证逻辑漏洞（v17.8.1）',why:'上线后用户反馈边界数据报错',how:'补空值防御与异常兜底',eff:'无再复发'}
+  {d:'2026-09-30',c:'新增',rule:'八环节交易闭环（v17.15）',why:'按「八个环节形成完整闭环」框架把既有模块串成数据驱动链路',how:'新增 loopStepsCalc/renderLoop 八环节总览 + 开仓前 5 项检查清单弹窗（手机版精简）',eff:'上线当天即审计出风险环节取值漏洞，同日 v17.16 修复；检查清单成为日常开仓门禁'},
+  {d:'2026-09-29',c:'修正',rule:'否决当日窗口（v17.10）',why:'用户反馈连日误报「禁止开仓」而行情已走明显——否决检测窗口跨日累计，昨日 K 线在旧关键位的假突破被计入今日（跨日污染）',how:'假突破/有效突破/试探/wyckoff 扫描加当日窗口过滤（live.date 北京日期），一票否决阈值从单次×1 提高到×2，顺带修复 wash 循环 z 未定义 bug',eff:'误报消除，隔日恢复正常提示'},
+  {d:'2026-09-29',c:'修正',rule:'滞后偏多显示修正（v17.7）',alias:['评分滞后偏多（v17.7）'],why:'节后偏空行情（9/28-9/29）但系统多处卡片显示偏多、误导操作——根因是 MACD/MA 等滞后指标仍按节前多头状态渲染，与引擎主输出（D 级偏空防守）矛盾',how:'渲染层新增 lagBullInfo() 背景识别（季节回落期/跌破 MA10/日线下跌任一命中），技术指标/iFind 面板/RSI/多周期/概率卡 5 处偏多文案琥珀降级加「滞后」标注；引擎打分不动，主输出仍是唯一决策依据',eff:'偏多误导消除，节后反转期显示与引擎主输出一致'},
+  {d:'2026-09-29',c:'修正',rule:'漏洞审查与修复（v17.8.1）',alias:['局部验证逻辑漏洞（v17.8.1）'],why:'用户指令全量查漏洞——发现 gradeABCD 读 A.mtf（方向对象）而非 A.mtfRes（判定结果），mtf.pass 恒 undefined，A/B 级永不可达、恒走 C 级；另有双向择优与五步链「趋势定方向」口径冲突',how:'三端统一改读 A.mtfRes；rrCalc 加趋势方向约束（多向需日线上涨+当日收涨、空向需日线下跌+当日收跌，该双确认闸即 v17.18 放宽的对象）；另补 feed 新鲜度校验与回测规则串失实修正',eff:'A/B 级恢复可达；方向闸双确认使信号骤减，最终于 v17.18 放宽（见本表首条）'}
 ];
 function rlRender(){
   const list=$('rlList'); if(!list) return;
@@ -4674,14 +4674,27 @@ function bindUI(){
   };
   /* v17.18: 种子增量灌入（升级 v17.17 一次性首访标记为 rlSeen 已见标记表）：
      每条种子只在「从未灌入过」时注入一次；新版本新增的种子自动补入老设备；
-     已存在于列表中的种子规则直接标记已见（兼容 v17.17 老设备），手动删除的记录不会被复活。 */
+     已存在于列表中的种子规则直接标记已见（兼容 v17.17 老设备），手动删除的记录不会被复活。
+     v17.18.1: 种子文案经版本史核校修正（4 条日期/口径有误）——已灌入设备按 rule 名原位迁移
+     （d/c/why/how/eff 整体刷新，alias 兼容改名前旧条目），用户侧无需任何手动操作。 */
   try{
     let seen=[]; try{ seen=JSON.parse(LS.get('rlSeen','[]'))||[]; }catch(e){ seen=[]; }
     const seenSet=new Set(Array.isArray(seen)?seen:[]);
     const cur0=rlLoad();
-    const have0=new Set(cur0.map(x=>x.rule));
-    RL_SEED.forEach(s=>{ if(have0.has(s.rule)) seenSet.add(s.rule); });
-    const add0=RL_SEED.filter(s=>!seenSet.has(s.rule)&&!have0.has(s.rule));
+    let dirty0=false;
+    RL_SEED.forEach(s=>{
+      const names0=s.alias?s.alias.concat([s.rule]):[s.rule];
+      const hit0=cur0.find(e=>names0.indexOf(e.rule)>=0);
+      if(hit0){
+        seenSet.add(s.rule);
+        if(hit0.rule!==s.rule||hit0.d!==s.d||hit0.c!==s.c||hit0.why!==s.why||hit0.how!==s.how||hit0.eff!==s.eff){
+          hit0.rule=s.rule; hit0.d=s.d; hit0.c=s.c; hit0.why=s.why; hit0.how=s.how; hit0.eff=s.eff;
+          dirty0=true;
+        }
+      }
+    });
+    if(dirty0){ rlSave(cur0); rlRender(); }
+    const add0=RL_SEED.filter(s=>!seenSet.has(s.rule)&&!cur0.some(e=>e.rule===s.rule||(s.alias&&s.alias.indexOf(e.rule)>=0)));
     if(add0.length){
       rlSave(add0.concat(cur0));
       add0.forEach(s=>seenSet.add(s.rule));
