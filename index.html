@@ -624,6 +624,28 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       </div>
     </div>
 
+    <!-- v17.16: 规则迭代记录（优化环节落地工具：何时/何条规则/为何改/效果追踪；纯本地存储，不参与打分） -->
+    <div class="card" id="rulesLogCard">
+      <h3>🔧 规则迭代记录 <span class="tag" id="rlTag">0 条</span><button class="fbtn" id="rlFoldBtn" style="float:right;margin-top:-1px">▾ 展开</button></h3>
+      <div id="rlFold" style="display:none">
+      <div class="inp">
+        <div><label>生效日期</label><input id="rlDate" placeholder="如 2026-09-30"></div>
+        <div><label>类别</label><select id="rlCat"><option value="修正">修正（逻辑错误）</option><option value="优化">优化（参数/文案）</option><option value="新增">新增（规则/模块）</option><option value="回滚">回滚（撤回改动）</option></select></div>
+        <div style="grid-column:1/-1"><label>涉及规则/模块</label><input id="rlRule" placeholder="如：八环节风险项调用 v16Riskcap() 取 void 返回值"></div>
+        <div style="grid-column:1/-1"><label>为何改（触发原因/证据）</label><input id="rlWhy" placeholder="如：审计发现 cap 恒 undefined，风险环节永远显示未填总资金"></div>
+        <div style="grid-column:1/-1"><label>怎么改（改动要点）</label><input id="rlHow" placeholder="如：抽 loopCapCalc() 纯计算函数，双处复用同口径"></div>
+        <div style="grid-column:1/-1"><label>效果追踪（上线后观察结论，可后补）</label><input id="rlEff" placeholder="如：风险环节恢复真实三态；待观察 3 个交易日"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px;flex-wrap:wrap">
+        <button class="fbtn" id="rlAdd" style="background:rgba(45,212,170,.15);border-color:var(--sup)">＋ 记一条迭代</button>
+        <button class="fbtn" id="rlSeed">🌱 载入版本历史种子</button>
+        <span style="font-size:10px;color:var(--faint)">种子来自 32 个版本的真实迭代史，首次载入后可编辑补充</span>
+      </div>
+      <div class="sec" id="rlList" style="max-height:300px;overflow-y:auto"></div>
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据存本地浏览器（jdq_rulesLog），随 JSON 备份/导入一并迁移。闭环理念：每条规则改动都要回答「何时/何条/为何/效果」，防止改规则变成拍脑袋。</div>
+      </div>
+    </div>
+
     <!-- v17: Chart.js 简易K线速览已移除（与主图数据重复，避免CDN依赖） -->
 
     <!-- v17.12: 历史策略回查卡已按用户要求移除（存档/渲染/导出/清空全链路删除） -->
@@ -4271,6 +4293,22 @@ function v16KdAdd(){
 /* ---- v17.15: 八环节交易闭环（数据→模型→策略→风险→分析→验证→执行→优化） ----
    理念来自「八个环节形成完整闭环，系统化才可能进入真实交易」：
    每个环节映射到系统既有模块，实时显示各环节状态（就绪/待办/阻塞），数据驱动闭环运转。 */
+/* v17.16: 资金校验共用计算（读资金卡 DOM，等价 v16Riskcap 手数口径；纯计算无渲染副作用）
+   修复背景：v17.15 曾在风险环节直接调用 v16Riskcap() 取返回值，但该函数所有分支 return;（void），
+   导致 cap 恒 undefined→风险环节永远显示「未填总资金」，且每次研判多一次重写资金卡的副作用。 */
+function loopCapCalc(){
+  const eq=parseFloat(($('rcEquity')||{}).value)||0;
+  const stop=parseFloat(($('rcStop')||{}).value)||0;
+  const eIn=($('rcEntry')||{}).value;
+  const px=(eIn!==''&&parseFloat(eIn)>0)?parseFloat(eIn):(S.live?S.live.price:0);
+  const pts=Math.abs(px-stop);
+  const locked=!!(S.losses&&S.losses.n>=3);
+  const half=!!(S.losses&&S.losses.n===2);
+  let lots=(eq>0&&stop>0&&pts>0)?Math.floor(eq*0.02/(pts*10)):0;
+  if(half&&lots>0) lots=Math.floor(lots/2);
+  if(locked) lots=0;
+  return { ok:eq>0&&stop>0&&pts>0&&lots>0, lots, locked, half, equity:eq };
+}
 function loopStepsCalc(){
   const A=S.A;
   const st=[];
@@ -4283,11 +4321,10 @@ function loopStepsCalc(){
   /* ③ 策略：双向预案+关键位 */
   const pOk=!!A&&A.rr&&A.rr.rr!=null;
   st.push({n:'策略',ok:pOk,warn:!pOk,tip:pOk?(A.rr.pass?'盈亏比 '+A.rr.rr.toFixed(1)+'R 达标':'盈亏比 '+A.rr.rr.toFixed(1)+'R 未达标'):'等待价位计算',mod:'双向预案/分级价位'});
-  /* ④ 风险：风控审核+资金校验+否决 */
+  /* ④ 风险：风控审核+资金校验+否决（v17.16 改用 loopCapCalc 纯计算） */
   const vN=A?(A.veto||[]).length:0;
-  const cap=v16Riskcap();
-  const capOk=cap&&cap.maxLots>0;
-  st.push({n:'风险',ok:vN===0&&capOk,warn:vN===0&&!capOk,block:vN>0,tip:vN>0?'否决×'+vN+' 阻塞':(capOk?'资金校验通过':'未填总资金'),mod:'风控审核/资金≤2%'});
+  const cap=loopCapCalc();
+  st.push({n:'风险',ok:vN===0&&cap.ok,warn:vN===0&&!cap.ok,block:vN>0,tip:vN>0?'否决×'+vN+' 阻塞':(cap.locked?'连亏锁仓·禁开新单':(cap.ok?'资金校验通过':'未填总资金/止损')),mod:'风控审核/资金≤2%'});
   /* ⑤ 分析：多周期矩阵+鹰眼+主力资金 */
   const aOk=!!A&&(!!A.mtfRes||!!A.eagle);
   st.push({n:'分析',ok:aOk,warn:!aOk,tip:aOk?(A.mtfRes&&A.mtfRes.pass?'多周期共振':'多周期/鹰眼已输出'):'等待盘面分析',mod:'多周期矩阵/资金鹰眼'});
@@ -4297,9 +4334,11 @@ function loopStepsCalc(){
   /* ⑦ 执行：持仓监控+开仓前检查（此处只反映持仓状态） */
   const hasPos=!!(S.pos&&S.pos.on);
   st.push({n:'执行',ok:hasPos,warn:!hasPos,tip:hasPos?('持仓中·'+S.pos.dir+' '+(S.pos.entry||'--')):'无持仓·先过检查清单',mod:'持仓监控/移损阶梯'});
-  /* ⑧ 优化：交易日志+复盘统计 */
-  const jn=(LS.get('journal','[]')||[]).length;
-  st.push({n:'优化',ok:jn>=10,warn:jn>0&&jn<10,block:jn===0,tip:jn>0?'日志 '+jn+' 笔'+(jn<10?'·样本尚少':'·可统计胜率'):'日志为空·每笔必记',mod:'交易日志/流水复盘'});
+  /* ⑧ 优化：交易日志+复盘统计（v17.16 改用 jLoad() 读真实笔数——journal 经 jSave 双重序列化，
+     直接 LS.get('journal','[]').length 读到的是 JSON 字符串的字符数而非笔数） */
+  const jn=jLoad().length;
+  const rn=rlLoad().length;
+  st.push({n:'优化',ok:jn>=10,warn:jn>0&&jn<10,block:jn===0,tip:jn>0?('日志 '+jn+' 笔'+(jn<10?'·样本尚少':'·可统计胜率')+(rn?'·规则已迭代 '+rn+' 轮':'')):'日志为空·每笔必记',mod:'交易日志/规则迭代'});
   return st;
 }
 function renderLoop(){
@@ -4337,14 +4376,9 @@ function loopChecklist(){
   /* 5 置信度 */
   const cf=v16ConfCalc(S.A);
   items.push({t:'研判置信度 ≥ 60',ok:!!cf&&cf.score>=60,detail:cf?('当前 '+cf.score+'/100'+(cf.capped?'（震荡封顶）':'')):'体检未运行'});
-  /* 6 资金风控（读资金校验卡输入，等价 v16Riskcap 的手数计算） */
-  const eq=parseFloat(($('rcEquity')||{}).value)||0;
-  const rStop=parseFloat(($('rcStop')||{}).value)||0;
-  const rEntry=($('rcEntry')||{}).value;
-  const rPx=rEntry!==''?(parseFloat(rEntry)||0):(S.live?S.live.price:0);
-  const capOk=eq>0&&rStop>0&&rPx>0&&Math.abs(rPx-rStop)>0;
-  const capLots=capOk?Math.floor(eq*0.02/(Math.abs(rPx-rStop)*10)):0;
-  items.push({t:'资金校验通过（单笔≤2%）',ok:capOk&&capLots>0,detail:capOk?(capLots>0?('可开 '+capLots+' 手，单笔风险锁死 2%'):'止损太远或资金太小算得 0 手，本笔放弃'):'未填总资金/止损价，无法计算手数'});
+  /* 6 资金风控（v17.16 复用 loopCapCalc，与八环节风险项同一口径；含连亏减半/锁仓纪律） */
+  const cap=loopCapCalc();
+  items.push({t:'资金校验通过（单笔≤2%）',ok:cap.ok,detail:cap.locked?'⛔ 连亏'+((S.losses&&S.losses.n)||3)+'笔已触发锁仓，今日禁开新单':(cap.equity<=0?'未填总资金/止损价，无法计算手数':(cap.ok?('可开 '+cap.lots+' 手，单笔风险锁死 2%'+(cap.half?'（连亏2笔·减半后）':'')):'止损太远或资金太小算得 0 手，本笔放弃'))});
   /* 7 止损价（优先资金校验卡，其次持仓录入） */
   const pSl=parseFloat(S.pos&&S.pos.sl)||0;
   const stopPx=rStop>0?rStop:pSl;
@@ -4375,6 +4409,49 @@ function showRulesModalLike(html){
   document.body.appendChild(m);
   $('loopCheckClose').onclick=()=>m.remove();
   m.onclick=e=>{ if(e.target===m) m.remove(); };
+}
+
+/* ---- v17.16: 规则迭代记录（优化环节落地工具：每条规则改动必须回答 何时/何条/为何/怎么改/效果） ----
+   存储：LS 键 'rulesLog'（自动带 jdq_ 前缀），数组 [{d,c,rule,why,how,eff,ts}]，上限 200 条。
+   种子数据提炼自本系统 32 个版本的真实迭代史，仅作示例与留存，可自行增删。 */
+function rlLoad(){ try{ return JSON.parse(LS.get('rulesLog','[]'))||[]; }catch(e){ return []; } }
+function rlSave(arr){ try{ LS.set('rulesLog',JSON.stringify(arr.slice(0,200))); }catch(e){} }
+const RL_SEED=[
+  {d:'2026-09-30',c:'修正',rule:'八环节·风险/优化项 + 检查清单资金项（v17.16）',why:'审计发现 4 处漏洞：风险环节调 v16Riskcap() 取 void 恒显示未填资金；优化环节直读双重序列化的 journal 显示字符数；手机验证环节无研判时文案误导；检查清单资金项漏连亏锁仓',how:'抽 loopCapCalc() 纯计算函数双处复用；journal 计数改 jLoad().length；手机 tip 分流「等待研判输出」；清单资金项接入锁仓/减半纪律',eff:'待观察'},
+  {d:'2026-09-25',c:'新增',rule:'八环节交易闭环（v17.15）',why:'按「八个环节形成完整闭环」框架把既有模块串成数据驱动链路',how:'新增 loopStepsCalc/renderLoop + 开仓前 7 项检查清单',eff:'上线后即审计出风险项取值漏洞，次日 v17.16 修复；检查清单成为日常开仓门禁'},
+  {d:'2026-09-24',c:'新增',rule:'否决当日窗口（v17.10）',why:'否决检测窗口跨日累计，连日误报「禁止开仓」',how:'检测窗口全部限定当日K线（live.date 北京日期）',eff:'误报消除，隔日恢复正常提示'},
+  {d:'2026-09-20',c:'修正',rule:'评分滞后偏多（v17.7）',why:'复盘发现打分对下跌反应偏慢',how:'调整势位态权重与扣分梯度',eff:'震荡期信号减少（回测样本）'},
+  {d:'2026-09-18',c:'修正',rule:'局部验证逻辑漏洞（v17.8.1）',why:'上线后用户反馈边界数据报错',how:'补空值防御与异常兜底',eff:'无再复发'}
+];
+function rlRender(){
+  const list=$('rlList'); if(!list) return;
+  const arr=rlLoad();
+  const tag=$('rlTag'); if(tag) tag.textContent=arr.length+' 条';
+  if(!arr.length){ list.innerHTML='<div style="font-size:11px;color:var(--faint)">还没有迭代记录。点「载入版本历史种子」快速导入过往迭代，或「＋ 记一条迭代」从现在开始沉淀。</div>'; return; }
+  const CATC={'修正':'var(--risk)','优化':'var(--gold)','新增':'var(--ok)','回滚':'var(--faint)'};
+  list.innerHTML=arr.map((r,i)=>{
+    const col=CATC[r.c]||'var(--dim)';
+    const effTxt=r.eff?('效果：'+esc(r.eff)):'效果：待追踪（观察后回来补）';
+    return '<div style="padding:7px 0;border-bottom:1px dashed var(--line2);font-size:11px;line-height:1.65">'
+      +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span style="flex:none;font-weight:700;color:'+col+'">['+esc(r.c)+']</span><b>'+esc(r.rule)+'</b><span style="color:var(--faint);flex:none">'+esc(r.d)+'</span>'
+      +'<button class="fbtn" data-rldel="'+i+'" style="margin-left:auto;font-size:10px;padding:1px 7px">删</button></div>'
+      +'<div style="color:var(--dim)">为何改：'+esc(r.why)+'</div>'
+      +'<div style="color:var(--dim)">怎么改：'+esc(r.how)+'</div>'
+      +'<div style="color:'+(r.eff?'var(--fg)':'var(--faint)')+'">'+effTxt+'</div></div>';
+  }).join('');
+  list.querySelectorAll('[data-rldel]').forEach(b=>{
+    b.onclick=()=>{ const i=+b.getAttribute('data-rldel'); const a=rlLoad(); if(confirm('删除这条迭代记录？')){ a.splice(i,1); rlSave(a); rlRender(); } };
+  });
+}
+function rlAddOne(){
+  const d=$('rlDate').value.trim()||new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
+  const rule=$('rlRule').value.trim(), why=$('rlWhy').value.trim(), how=$('rlHow').value.trim();
+  if(!rule||!why||!how){ alert('「涉及规则」「为何改」「怎么改」三项必填——答不清为何改，就不该动规则。'); return; }
+  const a=rlLoad();
+  a.unshift({d, c:$('rlCat').value, rule, why, how, eff:$('rlEff').value.trim(), ts:Date.now()});
+  rlSave(a); rlRender();
+  ['rlRule','rlWhy','rlHow','rlEff'].forEach(id=>{ $(id).value=''; });
+  $('rlTag').textContent=rlLoad().length+' 条';
 }
 
 /* ---- v16-中6: 研判置信度（0~100 五因子，复用既有 A 对象字段，不改动原始打分） ---- */
@@ -4846,6 +4923,27 @@ function bindUI(){
   $('jTag').textContent=jLoad().length+' 笔';
   lossRender(); ddRender();
 
+  /* v17.16: 规则迭代记录——折叠切换 + 录入 + 种子导入 + 首渲染 */
+  const rlb=$('rlFoldBtn');
+  if(rlb) rlb.addEventListener('click',()=>{
+    const open=$('rlFold').style.display==='none';
+    $('rlFold').style.display=open?'block':'none';
+    rlb.textContent=open?'▴ 收起':'▾ 展开';
+    if(open) rlRender();
+  });
+  const rla=$('rlAdd');
+  if(rla) rla.onclick=()=>{ try{ rlAddOne(); }catch(e){ console.warn('[v17.16] 规则迭代录入异常:',e); } };
+  const rls=$('rlSeed');
+  if(rls) rls.onclick=()=>{
+    const cur=rlLoad();
+    const have=new Set(cur.map(x=>x.rule));
+    const add=RL_SEED.filter(s=>!have.has(s.rule));
+    if(!add.length){ alert('种子里的 '+RL_SEED.length+' 条历史迭代已全部在列。'); return; }
+    if(!confirm('导入 '+add.length+' 条版本历史迭代种子（已存在的自动跳过）？')) return;
+    rlSave(add.concat(cur)); rlRender();
+  };
+  try{ rlRender(); }catch(e){}
+
   /* ---- v16 绑定：策略模板 / 简易K线绘图 / 资金风控 / 流水统计导出 ---- */
   try{
     /* 高1 简易K线绘图 */
@@ -4889,7 +4987,7 @@ function v17Rearrange(){
        cards:['confCard','riskCard','riskTipCard']},
       {id:'grp-tools', name:'录入工具', tag:'截图识别 / 手绘K线 / 数据源（默认收起）', wide:['ocrCard','kdrawCard','spotCard','apiCard'],
        cards:[], folded:true},
-      {id:'grp-log',   name:'复盘日志', tag:'流水统计 / 交易日志 / 历史存档', wide:['jstatCard','journalCard'],
+      {id:'grp-log',   name:'复盘日志', tag:'流水统计 / 交易日志 / 规则迭代', wide:['jstatCard','journalCard','rulesLogCard'],
        cards:['caseCard','recapCard','ailogCard']},
       {id:'grp-plan',  name:'策略预案', tag:'多空沙盘 / 历史案例 / AI盯盘', wide:['planCard'],
        cards:['nnCard2','caseCard2']},
