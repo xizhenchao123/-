@@ -2680,6 +2680,7 @@ function showLoopCheckModal(html){
 function rlLoad(){ try{ return JSON.parse(LS.get('rulesLog','[]'))||[]; }catch(e){ return []; } }
 function rlSave(arr){ try{ LS.set('rulesLog',JSON.stringify(arr.slice(0,200))); }catch(e){} }
 const RL_SEED=[
+  {d:'2026-09-30',c:'修正',rule:'方向闸当日双确认放宽（v17.18）',why:'用户反馈 AI 策略几乎总输出「不建议开仓」——v17.8.1 方向闸要求多向「日线上涨+当日收涨」/空向「日线下跌+当日收跌」，回踩日/反弹日多空双杀，信号频率被过度压缩',how:'rrCalc 方向闸放宽为仅日线趋势确认（多向日线涨、空向日线跌），当日未确认改为提示语「严守止损」；位置风险仍由盈亏比 1.5R 闸把关；震荡市拦截保留（mtfFilter 日线震荡仍观望）',eff:'待观察'},
   {d:'2026-09-30',c:'修正',rule:'八环节·风险/优化项 + 检查清单资金项（v17.16）',why:'审计发现 4 处漏洞：风险环节调 v16Riskcap() 取 void 恒显示未填资金；优化环节直读双重序列化的 journal 显示字符数；手机验证环节无研判时文案误导；检查清单资金项漏连亏锁仓',how:'抽 loopCapCalc() 纯计算函数双处复用；journal 计数改 jLoad().length；手机 tip 分流「等待研判输出」；清单资金项接入锁仓/减半纪律',eff:'待观察'},
   {d:'2026-09-25',c:'新增',rule:'八环节交易闭环（v17.15）',why:'按「八个环节形成完整闭环」框架把既有模块串成数据驱动链路',how:'新增 loopStepsCalc/renderLoop + 开仓前 5 项检查清单（手机版）',eff:'上线后即审计出风险项取值漏洞，次日 v17.16 修复；检查清单成为日常开仓门禁'},
   {d:'2026-09-24',c:'新增',rule:'否决当日窗口（v17.10）',why:'否决检测窗口跨日累计，连日误报「禁止开仓」',how:'检测窗口全部限定当日K线（live.date 北京日期）',eff:'误报消除，隔日恢复正常提示'},
@@ -2999,15 +3000,15 @@ function rrCalc(A){
   const longRR  = price<res ? (res-price)/Math.max(price-sup+stopW*0.5, stopW*0.5) : 0;
   const shortRR = price>sup ? (price-sup)/Math.max(res-price+stopW*0.5, stopW*0.5) : 0;
   out.longRR=clamp(longRR,0,9); out.shortRR=clamp(shortRR,0,9);
-  /* v17.8.1: 趋势方向约束（与引擎/回测同款口径）——多向需日线上涨且当日收涨，空向需日线下跌且当日收跌，逆势方向不再双向择优 */
+  /* v17.18: 方向闸放宽——多向只需日线趋势为涨、空向只需日线趋势为跌，不再强制「当日收涨/收跌」双确认。
+     v17.8.1 的双确认导致回踩日/反弹日多空双杀，是「总是不建议开仓」的头号原因；回踩/反弹位置风险改由盈亏比 1.5R 闸与止损纪律把关。 */
   const trend=A.d.trend.trend, dayUp=A.dayUp===true;
-  const wantLong=trend==='up'&&dayUp, wantShort=trend==='down'&&!dayUp;
+  const wantLong=trend==='up', wantShort=trend==='down';
   if(!wantLong&&!wantShort){
     out.dirOk=false;
     out.rr=Math.max(out.longRR,out.shortRR);
     out.side=out.longRR>=out.shortRR?'多':'空';
-    const whyDir=trend==='range'?'日线为震荡（无方向）':trend==='up'?'日线上涨但当日未收涨（回踩未确认）':'日线下跌但当日未收跌（反弹未确认）';
-    out.note=whyDir+'，方向条件不满足（多向需日线上涨且当日收涨，空向需日线下跌且当日收跌），双向均不通过过滤，优先观望';
+    out.note='日线为震荡（无方向），方向条件不满足（多向需日线上涨，空向需日线下跌），双向均不通过过滤，优先观望';
     return out;
   }
   const isLong=wantLong;
@@ -3017,7 +3018,8 @@ function rrCalc(A){
   out.stop =isLong? Math.min(sup-0.3*atrD, price-stopW) : Math.max(res+0.3*atrD, price+stopW);
   out.target=isLong? res : sup;
   out.pass=out.rr>=1.5;
-  out.note='按'+(isLong?'多':'空')+'向评估（方向与日线趋势一致）：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.pass?'（≥1.5R达标）':'（<1.5R，按框架直接过滤，不推荐开仓）');
+  const dayHint=!isLong?(dayUp?'，提示：当日未收跌（反弹未确认），严守止损':''):(dayUp?'':'，提示：当日未收涨（回踩未确认），严守止损');
+  out.note='按'+(isLong?'多':'空')+'向评估（方向随日线趋势，v17.18 已放宽当日涨跌强制）：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.pass?'（≥1.5R达标）':'（<1.5R，按框架直接过滤，不推荐开仓）')+dayHint;
   return out;
 }
 
@@ -3038,7 +3040,7 @@ function gradeABCD(A){
   /* v17.8.1 补齐·交易不可能三角（与桌面版/引擎统一口径）：预期盈亏比不足1.5R或方向条件不满足 → D 级禁止开仓 */
   if(rr.rr!=null&&!rr.pass){
     g.grade='D';
-    g.why.push('⛔ 交易不可能三角过滤：预期盈亏比 '+rr.rr.toFixed(2)+'R'+(rr.rr>=1.5?'虽≥1.5R但方向条件不满足':'＜1.5R纪律阈值')+'，直接判 D 级、禁止开仓。'+rr.note);
+    g.why.push('⛔ 交易不可能三角过滤：预期盈亏比 '+rr.rr.toFixed(2)+'R'+(rr.rr>=1.5?'虽≥1.5R但日线为震荡、无方向（v17.18 后方向闸仅剩此一种拦截）':'＜1.5R纪律阈值')+'，直接判 D 级、禁止开仓。'+rr.note);
     if(!mtf.pass) g.why.push('另：'+mtf.why);
     return g;
   }
@@ -4670,18 +4672,23 @@ function bindUI(){
     if(!confirm('导入 '+add.length+' 条版本历史迭代种子（已存在的自动跳过）？')) return;
     rlSave(add.concat(cur)); rlRender();
   };
-  /* v17.17: 首访自动灌入种子（幂等：按 rule 名去重；置 rlSeeded 标记，之后手动删除的种子记录不会被复活；
-     换设备或清缓存后标记丢失会重新触发，去重保证已导入的不重复） */
+  /* v17.18: 种子增量灌入（升级 v17.17 一次性首访标记为 rlSeen 已见标记表）：
+     每条种子只在「从未灌入过」时注入一次；新版本新增的种子自动补入老设备；
+     已存在于列表中的种子规则直接标记已见（兼容 v17.17 老设备），手动删除的记录不会被复活。 */
   try{
-    if(!LS.get('rlSeeded','')){
-      const cur0=rlLoad();
-      const have0=new Set(cur0.map(x=>x.rule));
-      const add0=RL_SEED.filter(s=>!have0.has(s.rule));
-      if(add0.length) rlSave(add0.concat(cur0));
-      LS.set('rlSeeded','1');
+    let seen=[]; try{ seen=JSON.parse(LS.get('rlSeen','[]'))||[]; }catch(e){ seen=[]; }
+    const seenSet=new Set(Array.isArray(seen)?seen:[]);
+    const cur0=rlLoad();
+    const have0=new Set(cur0.map(x=>x.rule));
+    RL_SEED.forEach(s=>{ if(have0.has(s.rule)) seenSet.add(s.rule); });
+    const add0=RL_SEED.filter(s=>!seenSet.has(s.rule)&&!have0.has(s.rule));
+    if(add0.length){
+      rlSave(add0.concat(cur0));
+      add0.forEach(s=>seenSet.add(s.rule));
       rlRender();
     }
-  }catch(e){ console.warn('[v17.17] 种子自动灌入异常:',e); }
+    LS.set('rlSeen',JSON.stringify(Array.from(seenSet).slice(0,400)));
+  }catch(e){ console.warn('[v17.18] 种子增量灌入异常:',e); }
   try{ rlRender(); }catch(e){}
 }
 
