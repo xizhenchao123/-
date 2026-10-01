@@ -1,0 +1,39 @@
+name: jd-family-pages
+
+# v17.28b: 家人版（jd2611.pages.dev）云端部署——电脑不开机也照常更新
+# 触发：
+#   1) workflow_run——每天 jd-cloud-feed 抓数完成后自动接力（数据新 → 组包 → 部署）
+#   2) workflow_dispatch——手动触发补发
+# 需在仓库 Secrets 配置：CF_API_TOKEN / CF_ACCOUNT_ID（Cloudflare Pages Edit 权限）
+
+on:
+  workflow_run:
+    workflows: ["jd-cloud-feed"]
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: jd-family-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # 只在抓数 workflow 成功结束后（或手动触发）才部署
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 组包 + 部署到 Cloudflare Pages
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_PROJECT: jd2611
+        run: node scripts/cloud_pages_deploy.js
