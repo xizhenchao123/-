@@ -1,29 +1,39 @@
 name: jd-family-pages
 
-# v17.28b: 家人版（jd2611.pages.dev）云端部署——电脑不开机也照常更新
+# v17.28b: 家人版（爸妈手机上的 PWA）云端自动更新——电脑不开机照常更新。
+# 零凭据方案：不依赖 Cloudflare Secrets（集成凭据无 Secrets API 权限），
+# 家人版直接托管 GitHub Pages family/ 子目录，本 workflow 组包后 git 自提交。
+# 线上家人链接: https://xizhenchao123.github.io/-/family/jd2611.html
 # 触发：
-#   1) workflow_run——每天 jd-cloud-feed 抓数完成后自动接力（数据新 → 组包 → 部署）
-#   2) workflow_dispatch——手动触发补发
-# 需在仓库 Secrets 配置：CF_API_TOKEN / CF_ACCOUNT_ID（Cloudflare Pages Edit 权限）
+#   1) workflow_run——jd-cloud-feed 抓数成功后自动接力（数据新 → 组包 → 提交 → Pages 刷新）
+#   2) push——family/ 源头（appsync/*、jd_cloud_feed.json）更新时重组包
+#   3) workflow_dispatch——手动触发补发
 
 on:
   workflow_run:
     workflows: ["jd-cloud-feed"]
     types: [completed]
+  push:
+    paths:
+      - 'appsync/**'
+      - 'jd_cloud_feed.json'
+      - 'scripts/family_pages_build.js'
+      - '.github/workflows/jd-family-pages.yml'
   workflow_dispatch: {}
 
-permissions: {}
+permissions:
+  contents: write             # 允许 workflow 自提交 family/
 
 concurrency:
   group: jd-family-pages
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    # 只在抓数 workflow 成功结束后（或手动触发）才部署
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+  build:
+    # 只在抓数 workflow 成功结束后（或 push / 手动触发）才组包
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 
@@ -31,9 +41,17 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 组包 + 部署到 Cloudflare Pages
-        env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_PROJECT: jd2611
-        run: node scripts/cloud_pages_deploy.js
+      - name: 组包家人版（注入最新现货价 → family/）
+        run: node scripts/family_pages_build.js
+
+      - name: 提交 family/
+        run: |
+          git config user.name  "jd-cloud-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add family/
+          if git diff --cached --quiet; then
+            echo "内容无变化，跳过提交"
+          else
+            git commit -m "family-pages: $(date -u +'%F %T') UTC 自动更新家人版（SPOT_SEED 注入）"
+            git push
+          fi
