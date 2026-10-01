@@ -6,7 +6,7 @@
 <title>JD2611 · 半量化研判系统 PRO</title>
 <meta name="theme-color" content="#07090f">
 <style>
-/* ================= v12 MASTER THEME · 大师级研判终端 ================= */
+/* ================= v12 MASTER THEME · 大师级研判终端 · v17.22 桌面布局收紧 ================= */
 :root{
   --bg:#07090f; --bg2:#0a0d15;
   --card:rgba(17,22,33,.72); --card2:rgba(13,18,27,.85); --card3:#131a28;
@@ -81,7 +81,8 @@ header::before{content:"";position:absolute;left:0;right:0;top:-1px;height:2px;
 #gbVeto{flex:1;min-width:220px;font-size:12px;line-height:1.65}
 #vetobox .vtnote{margin-top:5px;font-weight:400;font-size:11px;color:rgba(240,168,162,.85);border-top:1px dashed rgba(255,77,66,.35);padding-top:4px;line-height:1.6}
 /* ---------- layout ---------- */
-main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px;padding:12px 14px;max-width:1560px;margin:0 auto}
+/* v17.22 布局收紧：主网格 1560→1340px，普通卡最小列宽 420→480px（更少断行、更紧凑） */
+main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;padding:12px 14px;max-width:1340px;margin:0 auto}
 @media(max-width:960px){main{grid-template-columns:1fr}}
 .card{background:var(--grad-card);border:1px solid var(--line);border-radius:14px;padding:12px;position:relative;
   box-shadow:0 4px 22px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.035);transition:border-color .25s,box-shadow .25s}
@@ -90,13 +91,17 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px;padding:12p
 .card h3::before{content:"";width:3px;height:13px;border-radius:2px;background:var(--grad-gold);box-shadow:0 0 8px rgba(232,182,76,.4)}
 .card h3 .tag{font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(120,140,180,.1);color:var(--faint);font-weight:400;border:1px solid rgba(120,140,180,.14)}
 /* ---------- chart ---------- */
-#chartcard{display:flex;flex-direction:column;min-height:480px}
+/* v17.22 K线图瘦身：min-height 480→340px（此前 480px 通栏过占屏幕） */
+#chartcard{display:flex;flex-direction:column;min-height:340px}
+/* v17.22 通栏卡限高：wide 卡不超过视口的72%，超高内部滚动（K线主图/鹰眼等不再霸屏） */
+.vgrpbody>.card.wide{max-height:72vh;overflow:auto}
 .tftabs{display:flex;gap:6px;margin-left:auto}
 .tftabs button,.zbtn{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:7px;padding:4px 11px;font-size:12px;cursor:pointer;transition:all .2s}
 .tftabs button:hover,.zbtn:hover{border-color:var(--line2);color:var(--txt)}
 .tftabs button.on{color:var(--gold2);border-color:rgba(232,182,76,.5);background:rgba(232,182,76,.09);font-weight:700;box-shadow:0 0 12px rgba(232,182,76,.12)}
 .zbtn{padding:2px 10px;font-size:13px}
-#chartwrap{position:relative;flex:1;min-height:400px}
+/* v17.22 K线绘图区瘦身：min-height 400→260px，跟随容器而非霸屏 */
+#chartwrap{position:relative;flex:1;min-height:260px}
 #chart{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
 #tip{position:absolute;pointer-events:none;background:rgba(10,14,22,.96);border:1px solid var(--line2);border-radius:10px;padding:9px 11px;font-size:11px;line-height:1.7;color:var(--dim);display:none;z-index:5;white-space:nowrap;box-shadow:0 8px 28px rgba(0,0,0,.6)}
 #tip b{color:var(--txt)}
@@ -223,18 +228,19 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 @keyframes ocrspin{to{transform:rotate(360deg)}}
 /* ===== v16 增量模块样式（模板切换/K线绘图/持仓监控/研判体检/资金风控/复盘统计） ===== */
 .kdwrap{position:relative}
-#kdCanvas{width:100%;height:260px;display:block;background:rgba(127,127,127,.05);border:1px solid rgba(127,127,127,.18);border-radius:8px}
+/* v17.22 手绘K线画布：260→200px */
+#kdCanvas{width:100%;height:200px;display:block;background:rgba(127,127,127,.05);border:1px solid rgba(127,127,127,.18);border-radius:8px}
 .v16big{font-size:22px;font-weight:800;line-height:1.1}
 .v16gauge{height:10px;border-radius:6px;background:rgba(127,127,127,.15);overflow:hidden;margin:6px 0 2px}
 .v16gauge i{display:block;height:100%;border-radius:6px;transition:width .4s}
 /* v17: tplitem 样式已随模板切换卡移除；以下为 v17 分组导航样式 */
-#v17nav{position:sticky;top:0;z-index:95;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:1560px;margin:8px auto 0;padding:8px 14px;background:rgba(10,14,21,.93);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+#v17nav{position:sticky;top:0;z-index:95;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:1340px;margin:8px auto 0;padding:8px 14px;background:rgba(10,14,21,.93);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 #v17nav .nvlogo{font-size:11px;font-weight:800;color:var(--gold2);letter-spacing:.05em;margin-right:2px}
 #v17nav .nvbtn{font:inherit;font-size:12px;font-weight:700;color:var(--dim);background:rgba(127,127,127,.07);border:1px solid var(--line);border-radius:16px;padding:3px 11px;cursor:pointer;transition:color .2s,border-color .2s;white-space:nowrap}
 #v17nav .nvbtn:hover{color:var(--txt);border-color:var(--line2)}
 #v17nav .nvbtn.on{color:#171004;background:var(--grad-gold);border-color:transparent;box-shadow:0 0 10px rgba(232,182,76,.25)}
 #v17nav .nvinfo{margin-left:auto;font-size:10px;color:var(--faint)}
-.vgrp{max-width:1560px;margin:0 auto;padding:2px 14px 0;scroll-margin-top:56px}
+.vgrp{max-width:1340px;margin:0 auto;padding:2px 14px 0;scroll-margin-top:56px}
 .vgrptitle{display:flex;align-items:center;gap:9px;margin:14px 0 2px;font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--dim)}
 .vgrptitle::after{content:"";flex:1;height:1px;background:var(--line)}
 .vgrptitle .gvtag{font-size:10px;font-weight:400;color:var(--faint);letter-spacing:0}
@@ -242,7 +248,8 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 .vgrptitle.foldable:hover{color:var(--txt)}
 .vfoldarr{display:inline-block;transition:transform .2s;font-size:10px;color:var(--faint)}
 .vgrp.open .vfoldarr{transform:rotate(90deg)}
-.vgrpbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(420px,100%),1fr));gap:10px;padding:8px 0 4px;align-items:start}
+/* v17.22 布局收紧：普通卡最小列宽 420→480px（更大屏下 3→2 列，卡片不再小而碎） */
+.vgrpbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(480px,100%),1fr));gap:10px;padding:8px 0 4px;align-items:start}
 .vgrpbody>.card.wide{grid-column:1/-1}
 .vgrp.folded .vgrpbody{display:none}
 @media(max-width:960px){#v17nav .nvinfo{display:none}}
@@ -349,7 +356,7 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
     <button class="fbtn" id="kdLineToggle">📐 支撑压力/箱体：开</button>
     <span id="kdMsg" style="font-size:11px;color:var(--faint)">依次录入每根K线的四个价格，自动绘制静态图并标注关键线。</span>
   </div>
-  <div class="kdwrap"><canvas id="kdCanvas" width="900" height="260"></canvas></div>
+  <div class="kdwrap"><canvas id="kdCanvas" width="900" height="200"></canvas></div>
   <div class="sec" id="kdInfo" style="margin-top:6px"></div>
   <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">绘制规则：红=收≥开、绿=收&lt;开；支撑线=全程最低点，压力线=全程最高点，箱体=近6根高低区间；数据存本机浏览器，不上传。仅手工绘图工具，不参与打分，不构成交易建议。</div>
 </div>
@@ -4237,6 +4244,9 @@ function v16KdSave(a){ try{ LS.set('v16kd',JSON.stringify(a.slice(-120))); }catc
 let v16KdLines=true;
 function v16KdDraw(){
   const cvs=$('kdCanvas'); if(!cvs) return;
+  /* v17.22: 背衬尺寸与 CSS 显示尺寸同步（900×260 固定值会被 100% 宽拉伸模糊） */
+  const cw=Math.round(cvs.clientWidth)||900, ch=Math.round(cvs.clientHeight)||200;
+  if(cvs.width!==cw||cvs.height!==ch){ cvs.width=cw; cvs.height=ch; }
   const ctx=cvs.getContext('2d'), data=v16KdLoad();
   $('kdCount').textContent=data.length+' 根';
   const W=cvs.width, H=cvs.height;
@@ -5043,10 +5053,12 @@ function bindUI(){
 function v17Rearrange(){
   try{
     const GROUPS=[
-      {id:'grp-concl', name:'结论速览', tag:'评级 / 打分 / 策略结论', wide:['gradeBanner','aiCard','nnCard'],
-       cards:['scoreCard','shiweiCard','stratCard']},
-      {id:'grp-mkt',   name:'盘面研判', tag:'K线主图 / 势位态 / 资金面', wide:['chartcard','eagleCard','mfCard'],
-       cards:['wyCard','levelsCard2','ifindCard','mtfxCard','levelsCard','fprobCard']},
+      {id:'grp-concl', name:'结论速览', tag:'评级 / 打分 / 策略结论', wide:['gradeBanner'],
+       /* v17.22：aiCard/nnCard 从通栏降为并排卡，首屏更紧凑（gradeBanner 评级横幅保持通栏） */
+       cards:['aiCard','nnCard','scoreCard','shiweiCard','stratCard']},
+      {id:'grp-mkt',   name:'盘面研判', tag:'K线主图 / 势位态 / 资金面', wide:['eagleCard','mfCard'],
+       /* v17.22：chartcard 从通栏降为普通卡，与研判卡并排（约 650px 宽），不再独占整行霸屏 */
+       cards:['chartcard','wyCard','levelsCard2','ifindCard','mtfxCard','levelsCard','fprobCard']},
       {id:'grp-pos',   name:'持仓风控', tag:'持仓监测 / 仓位校验 / 风控审核', wide:['posmonCard','trackCard','riskcapCard'],
        cards:['confCard','riskCard','riskTipCard']},
       {id:'grp-tools', name:'录入工具', tag:'截图识别 / 手绘K线 / 数据源（默认收起）', wide:['ocrCard','kdrawCard','spotCard','apiCard'],
@@ -5103,7 +5115,9 @@ function v17Rearrange(){
       g.cards.forEach(id=>put(id,false));
       /* 标题条折叠（仅当组内没有任何卡时可隐藏标题，防御空组） */
       if(c.body.children.length===0){ c.wrap.style.display='none'; }
-      else if(g.wide.length){ c.title.addEventListener('click',()=>{ c.wrap.classList.toggle('folded'); c.wrap.classList.toggle('open'); }); }
+      else if(g.wide.length){ c.title.addEventListener('click',()=>{ c.wrap.classList.toggle('folded'); c.wrap.classList.toggle('open');
+        /* v17.22: 录入工具组展开时重绘手绘K线（折叠期间 display:none 量不到宽） */
+        if(g.id==='grp-tools'){ try{ v16KdDraw(); }catch(e){} } }); }
     });
 
     /* 4. 清理空壳：main/aside 搬空后移除，避免残留空双列骨架 */
