@@ -5227,8 +5227,11 @@ function v17Rearrange(){
       if(c.body.children.length===0){ c.wrap.style.display='none'; }
       else if(g.wide.length){ c.title.addEventListener('click',()=>{ c.wrap.classList.toggle('folded'); c.wrap.classList.toggle('open');
         /* v17.22: 录入工具组展开时重绘手绘K线（折叠期间 display:none 量不到宽） */
-        if(g.id==='grp-tools'){ try{ v16KdDraw(); }catch(e){} } }); }
+        if(g.id==='grp-tools'){ try{ v16KdDraw(); }catch(e){} } });
     });
+
+    /* v17.23: routeCard 为纯静态研究卡（内容直写 HTML、无渲染函数），分组搬移后主动点亮 */
+    try{ const rc=document.getElementById('routeCard'); if(rc) rc.style.display='block'; }catch(e){}
 
     /* 4. 清理空壳：main/aside 搬空后移除，避免残留空双列骨架 */
     const mainEl=document.querySelector('main');
