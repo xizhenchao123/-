@@ -6,7 +6,7 @@
 <title>JD2611 · 半量化研判系统 PRO</title>
 <meta name="theme-color" content="#07090f">
 <style>
-/* ================= v12 MASTER THEME · 大师级研判终端 · v17.27 设置面板修复：✕关闭钮 + 点空白收起 + 层级让位（面板不再盖死齿轮） ================= */
+/* ================= v12 MASTER THEME · 大师级研判终端 · v17.28 现货/饲料成本全自动输入：GitHub Actions 云端定时抓取 → jd_cloud_feed.json → applySpotAuto/applyFeedAuto 自动回填（人工优先） ================= */
 :root{
   --bg:#07090f; --bg2:#0a0d15;
   --card:rgba(17,22,33,.72); --card2:rgba(13,18,27,.85); --card3:#131a28;
@@ -165,11 +165,11 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;padding:12p
 /* footer */
 footer{position:fixed;bottom:0;left:0;right:0;background:rgba(6,8,13,.97);border-top:1px solid var(--line);padding:7px 14px;font-size:11px;color:var(--faint);z-index:60;line-height:1.5;backdrop-filter:blur(10px)}
 footer b{color:var(--warn)}
-/* settings（v17.27: 面板 z-index 70→68 让出齿轮位置，修复面板盖住齿轮后无法关闭的 bug） */
+/* settings（v17.27: 面板 z-index 70→68 让出齿轮位置；v17.28: 现货/饲料云端自动回填上线） */
 #settings{position:fixed;right:12px;bottom:64px;z-index:68;background:var(--card3);border:1px solid var(--line2);border-radius:12px;padding:12px;display:none;width:240px;box-shadow:var(--shadow-lg)}
 #settings .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--dim)}
 #gear{position:fixed;right:14px;bottom:64px;z-index:72;width:36px;height:36px;border-radius:50%;background:var(--card3);border:1px solid var(--line2);color:var(--dim);cursor:pointer;font-size:16px;transition:all .25s}
-/* v17.27: 面板头部（标题 + ✕ 关闭按钮） */
+/* v17.27: 面板头部（标题 + ✕ 关闭按钮）· v17.28: 现货/饲料云端自动回填 */
 #setHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line2);font-size:12px;color:var(--gold2)}
 #gear:hover{color:var(--gold2);border-color:rgba(232,182,76,.4);box-shadow:var(--glow-gold)}
 select,button{font-family:inherit}
@@ -834,7 +834,7 @@ body.freeze-on #routeCard,body.freeze-on #planCard{outline:2px dashed rgba(255,9
         </div>
       </div>
       <div class="sec" id="spotHint" style="display:none;margin-top:6px;color:var(--faint);line-height:1.7"></div>
-      <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2611 属远月合约，重点看补栏周期，现货仅短期扰动。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。<br><b>v11 规则6：</b>Trae 推送包 meta.fundamentals 携带现货价/产区/天气消息时自动回填现货输入并按 利多+1/利空−1（合计截断±3）纳入基本面打分。</div>
+      <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。<b>v17.28 起现货价与饲料成本由云端定时抓取自动填入</b>（交易日北京 9:20/10:30/13:20/15:10 更新，人工一旦手动改动即锁定为人工值、不再覆盖）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2611 属远月合约，重点看补栏周期，现货仅短期扰动。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。<br><b>v11 规则6：</b>Trae 推送包 meta.fundamentals 携带现货价/产区/天气消息时自动回填现货输入并按 利多+1/利空−1（合计截断±3）纳入基本面打分。</div>
       <div class="sec" id="fundNews" style="display:none;margin-top:6px;line-height:1.7"></div>
     </div>
 
@@ -866,7 +866,7 @@ body.freeze-on #routeCard,body.freeze-on #planCard{outline:2px dashed rgba(255,9
 
 <button id="gear" title="设置">⚙</button>
 <div id="settings">
-  <!-- v17.27: 面板头部 + ✕ 关闭按钮（修复面板盖住齿轮后无法关闭的 bug） -->
+  <!-- v17.27: 面板头部 + ✕ 关闭按钮 · v17.28: 现货/饲料成本改为云端自动回填（人工优先，手动改动即锁定不再覆盖） -->
   <div id="setHead"><b>⚙ 设置</b><button class="fbtn" id="setClose" title="关闭设置面板" style="cursor:pointer">✕ 关闭</button></div>
   <div class="row"><span>实时刷新频率</span>
     <select id="freqSel">
@@ -1062,8 +1062,11 @@ function toBars(raw, cap){
 async function fetchAllKlines(){
   /* n-auto: Trae 自动推送链路 —— 页面启动/每轮优先探测同目录 jd_latest.json，
      存在则整包注入三周期K线（来自 AKShare 服务端预取），完全跳过浏览器新浪 JSONP，
-     彻底告别手动录入；文件不存在（如纯静态托管）自动降级回内置新浪源，零影响。 */
+     彻底告别手动录入；文件不存在（如纯静态托管）自动降级回内置新浪源，零影响。
+     v17.28: 本地推送未命中（线上版/纯静态）时，再尝试云端轻量包 jd_cloud_feed.json
+     （GitHub Actions 定时产出：现货 + 饲料成本），自动回填后K线照走内置新浪实时源。 */
   if(await tryLoadTraePush()) return;
+  tryLoadCloudData();   /* v17.28: 云端现货/饲料包（异步兜底，不阻塞K线加载） */
   const sym = S.contract;
   const [m5,h1,d] = await Promise.all([
     jsonp('InnerFuturesNewService.getFewMinLine',{symbol:sym,type:5}).catch(()=>[]),
@@ -1217,6 +1220,47 @@ function applySpotAuto(sp){
     renderPanels(); renderHeader();
     console.log('[现货自动] 生意社 '+iso+' 今日='+sp.today+' 前值='+sp.yest+'（'+(sp.auto&&sp.auto.source||'')+'）');
   }catch(e){}
+}
+/* =====================================================================
+ *  v17.28 饲料成本自动消费 —— 云端轻量包 jd_cloud_feed.json 的 feed 字段
+ *  契约：feed = { costPerJin, corn, meal, date, source }（元/斤蛋成本线）
+ *  双通道：① fFeed 输入框（基本面因子参与解读）② S.feed（iFind 面板成本线展示）。
+ *  优先级：人工录入（fFeedManual==='manual'）> 自动值，人工一旦改动永不覆盖。
+ *  自动值按数据日期刷新：同一数据日不重复写入，数据日推进则覆盖上一版自动值。
+ * ===================================================================== */
+function applyFeedAuto(fd){
+  try{
+    if(!fd || !(+fd.costPerJin>0)) return;
+    if(LS.get('fFeedManual','')==='manual') return;        /* 人工录入优先，绝不覆盖 */
+    const d=String(fd.date||'');                            /* 数据日期 YYYYMMDD */
+    const iso=d.length===8?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:'';
+    if(iso && iso===LS.get('fFeedAutoDate','') && $('fFeed').value!=='') return;  /* 同一数据日已写入 */
+    const v=String(fd.costPerJin);
+    $('fFeed').value=v; LS.set('fFeed',v);
+    LS.set('fFeedSrc','auto'); LS.set('fFeedAutoDate',iso);
+    S.feed=fd;                                              /* iFind 面板成本线展示通道 */
+    analyze(); if(S.mode==='close') S.recap=buildRecap();
+    renderPanels(); try{ renderMF(); }catch(e){}
+    console.log('[饲料自动] '+iso+' 成本线 '+fd.costPerJin+' 元/斤蛋（'+(fd.source||'')+'，玉米'+fd.corn+'/豆粕'+fd.meal+'）');
+  }catch(e){}
+}
+/* =====================================================================
+ *  v17.28 云端数据包加载 —— 线上版（GitHub Pages）无本地 jd_latest.json 时，
+ *  降级 fetch 同仓库定时任务产出的 jd_cloud_feed.json（现货 + 饲料成本，无K线），
+ *  K线仍走页面内置新浪实时源不降级。本地版 tryLoadTraePush 命中时不进入本函数。
+ * ===================================================================== */
+async function tryLoadCloudData(){
+  try{
+    const r=await fetch('jd_cloud_feed.json',{cache:'no-store'});
+    if(!r.ok) return false;
+    const j=await r.json();
+    /* 现货自动回填（复用 v17.6 applySpotAuto：人工优先 + 数据日去重） */
+    if(j.spot) applySpotAuto(j.spot);
+    /* 饲料成本自动回填（v17.28 新增：填 fFeed 输入框 + S.feed 双通道） */
+    if(j.feed && (+j.feed.costPerJin>0)) applyFeedAuto(j.feed);
+    console.log('[云端数据] jd_cloud_feed.json @'+(j.fetchedAt||'?')+(j.spot?' · 现货已处理':'')+(j.feed?' · 饲料已处理':''));
+    return true;
+  }catch(e){ return false; }   /* 文件不存在/暂无数据 → 静默跳过，保留人工输入 */
 }
 /* v10: AI 盯盘提醒卡片渲染（lines 数组 → 提醒条；severity 高→红 中→黄 低→灰） */
 function renderAiCard(ai){
@@ -4848,6 +4892,8 @@ function bindUI(){
     LS.set('spotToday',S.spot.today); LS.set('spotYest',S.spot.yest);
     /* v17.6: 人工一旦改动现货输入，即标记为 manual —— 自动抓取值从此不再覆盖 */
     if(LS.get('spotSrc','')!=='manual'){ LS.set('spotSrc','manual'); S.spot.src='manual'; }
+    /* v17.28: 人工改动 fFeed 同样标记 manual —— 云端自动值从此不再覆盖 */
+    if(LS.get('fFeedManual','')!=='manual'){ LS.set('fFeedManual','manual'); }
     /* v17.4: 任一现货字段变更即刷新录入时间戳（当天录入=当日新鲜；隔日留存触发分级提醒） */
     if(String(S.spot.today).trim()!=='' || String(S.spot.yest).trim()!==''){
       S.spot.stamp=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
@@ -4858,6 +4904,8 @@ function bindUI(){
   };
   $('spotToday').addEventListener('input',spotChange);
   $('spotYest').addEventListener('input',spotChange);
+  /* v17.28: 饲料成本单独编辑也要锁定 manual（spotChange 只监听现货/倾向，不含 fFeed） */
+  $('fFeed').addEventListener('input',()=>{ if(LS.get('fFeedManual','')!=='manual'){ LS.set('fFeedManual','manual'); } });
   $('biasSel').addEventListener('change',e=>{ S.spot.bias=+e.target.value; LS.set('bias',S.spot.bias); spotChange(); });
   /* ---- 持仓录入（第五步：录入后自动监测；方向=none 即平仓清空） ---- */
   const posChange=()=>{
@@ -5062,8 +5110,9 @@ function bindUI(){
     $('pnlLog').value='';
     ddRender();
   };
-  /* v17.27: 设置面板关闭三通道修复——原实现面板展开后恰好盖住齿轮（同位重叠）且无任何关闭途径，导致「关不掉」。
-     现在：① 齿轮仍可切换（层级已让位，齿轮外露可点）② 面板头部新增 ✕ 关闭钮 ③ 点击面板外任意区域自动收起 */
+  /* v17.28: 现货/饲料成本全自动输入——GitHub Actions 交易日定时抓取（北京 9:20/10:30/13:20/15:10）
+     → 产出 jd_cloud_feed.json 提交仓库 → 页面 tryLoadCloudData 降级加载 → applySpotAuto/applyFeedAuto 回填。
+     v17.27: 设置面板关闭三通道修复（齿轮切换 / ✕ 关闭钮 / 点面板外收起） */
   $('gear').onclick=(ev)=>{ ev.stopPropagation(); const s=$('settings'); s.style.display = s.style.display==='block'?'none':'block'; };
   {
     const sp=$('settings');
