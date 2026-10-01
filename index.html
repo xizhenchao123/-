@@ -6,7 +6,7 @@
 <title>JD2611 · 半量化研判系统 PRO</title>
 <meta name="theme-color" content="#07090f">
 <style>
-/* ================= v12 MASTER THEME · 大师级研判终端 · v17.22 桌面布局收紧 ================= */
+/* ================= v12 MASTER THEME · 大师级研判终端 · v17.23 路线走向计划卡注入 ================= */
 :root{
   --bg:#07090f; --bg2:#0a0d15;
   --card:rgba(17,22,33,.72); --card2:rgba(13,18,27,.85); --card3:#131a28;
@@ -180,6 +180,15 @@ table.lvl{width:100%;border-collapse:collapse;font-size:12px}
 table.lvl th{color:var(--faint);font-weight:400;text-align:left;padding:4px;border-bottom:1px solid var(--line2)}
 table.lvl td{padding:4px;border-bottom:1px dashed rgba(120,140,180,.1);color:var(--dim)}
 table.lvl td b{color:var(--txt)}
+/* ---------- v17.23: 路线走向计划卡（K线规律挖掘静态研究结论注入） ---------- */
+.routeLead{background:rgba(232,182,76,.07);border:1px solid rgba(232,182,76,.3);border-radius:10px;padding:9px 12px;font-size:13px;line-height:1.75;color:var(--gold2)}
+.routeGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:8px 0}
+.routeGrid .rk{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.routeGrid .rk .k{font-size:10px;color:var(--faint)}
+.routeGrid .rk .v{font-size:16px;font-weight:800;color:var(--txt);margin-top:2px}
+.routeGrid .rk .m{font-size:10px;color:var(--faint);margin-top:1px}
+.routesvgwrap{margin:10px 0 4px}
+.routesvgwrap svg{width:100%;height:auto;max-height:46vh;display:block;background:rgba(127,127,127,.04);border:1px solid var(--line);border-radius:10px}
 .lvlwrap{overflow-x:auto;-webkit-overflow-scrolling:touch} /* k3-2 移动端横向滚动 */
 /* ================= v12 大师级增补组件 ================= */
 /* 复盘日志条目（renderJournal 动态生成 .jrow） */
@@ -572,6 +581,106 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
     <div class="card" id="levelsCard" style="display:none">
       <h3>📐 关键价位分级表 <span class="tag">短线 / 强 / 极端</span></h3>
       <div id="lvBody2"></div>
+    </div>
+
+    <!-- v17.23: K线规律·路线走向计划（历史统计六规律 + 三情景路线图静态研究结论注入；纯展示不参与打分/评级） -->
+    <div class="card" id="routeCard" style="display:none">
+      <h3>🧭 K线规律·路线走向计划 <span class="tag">六规律 · 三情景 · 六不原则</span><span class="tag">节后 10/8 起生效</span></h3>
+      <div class="routeLead">一句话结论：<b>低吸等反弹攻 3799</b> —— 回踩 3671~3651 分批低吸，站稳 3799 看 3847→3908；收盘跌破 <b>3651 即作废</b>。统计面偏多（低位+大阴反弹启动）vs 均线结构偏空（四线压制），矛盾点即路线图核心：<b>不猜方向，让 3799 一线分出胜负。</b></div>
+
+      <div class="routeGrid">
+        <div class="rk"><div class="k">当前收盘</div><div class="v">3715</div><div class="m">9/30 收</div></div>
+        <div class="rk"><div class="k">60日位置</div><div class="v">13.5%</div><div class="m">低位反弹生效区</div></div>
+        <div class="rk"><div class="k">20日带宽</div><div class="v">3651~3908</div><div class="m">6.92% 已收敛</div></div>
+        <div class="rk"><div class="k">日均波幅</div><div class="v">±59</div><div class="m">ATR(14)</div></div>
+      </div>
+
+      <div class="sec" style="margin-top:8px">六条 K 线规律（按历史统计可信度排序）</div>
+      <div style="margin-top:4px">
+        <div style="display:flex;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:5px 0;font-size:12px;line-height:1.65"><b style="color:var(--gold);flex:none">①</b><span><b>低位反弹效应</b> —— 60日位置&lt;20% 桶：5日胜率 66.7%，20日均值 +2.1%~+4.3%。<b style="color:var(--up)">当前 13.5%，生效</b></span></div>
+        <div style="display:flex;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:5px 0;font-size:12px;line-height:1.65"><b style="color:var(--gold);flex:none">②</b><span><b>大阴线次日反弹</b> —— 跌幅&lt;-1.8% 大阴后：次日均值 +0.29%，反弹概率 71.4%（10/9 大阴 -2.3% 后适用）</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:5px 0;font-size:12px;line-height:1.65"><b style="color:var(--gold);flex:none">③</b><span><b>星期节奏</b> —— 周二最弱（-0.491%），周四/周五偏强；周初低点多为低吸窗口</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:5px 0;font-size:12px;line-height:1.65"><b style="color:var(--gold);flex:none">④</b><span><b>突破失效规律</b> —— 破 20日高次日仅 +0.06%、破低 +0.11%：边界突破不跟随，回抽确认再动手</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:5px 0;font-size:12px;line-height:1.65"><b style="color:var(--gold);flex:none">⑤</b><span><b>月内旬节奏</b> —— 上旬 +0.149% &gt; 中旬 -0.052% &gt; 下旬 -0.101%：进攻窗口在上旬</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:5px 0;font-size:12px;line-height:1.65"><b style="color:var(--gold);flex:none">⑥</b><span><b>日内节奏</b> —— 早盘方向仅 49.3% 可信（≈抛硬币），决策放 14:00 后</span></div>
+      </div>
+      <div style="font-size:10px;color:var(--faint);margin-top:4px">参考规律（样本薄仅记录不重仓）：11月为季节最强月（+0.943%）；长假节后 5日 6次中4负，节后首日不加仓。</div>
+
+      <div class="routesvgwrap">
+        <svg viewBox="0 0 960 520" xmlns="http://www.w3.org/2000/svg">
+          <g stroke="rgba(120,140,180,.16)" stroke-width="1">
+            <line x1="60" y1="470" x2="930" y2="470"/><line x1="60" y1="360" x2="930" y2="360"/>
+            <line x1="60" y1="250" x2="930" y2="250"/><line x1="60" y1="140" x2="930" y2="140"/><line x1="60" y1="40" x2="930" y2="40"/>
+          </g>
+          <g fill="#5d6d88" font-size="12" font-family="sans-serif">
+            <text x="8" y="95">3950</text><text x="8" y="205">3850</text><text x="8" y="316">3750</text><text x="8" y="427">3650</text><text x="8" y="475">3600</text>
+            <text x="70" y="505">9/30</text><text x="230" y="505">10月上旬</text><text x="450" y="505">10月中旬</text><text x="670" y="505">10月下旬</text><text x="850" y="505">11月初</text>
+          </g>
+          <line x1="60" y1="130" x2="930" y2="130" stroke="#ff5a52" stroke-width="1.2" stroke-dasharray="6 4" opacity=".75"/>
+          <text x="836" y="122" fill="#ff5a52" font-size="12">3908 20日高</text>
+          <line x1="60" y1="205" x2="930" y2="205" stroke="#e8b64c" stroke-width="1.2" stroke-dasharray="6 4" opacity=".8"/>
+          <text x="838" y="197" fill="#e8b64c" font-size="12">3847 MA60</text>
+          <line x1="60" y1="300" x2="930" y2="300" stroke="#5aa2f7" stroke-width="1.2" stroke-dasharray="6 4" opacity=".9"/>
+          <text x="796" y="292" fill="#5aa2f7" font-size="12">3799 MA20/中轨</text>
+          <line x1="60" y1="427" x2="930" y2="427" stroke="#e8b64c" stroke-width="1.2" stroke-dasharray="6 4" opacity=".8"/>
+          <text x="798" y="444" fill="#e8b64c" font-size="12">3651 20日低·作废线</text>
+          <line x1="60" y1="470" x2="930" y2="470" stroke="#2dd4aa" stroke-width="1.2" stroke-dasharray="6 4" opacity=".8"/>
+          <text x="798" y="487" fill="#2dd4aa" font-size="12">3634 60日低</text>
+          <circle cx="100" cy="358" r="6" fill="#e8b64c"/>
+          <text x="78" y="342" fill="#e8b64c" font-size="13" font-weight="bold">3715</text>
+          <path d="M100,358 C150,380 180,400 215,405 C240,409 260,395 290,375 C330,348 360,310 400,300 C450,288 480,285 520,240 C560,200 600,165 640,145 C690,122 740,118 800,112" fill="none" stroke="#ff5a52" stroke-width="3" opacity=".95"/>
+          <text x="640" y="100" fill="#ff5a52" font-size="14" font-weight="bold">A 反弹路线 60%</text>
+          <text x="640" y="86" fill="#ff5a52" font-size="11">站稳3799→3847→3908</text>
+          <path d="M100,358 C150,380 180,400 215,405 C245,410 265,380 295,360 C320,344 340,368 365,388 C390,405 410,370 435,345 C455,325 475,352 500,370 C520,384 545,358 570,335 C595,315 620,345 645,365 C670,382 700,340 730,315" fill="none" stroke="#5aa2f7" stroke-width="2.5" stroke-dasharray="8 5" opacity=".8"/>
+          <text x="330" y="440" fill="#5aa2f7" font-size="14" font-weight="bold">B 区间震荡 25%</text>
+          <text x="330" y="458" fill="#5aa2f7" font-size="11">3671~3799 带内往复，上沿卖下沿买</text>
+          <path d="M100,358 C150,380 180,400 215,405 C245,410 270,428 300,440 C330,452 355,462 390,468 C430,474 470,478 520,482 C580,486 640,490 720,494" fill="none" stroke="#2dd4aa" stroke-width="3" opacity=".9"/>
+          <text x="530" y="515" fill="#2dd4aa" font-size="14" font-weight="bold">C 破位路线 15%</text>
+          <text x="440" y="432" fill="#2dd4aa" font-size="11">收盘&lt;3651 → 下探 3634 → 失守打开下方空间</text>
+          <circle cx="215" cy="405" r="5" fill="#e8b64c" opacity=".9"/>
+          <text x="130" y="392" fill="#e8b64c" font-size="11">回踩确认区 3671~3651</text>
+          <circle cx="400" cy="300" r="5" fill="#5aa2f7" opacity=".9"/>
+          <text x="330" y="278" fill="#5aa2f7" font-size="11" font-weight="bold">★ 裁决位 3799</text>
+        </svg>
+      </div>
+      <div style="font-size:11px;color:var(--dim);margin-top:6px">横轴为节后交易日（10/8 开市起算），纵轴价格。三条路径的交点就是决策点：<b style="color:var(--gold)">回踩区（3671~3651）定生死，裁决位（3799）定空间。</b></div>
+
+      <div class="sec" style="margin-top:10px">三情景操作要点</div>
+      <div class="routeGrid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+        <div class="rk" style="border-color:rgba(255,90,82,.4)"><div class="k" style="color:var(--up)">A · 反弹 60%</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">回踩 3671~3651 分批低吸<br>站稳 3799 → 3847 / 3908 分批止盈<br>止损：收盘跌回 3671 下方</div></div>
+        <div class="rk" style="border-color:rgba(90,162,247,.4)"><div class="k" style="color:var(--blue)">B · 震荡 25%</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">3671~3799 带内高抛低吸<br>上沿不追多、下沿不追空<br>破带边缘再切 A / C 路线</div></div>
+        <div class="rk" style="border-color:rgba(45,212,170,.4)"><div class="k" style="color:var(--dn)">C · 破位 15%</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">收盘&lt;3651 全部作废离场<br>下探 3634 企稳再评估<br>严禁破位后摊平扛单</div></div>
+      </div>
+
+      <div class="sec" style="margin-top:10px">关键价位表</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 24px;font-size:12px;margin-top:4px">
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span>3926 布林上轨</span><b style="color:var(--up)">压力</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span>3908 20日高</span><b style="color:var(--up)">压力</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span>3847 MA60</span><b style="color:var(--gold)">中期压力</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span>3811 MA10</span><b style="color:var(--gold)">短线压力</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span style="color:var(--blue)"><b>3799 核心裁决位</b></span><b style="color:var(--blue)">★ 分水岭</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span>3715 现价</span><b>当前</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span>3671 布林下轨</span><b style="color:var(--gold)">回踩区上沿</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span style="color:var(--up)"><b>3651 作废线</b></span><b style="color:var(--up)">★ 20日低</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span>3634 60日低</span><b style="color:var(--dn)">极限支撑</b></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:4px 0"><span>—</span><b style="color:var(--faint)">—</b></div>
+      </div>
+
+      <div class="sec" style="margin-top:10px">基本面校验（期现联动）</div>
+      <div class="routeGrid">
+        <div class="rk"><div class="k">现货蛋价</div><div class="v">4440</div><div class="m">元/500kg</div></div>
+        <div class="rk"><div class="k">期货贴水</div><div class="v" style="color:var(--dn)">-725</div><div class="m">-16.3% 深贴水</div></div>
+        <div class="rk"><div class="k">饲料成本</div><div class="v">3.13</div><div class="m">元/斤</div></div>
+        <div class="rk"><div class="k">养殖利润</div><div class="v" style="color:var(--up)">+1.31</div><div class="m">元/斤 正利润</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--dim);margin-top:4px">深贴水 + 正养殖利润 = 下方有承接、上方有套保压。监控触发线：现货跌破 4000（补栏意愿恶化）/ 期货跌破 3651（技术+基本面共振转空）。</div>
+
+      <div class="sec" style="margin-top:10px">六不原则</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+        <span class="tag">🚫 不追突破</span><span class="tag">🚫 不杀大阴</span><span class="tag">🚫 不信早盘</span><span class="tag">🚫 不赶连续</span><span class="tag">🚫 不赌节后</span><span class="tag">🚫 不越作废线</span>
+      </div>
+
+      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:8px">风险与局限：六条规律均来自历史分段统计，样本非穷尽、不保证未来重现；路线图为情景推演非预测承诺。三情景概率（60/25/15）为统计面+结构面的主观校准。本卡为静态研究结论注入，不参与系统打分与评级，仅作决策参照；一切以价格对 3799/3651 的实际裁决为准。</div>
     </div>
 
     <!-- v14-c: 双向交易预案表（做多/做空两套独立沙盘，多档止盈；由盈亏比模块自动推导，执行需过风控审核） -->
@@ -5065,7 +5174,8 @@ function v17Rearrange(){
        cards:[], folded:true},
       {id:'grp-log',   name:'复盘日志', tag:'流水统计 / 交易日志 / 规则迭代', wide:['jstatCard','journalCard','rulesLogCard'],
        cards:['caseCard','recapCard','ailogCard']},
-      {id:'grp-plan',  name:'策略预案', tag:'多空沙盘 / 历史案例 / AI盯盘', wide:['planCard'],
+      /* v17.23：routeCard（K线规律·路线走向计划）加入 grp-plan 通栏首位 */
+      {id:'grp-plan',  name:'策略预案', tag:'K线规律路线 / 多空沙盘 / 历史案例', wide:['routeCard','planCard'],
        cards:['nnCard2','caseCard2']},
     ];
     /* 头部锚点：v17nav 之后的一切常规内容都搬入分组；chips/errbox 保持原位 */
