@@ -6,7 +6,7 @@
 <title>JD2611 · 半量化研判系统 PRO</title>
 <meta name="theme-color" content="#07090f">
 <style>
-/* ================= v12 MASTER THEME · 大师级研判终端 · v17.26 走向卡修复：高风险态带出底层三要素方向（baseDir），不再只报风险不报涨跌 ================= */
+/* ================= v12 MASTER THEME · 大师级研判终端 · v17.27 设置面板修复：✕关闭钮 + 点空白收起 + 层级让位（面板不再盖死齿轮） ================= */
 :root{
   --bg:#07090f; --bg2:#0a0d15;
   --card:rgba(17,22,33,.72); --card2:rgba(13,18,27,.85); --card3:#131a28;
@@ -165,10 +165,12 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;padding:12p
 /* footer */
 footer{position:fixed;bottom:0;left:0;right:0;background:rgba(6,8,13,.97);border-top:1px solid var(--line);padding:7px 14px;font-size:11px;color:var(--faint);z-index:60;line-height:1.5;backdrop-filter:blur(10px)}
 footer b{color:var(--warn)}
-/* settings */
-#settings{position:fixed;right:12px;bottom:64px;z-index:70;background:var(--card3);border:1px solid var(--line2);border-radius:12px;padding:12px;display:none;width:240px;box-shadow:var(--shadow-lg)}
+/* settings（v17.27: 面板 z-index 70→68 让出齿轮位置，修复面板盖住齿轮后无法关闭的 bug） */
+#settings{position:fixed;right:12px;bottom:64px;z-index:68;background:var(--card3);border:1px solid var(--line2);border-radius:12px;padding:12px;display:none;width:240px;box-shadow:var(--shadow-lg)}
 #settings .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--dim)}
-#gear{position:fixed;right:14px;bottom:64px;z-index:69;width:36px;height:36px;border-radius:50%;background:var(--card3);border:1px solid var(--line2);color:var(--dim);cursor:pointer;font-size:16px;transition:all .25s}
+#gear{position:fixed;right:14px;bottom:64px;z-index:72;width:36px;height:36px;border-radius:50%;background:var(--card3);border:1px solid var(--line2);color:var(--dim);cursor:pointer;font-size:16px;transition:all .25s}
+/* v17.27: 面板头部（标题 + ✕ 关闭按钮） */
+#setHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line2);font-size:12px;color:var(--gold2)}
 #gear:hover{color:var(--gold2);border-color:rgba(232,182,76,.4);box-shadow:var(--glow-gold)}
 select,button{font-family:inherit}
 ::-webkit-scrollbar{width:6px;height:6px}
@@ -864,6 +866,8 @@ body.freeze-on #routeCard,body.freeze-on #planCard{outline:2px dashed rgba(255,9
 
 <button id="gear" title="设置">⚙</button>
 <div id="settings">
+  <!-- v17.27: 面板头部 + ✕ 关闭按钮（修复面板盖住齿轮后无法关闭的 bug） -->
+  <div id="setHead"><b>⚙ 设置</b><button class="fbtn" id="setClose" title="关闭设置面板" style="cursor:pointer">✕ 关闭</button></div>
   <div class="row"><span>实时刷新频率</span>
     <select id="freqSel">
       <option value="1000">1 秒</option><option value="3000">3 秒</option>
@@ -5058,7 +5062,16 @@ function bindUI(){
     $('pnlLog').value='';
     ddRender();
   };
-  $('gear').onclick=()=>{ const s=$('settings'); s.style.display = s.style.display==='block'?'none':'block'; };
+  /* v17.27: 设置面板关闭三通道修复——原实现面板展开后恰好盖住齿轮（同位重叠）且无任何关闭途径，导致「关不掉」。
+     现在：① 齿轮仍可切换（层级已让位，齿轮外露可点）② 面板头部新增 ✕ 关闭钮 ③ 点击面板外任意区域自动收起 */
+  $('gear').onclick=(ev)=>{ ev.stopPropagation(); const s=$('settings'); s.style.display = s.style.display==='block'?'none':'block'; };
+  {
+    const sp=$('settings');
+    const closeSet=()=>{ sp.style.display='none'; };
+    const sc=document.getElementById('setClose');
+    if(sc) sc.onclick=closeSet;
+    document.addEventListener('click',(ev)=>{ if(sp.style.display==='block' && !sp.contains(ev.target)) closeSet(); });
+  }
   $('freqSel').value=String(S.freq);
   $('freqSel').addEventListener('change',e=>{ S.freq=+e.target.value; LS.set('freq',S.freq); restartTimers(); });
   /* n15: K线全量刷新周期选择（10~60秒），即时重启定时器生效 */
