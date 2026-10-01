@@ -6,7 +6,7 @@
 <title>JD2611 · 半量化研判系统 PRO</title>
 <meta name="theme-color" content="#07090f">
 <style>
-/* ================= v12 MASTER THEME · 大师级研判终端 · v17.24 路线卡增补：外部影响监控 · 已知短板与使用纪律 ================= */
+/* ================= v12 MASTER THEME · 大师级研判终端 · v17.25 漏洞修复五连：A情景量仓硬校验+分批仓位 · 紧急冻结开关 · 长假失效警示 · 信号权重标签 ================= */
 :root{
   --bg:#07090f; --bg2:#0a0d15;
   --card:rgba(17,22,33,.72); --card2:rgba(13,18,27,.85); --card3:#131a28;
@@ -262,6 +262,16 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 .vgrpbody>.card.wide{grid-column:1/-1}
 .vgrp.folded .vgrpbody{display:none}
 @media(max-width:960px){#v17nav .nvinfo{display:none}}
+/* v17.25: 紧急冻结条 + 冻结态（勾选后 body.freeze-on：全站卡片压暗脱饱和，冻结条常亮脉冲） */
+#freezeBar{position:sticky;top:0;z-index:110;display:none;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;max-width:1340px;margin:0 auto;padding:10px 14px;background:rgba(60,10,10,.96);border-bottom:2px solid #ff5a52;box-shadow:0 4px 18px rgba(255,60,60,.25);backdrop-filter:blur(8px)}
+#freezeBar.on{display:flex;animation:fbPulse 1.6s ease-in-out infinite}
+#freezeBar .fbtxt{font-size:12px;line-height:1.7;color:#ffd9d9;max-width:900px}
+#freezeBar .fbtxt b{color:#ff8f8a}
+#freezeBar .fbswitch{display:flex;gap:8px;align-items:center;flex:none;font-size:12px;font-weight:800;color:#fff;background:rgba(255,90,82,.22);border:1px solid #ff5a52;border-radius:16px;padding:5px 12px;cursor:pointer;user-select:none}
+#freezeBar .fbswitch input{accent-color:#ff5a52;width:15px;height:15px;cursor:pointer}
+@keyframes fbPulse{0%,100%{box-shadow:0 4px 18px rgba(255,60,60,.25)}50%{box-shadow:0 4px 26px rgba(255,60,60,.55)}}
+body.freeze-on .card{filter:grayscale(.55) brightness(.82)}
+body.freeze-on #routeCard,body.freeze-on #planCard{outline:2px dashed rgba(255,90,82,.55);outline-offset:-2px}
 </style>
 </head>
 <body>
@@ -284,6 +294,12 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
     </div>
   </div>
 </header>
+
+<!-- v17.25: 重大基本面突变·紧急冻结开关（人工勾选；勾选后全站叠加冻结态，暂停参考沙盘与K线规律，仅评估基本面；localStorage 持久化，刷新不丢） -->
+<div id="freezeBar" style="display:none">
+  <div class="fbtxt">⛔ <b>系统已临时冻结</b> —— 已勾选重大基本面突变（集中淘汰鸡 / 政策 / 疫情 / 现货价格断崖式暴跌等）。<b>暂停参考沙盘与K线规律</b>：历史K线规律、价位支撑、路线推演全部失效，<b style="color:#fff">仅评估基本面</b>。解除冻结前，请勿依据本系统任何规律性结论制定或执行开仓计划。</div>
+  <label class="fbswitch"><input type="checkbox" id="freezeChk"><span>重大基本面突变 · 紧急冻结开关</span></label>
+</div>
 
 <!-- v17: 吸顶分组导航条（六个锚点跳转；nvinfo 由分组引擎回写当前视口分组） -->
 <div id="v17nav">
@@ -586,6 +602,8 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
     <!-- v17.23: K线规律·路线走向计划（历史统计六规律 + 三情景路线图静态研究结论注入；纯展示不参与打分/评级） -->
     <div class="card" id="routeCard" style="display:none">
       <h3>🧭 K线规律·路线走向计划 <span class="tag">六规律 · 三情景 · 六不原则</span><span class="tag">节后 10/8 起生效</span></h3>
+      <!-- v17.25 漏洞4：长假静态沙盘失效警示（红色提示条） -->
+      <div style="margin:6px 0 2px;padding:7px 12px;border:1px solid rgba(255,90,82,.65);background:rgba(255,90,82,.10);border-radius:8px;font-size:12px;font-weight:700;color:var(--up);line-height:1.7">⚠️ 失效警示：本卡为静态推演沙盘 —— <b>休市期间（长假/周末）生成的沙盘推演，开盘后全部作废，必须刷新页面重新计算</b>。假期现货报价、淘汰鸡、存栏与仓单数据若发生变化，节前价位与路线均不再适用。</div>
       <div class="routeLead">一句话结论：<b>低吸等反弹攻 3799</b> —— 回踩 3671~3651 分批低吸，站稳 3799 看 3847→3908；收盘跌破 <b>3651 即作废</b>。统计面偏多（低位+大阴反弹启动）vs 均线结构偏空（四线压制），矛盾点即路线图核心：<b>不猜方向，让 3799 一线分出胜负。</b></div>
 
       <div class="routeGrid">
@@ -596,6 +614,11 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
       </div>
 
       <div class="sec" style="margin-top:8px">六条 K 线规律（按历史统计可信度排序）</div>
+      <!-- v17.25 漏洞5：多信号权重标签（防止把低价值规律当同等强度信号） -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:5px;font-size:11px;font-weight:800">
+        <span style="padding:3px 10px;border-radius:14px;background:rgba(90,162,247,.14);border:1px solid rgba(90,162,247,.5);color:var(--blue)">🔵 高权重：低位反弹效应</span>
+        <span style="padding:3px 10px;border-radius:14px;background:rgba(127,127,127,.08);border:1px dashed var(--line2);color:var(--dim)">⚪ 仅观察（无决策权重）：星期节奏 · 旬节奏 · 大阴线次日反弹</span>
+      </div>
       <div style="margin-top:4px">
         <div style="display:flex;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:5px 0;font-size:12px;line-height:1.65"><b style="color:var(--gold);flex:none">①</b><span><b>低位反弹效应</b> —— 60日位置&lt;20% 桶：5日胜率 66.7%，20日均值 +2.1%~+4.3%。<b style="color:var(--up)">当前 13.5%，生效</b></span></div>
         <div style="display:flex;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:5px 0;font-size:12px;line-height:1.65"><b style="color:var(--gold);flex:none">②</b><span><b>大阴线次日反弹</b> —— 跌幅&lt;-1.8% 大阴后：次日均值 +0.29%，反弹概率 71.4%（10/9 大阴 -2.3% 后适用）</span></div>
@@ -647,10 +670,13 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
 
       <div class="sec" style="margin-top:10px">三情景操作要点</div>
       <div class="routeGrid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
-        <div class="rk" style="border-color:rgba(255,90,82,.4)"><div class="k" style="color:var(--up)">A · 反弹 60%</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">回踩 3671~3651 分批低吸<br>站稳 3799 → 3847 / 3908 分批止盈<br>止损：收盘跌回 3671 下方</div></div>
+        <div class="rk" style="border-color:rgba(255,90,82,.4)"><div class="k" style="color:var(--up)">A · 反弹 60%</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px"><b style="color:var(--up)">成立条件（硬性 · 缺一不可）</b>：收盘站稳裁决位 3799 <b>并且</b> 同步满足量仓确认（<b>增仓 + 放量</b>）。<b style="color:var(--gold)">只满足价格、量仓不达标 → A 情景暂不生效，维持 B 震荡剧本</b>（防假突破）。<br><b style="color:var(--up)">入场（预设分 2 批）</b>：回踩区间 3671~3651 分 2 批进场；总仓位上限不超过账户资金 <b>XX%</b>（示例，可自定义）；<b>每一批预设止损</b>：收盘跌回 3671 下方即离场。<br><b style="color:var(--gold)">止盈</b>：站稳 3799 → 3847 / 3908 分批止盈。</div></div>
         <div class="rk" style="border-color:rgba(90,162,247,.4)"><div class="k" style="color:var(--blue)">B · 震荡 25%</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">3671~3799 带内高抛低吸<br>上沿不追多、下沿不追空<br>破带边缘再切 A / C 路线</div></div>
         <div class="rk" style="border-color:rgba(45,212,170,.4)"><div class="k" style="color:var(--dn)">C · 破位 15%</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">收盘&lt;3651 全部作废离场<br>下探 3634 企稳再评估<br>严禁破位后摊平扛单</div></div>
       </div>
+
+      <!-- v17.25 非漏洞·人为约定备注：概率与节奏仅展示，不计入开仓判定 -->
+      <div style="margin-top:6px;font-size:10px;color:var(--faint);line-height:1.7">📌 人为约定：A/B/C 情景百分比概率、星期节奏、旬节奏、大阴线次日反弹 —— 页面继续展示，但<b>不计入开仓判定、不加分</b>，仅作主观倾向参考；开仓以主引擎评级与硬性风控为准。</div>
 
       <div class="sec" style="margin-top:10px">关键价位表</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 24px;font-size:12px;margin-top:4px">
@@ -5257,6 +5283,26 @@ function v17Rearrange(){
 
     /* v17.23: routeCard 为纯静态研究卡（内容直写 HTML、无渲染函数），分组搬移后主动点亮 */
     try{ const rc=document.getElementById('routeCard'); if(rc) rc.style.display='block'; }catch(e){}
+
+    /* v17.25 漏洞2：重大基本面突变·紧急冻结开关（localStorage 持久化：勾选状态刷新/重开浏览器均保留） */
+    try{
+      const fb=document.getElementById('freezeBar'), fchk=document.getElementById('freezeChk');
+      if(fb && fchk){
+        const FKEY='jd_freeze_fundamental_v1';
+        const applyFreeze=(on)=>{
+          fb.classList.toggle('on',!!on);
+          fchk.checked=!!on;
+          document.body.classList.toggle('freeze-on',!!on);
+        };
+        try{ applyFreeze(localStorage.getItem(FKEY)==='1'); }catch(e){ applyFreeze(false); }
+        fchk.addEventListener('change',()=>{
+          const on=fchk.checked;
+          try{ localStorage.setItem(FKEY,on?'1':'0'); }catch(e){}
+          applyFreeze(on);
+          if(on){ try{ fb.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} }
+        });
+      }
+    }catch(e){}
 
     /* 4. 清理空壳：main/aside 搬空后移除，避免残留空双列骨架 */
     const mainEl=document.querySelector('main');
