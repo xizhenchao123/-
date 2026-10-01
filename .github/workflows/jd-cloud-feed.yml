@@ -1,0 +1,49 @@
+name: jd-cloud-feed
+
+# v17.28: 鸡蛋现货价 + 饲料成本 云端定时抓取（供 GitHub Pages 线上版自动回填输入框）
+# cron 为 UTC，北京时间 = UTC+8；交易日（周一~周五）09:20 / 10:30 / 13:20 / 15:10 各跑一次。
+# 产物 jd_cloud_feed.json 由本 workflow 自提交进仓库，Pages 直接以静态文件伺服。
+
+on:
+  schedule:
+    - cron: '20 1 * * 1-5'   # 北京 09:20（开盘前）
+    - cron: '30 2 * * 1-5'   # 北京 10:30（盘早段）
+    - cron: '20 5 * * 1-5'   # 北京 13:20（下午开盘后）
+    - cron: '10 7 * * 1-5'   # 北京 15:10（收盘后）
+  workflow_dispatch: {}       # 支持手动触发补数
+
+permissions:
+  contents: write             # 允许 workflow 自提交 jd_cloud_feed.json
+
+concurrency:
+  group: jd-cloud-feed
+  cancel-in-progress: false   # 重叠触发时排队而非互杀，保证数据落盘
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖（akshare）
+        run: pip install --quiet "akshare>=1.15"
+
+      - name: 抓取 现货 + 饲料成本
+        run: python scripts/jd_cloud_fetch.py
+
+      - name: 提交 jd_cloud_feed.json
+        run: |
+          git config user.name  "jd-cloud-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add jd_cloud_feed.json
+          if git diff --cached --quiet; then
+            echo "数据无变化，跳过提交"
+          else
+            git commit -m "cloud-feed: $(date -u +'%F %T') UTC 自动更新现货/饲料成本"
+            git push
+          fi
