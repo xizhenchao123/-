@@ -6,7 +6,7 @@
 <title>JD2611 · 半量化研判系统 PRO</title>
 <meta name="theme-color" content="#07090f">
 <style>
-/* ================= v12 MASTER THEME · 大师级研判终端 · v17.23 路线走向计划卡注入 ================= */
+/* ================= v12 MASTER THEME · 大师级研判终端 · v17.24 路线卡增补：外部影响监控 · 已知短板与使用纪律 ================= */
 :root{
   --bg:#07090f; --bg2:#0a0d15;
   --card:rgba(17,22,33,.72); --card2:rgba(13,18,27,.85); --card3:#131a28;
@@ -692,6 +692,18 @@ main .card:nth-child(2){animation-delay:.06s}main .card:nth-child(3){animation-d
         <span class="tag" style="border-color:rgba(232,182,76,.5)">1 现货蛋价</span><span class="tag">2 期现基差</span><span class="tag">3 持仓/移仓</span><span class="tag">4 K线统计信号</span>
         <span style="margin-left:4px;color:var(--faint)">—— 现货与 K 线信号冲突时，信现货</span>
       </div>
+
+      <!-- v17.24: 已知短板与使用纪律（外部复盘六项，使用者必须自行注意） -->
+      <div class="sec" style="margin-top:10px">⚠️ 已知短板与使用纪律（六项 · 使用者必须自行注意）</div>
+      <div class="routeGrid" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">
+        <div class="rk"><div class="k">① 日历 / 分位规律 = 弱逻辑</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">星期、旬、节后效应属概率性边缘规律；农产品受现货、节日、存栏扰动极大，历史胜率随时失效——只作择时微调，不作方向依据</div></div>
+        <div class="rk" style="border-color:rgba(232,182,76,.5)"><div class="k" style="color:var(--gold)">② 低位反弹 ≠ 见底（启用前置）</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">60日位置&lt;20% 仅是价格分位，未绑定供需。反弹规律启用前置三问：现货止跌企稳？淘汰加速 / 存栏去化？补栏收缩？——三问无确认即为「半山腰」风险，不得启用</div></div>
+        <div class="rk" style="border-color:rgba(232,182,76,.5)"><div class="k" style="color:var(--gold)">③ 60/25/15 是主观校准，不是开仓理由</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">概率为人工加权、非回测输出；主引擎已触发 D 级一票否决（诱多假突破 ×2、大量滞涨）时，沙盘反弹概率一律作废——实操必须优先服从主引擎否决</div></div>
+        <div class="rk" style="border-color:rgba(232,182,76,.5)"><div class="k" style="color:var(--gold)">④ 站稳 3799 必须量仓确认</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">「站稳 3799 开启反弹」需同时满足<b>增仓 + 放量</b>（威科夫确认，写在收盘复盘卡）；仅价格站上 3799 不成立，路线图分叉不自动触发</div></div>
+        <div class="rk" style="border-color:rgba(90,162,247,.4)"><div class="k" style="color:var(--blue)">⑤ 现货 / 存栏数据靠手动录入</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">忘记录入 → 基本面因子降级，供需校验失真；JD2611 为远月合约，重点看补栏周期预期——数据缺失时不得引用基本面校验结论</div></div>
+        <div class="rk" style="border-color:rgba(90,162,247,.4)"><div class="k" style="color:var(--blue)">⑥ 静态沙盘 · 无内置仓位方案</div><div style="font-size:11px;color:var(--txt);line-height:1.75;margin-top:3px">本推演为 10/8 节前静态沙盘，假期中宏观 / 现货 / 消息变化后，节后概率与价位可能直接失效，<b>须重新生成推演</b>；仓位分配（如 3671~3651 分批比例）不在本卡内，去持仓风控模块配置</div></div>
+      </div>
+      <div style="margin-top:6px;font-size:11px;line-height:1.8"><b style="color:var(--gold2)">一句话纪律：</b><span style="color:var(--txt)">本卡只回答「走到什么位置该做什么」，不回答「现在能不能开仓」——方向与开仓以主引擎评级 + 量仓确认为准，沙盘概率永不作为开仓依据。</span></div>
 
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:8px">风险与局限：六条规律均来自历史分段统计，样本非穷尽、不保证未来重现；路线图为情景推演非预测承诺。三情景概率（60/25/15）为统计面+结构面的主观校准。本卡为静态研究结论注入，不参与系统打分与评级，仅作决策参照；一切以价格对 3799/3651 的实际裁决为准。</div>
     </div>
