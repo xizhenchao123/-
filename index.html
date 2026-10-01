@@ -6,7 +6,7 @@
 <title>JD2611 · 半量化研判系统 PRO</title>
 <meta name="theme-color" content="#07090f">
 <style>
-/* ================= v12 MASTER THEME · 大师级研判终端 · v17.25 漏洞修复五连：A情景量仓硬校验+分批仓位 · 紧急冻结开关 · 长假失效警示 · 信号权重标签 ================= */
+/* ================= v12 MASTER THEME · 大师级研判终端 · v17.26 走向卡修复：高风险态带出底层三要素方向（baseDir），不再只报风险不报涨跌 ================= */
 :root{
   --bg:#07090f; --bg2:#0a0d15;
   --card:rgba(17,22,33,.72); --card2:rgba(13,18,27,.85); --card3:#131a28;
@@ -2037,9 +2037,10 @@ function computeDirection(A){
   if(score>=2) dir='偏多';
   else if(score<=-2) dir='偏空';
   else dir='震荡';
-  /* 一票否决红线覆盖：硬阻断优先 */
+  /* v17.26：一票否决覆盖前先保留底层方向（baseDir），供展示层在高风险态仍能带出涨跌倾向 */
+  const baseDir=dir;
   if(A.veto&&A.veto.length) dir='高风险';
-  return {dir, reasons:reasons.slice(0,3), holiday:hs, season, holTxt, seaTxt, spotTxt};
+  return {dir, baseDir, reasons:reasons.slice(0,3), holiday:hs, season, holTxt, seaTxt, spotTxt};
 }
 function analyze(){
   const d=S.bars.d, h1=S.bars.h1, m5=S.bars.m5, live=S.live;
@@ -3326,9 +3327,11 @@ function renderPanels(){
   }
   /* 分数 */
   /* v17.12 三要素走向展示（替换原趋势/量仓分数条） */
-  const dirm=A.direction||{dir:'--',reasons:[],holiday:{st:'normal',note:'--'},season:null,holTxt:'--',seaTxt:'--',spotTxt:'--'};
+  const dirm=A.direction||{dir:'--',baseDir:'--',reasons:[],holiday:{st:'normal',note:'--'},season:null,holTxt:'--',seaTxt:'--',spotTxt:'--'};
+  /* v17.26：高风险时同时带出底层三要素方向（如「高风险·底层偏多」），不再只报风险不报方向 */
+  const dirDisp=(dirm.dir==='高风险'&&dirm.baseDir&&dirm.baseDir!=='--')?`高风险·底层${dirm.baseDir}`:dirm.dir;
   const dcol=dirm.dir==='偏多'?'var(--up)':dirm.dir==='偏空'?'var(--dn)':dirm.dir==='高风险'?'var(--risk)':'var(--dim)';
-  $('totalnum').textContent=dirm.dir;
+  $('totalnum').textContent=dirDisp;
   $('totalnum').style.color=dcol;
   $('totalnum').style.fontSize='34px';
   $('totallabel').textContent='今日走向 · 三要素+1';
@@ -3395,8 +3398,8 @@ function renderPanels(){
     $('gbGrade').style.textShadow=grGlow[gr]||'none';
     $('gbGrade').style.fontFamily='var(--serif)';
     $('gbGrade').style.fontSize='30px';
-    /* v17.12 今日走向单元格 */
-    $('gbDir').textContent=dirm.dir;
+    /* v17.12 今日走向单元格（v17.26：高风险时带出底层方向） */
+    $('gbDir').textContent=dirDisp;
     $('gbDir').style.color=dcol;
     $('gbDir').style.fontFamily='var(--serif)';
     $('gbDir').style.fontSize='22px';
@@ -3418,7 +3421,7 @@ function renderPanels(){
       else if(S.losses&&S.losses.n>=3){ lin=`${gr} 级，当日连亏${S.losses.n}笔，按纪律暂停开仓，只复盘不开新单`; linC='var(--risk)'; }
       else if((gr==='A'||gr==='B')&&A.rr&&A.rr.pass){ lin=`${gr} 级，适合${A.rr.side==='多'?'做多':'做空'}（盈亏比≈${A.rr.rr.toFixed(1)}R），${extras.length?extras.join('，')+'；':''}可按仓位纪律轻仓试单`; linC=gr==='A'?'var(--ok)':'var(--gold)'; }
       else if(gr==='A'||gr==='B'){ lin=`${gr} 级，条件初备但盈亏比未达标（${A.rr&&A.rr.rr!=null?A.rr.rr.toFixed(1)+'R':'--'}）${extras.length?'，'+extras.join('，'):''}，等回踩更好的入场位`; linC='var(--gold)'; }
-      else { lin=`${gr} 级，今日走向【${dirm.dir}】，条件不足，观望为主${extras.length?'；'+extras.join('，'):''}`; linC='var(--dim)'; }
+      else { lin=`${gr} 级，今日走向【${dirDisp}】，条件不足，观望为主${extras.length?'；'+extras.join('，'):''}`; linC='var(--dim)'; }
       ol.textContent='📌 一句话结论：'+lin;
       ol.style.display='block';
       ol.style.borderLeftColor=linC;
