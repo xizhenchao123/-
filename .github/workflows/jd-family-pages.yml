@@ -53,5 +53,7 @@ jobs:
             echo "内容无变化，跳过提交"
           else
             git commit -m "family-pages: $(date -u +'%F %T') UTC 自动更新家人版（SPOT_SEED 注入）"
+            # 防竞态：组包期间远端若有新提交（如抓数 workflow 落盘），先变基再推
+            git pull --rebase origin main
             git push
           fi
