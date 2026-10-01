@@ -123,9 +123,11 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;padding:10p
 footer{position:fixed;bottom:0;left:0;right:0;background:rgba(11,14,20,.97);border-top:1px solid var(--line);padding:7px 14px;font-size:11px;color:var(--faint);z-index:60;line-height:1.5}
 footer b{color:var(--warn)}
 /* settings */
-#settings{position:fixed;right:12px;bottom:64px;z-index:70;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;display:none;width:240px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#settings{position:fixed;right:12px;bottom:64px;z-index:68;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;display:none;width:240px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
 #settings .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--dim)}
-#gear{position:fixed;right:14px;bottom:64px;z-index:69;width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--line);color:var(--dim);cursor:pointer;font-size:16px}
+#gear{position:fixed;right:14px;bottom:64px;z-index:72;width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--line);color:var(--dim);cursor:pointer;font-size:16px}
+/* v17.27: 面板头部（✕ 关闭按钮）——修复面板（原 z-index:70）盖住齿轮（原 69）导致打开后无法关闭的 bug */
+#setHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--gold)}
 select,button{font-family:inherit}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-thumb{background:#2a3348;border-radius:3px}
@@ -1719,6 +1721,8 @@ window.__TRAE_PUSH_INLINE__={
 
 <button id="gear" title="设置">⚙</button>
 <div id="settings">
+  <!-- v17.27: 面板头部 + ✕ 关闭按钮（修复面板盖住齿轮后无法关闭的 bug） -->
+  <div id="setHead"><b>⚙ 设置</b><button class="fbtn" id="setClose" title="关闭设置面板" style="cursor:pointer">✕ 关闭</button></div>
   <div class="row"><span>实时刷新频率</span>
     <select id="freqSel">
       <option value="1000">1 秒</option><option value="3000">3 秒</option>
@@ -4613,7 +4617,16 @@ function bindUI(){
     $('pnlLog').value='';
     ddRender();
   };
-  $('gear').onclick=()=>{ const s=$('settings'); s.style.display = s.style.display==='block'?'none':'block'; };
+  /* v17.27: 设置面板关闭三通道修复——原实现面板展开后恰好盖住齿轮（同位重叠）且无任何关闭途径，导致「关不掉」。
+     现在：① 齿轮仍可切换（层级已让位，齿轮外露可点）② 面板头部新增 ✕ 关闭钮 ③ 点击面板外任意区域自动收起 */
+  $('gear').onclick=(ev)=>{ ev.stopPropagation(); const s=$('settings'); s.style.display = s.style.display==='block'?'none':'block'; };
+  {
+    const sp=$('settings');
+    const closeSet=()=>{ sp.style.display='none'; };
+    const sc=document.getElementById('setClose');
+    if(sc) sc.onclick=closeSet;
+    document.addEventListener('click',(ev)=>{ if(sp.style.display==='block' && !sp.contains(ev.target)) closeSet(); });
+  }
   $('freqSel').value=String(S.freq);
   $('freqSel').addEventListener('change',e=>{ S.freq=+e.target.value; LS.set('freq',S.freq); restartTimers(); });
   $('maSel').value=String(S.showMA);
