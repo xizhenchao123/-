@@ -4,7 +4,7 @@
    电脑睡眠场景：隧道进程随宿主机暂停，Cloudflare边缘对死隧道返回5xx错误页——
    页面请求遇非200也降级回缓存外壳（否则用户看到的是Cloudflare错误页而不是APP）；
    /api/spot 同理回503 JSON，页面自动降级"预置(离线)"现货徽标 */
-const CACHE = 'jd2611-shell-v2';
+const CACHE = 'jd2611-shell-v3';   /* v17.28b: 家人版迁 GitHub Pages family/ 子目录，升版本强制全设备刷新外壳缓存 */
 const SHELL = ['jd2611.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 
 self.addEventListener('install', e => {
@@ -37,7 +37,8 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  const key = url.pathname.replace(/^\//, '');
+  /* v17.28b: 子目录部署（/-/family/）也要命中外壳——按最后一段文件名比对（根路径部署同样兼容） */
+  const key = url.pathname.split('/').pop() || url.pathname;
   const isShell = SHELL.includes(key);
   const isPage = e.request.mode === 'navigate' || key.endsWith('.html');
   e.respondWith(
