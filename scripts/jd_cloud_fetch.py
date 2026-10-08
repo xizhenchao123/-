@@ -70,7 +70,7 @@ def fetch_spot():
         rows = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            for back in range(7):
+            for back in range(10):  # v17.29: 7→10 天。10/7 事故诱因：长假第 8 天窗口滑出最近交易日
                 day = today - datetime.timedelta(days=back)
                 if back == 0 and day.weekday() >= 5:
                     continue  # 今天是周末，直接从周五开始找
