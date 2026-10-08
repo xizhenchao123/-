@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>鸡蛋期货 JD2611 · 量化盯盘交易系统</title>
+<!-- v17.31 (1008c): 新增「复盘」视图（决策日历重算当日三层决策 / 台账全量+点日期跳K线 / 回测逐笔×台账对照）；台账扩完整快照+修basisRate老bug；IndexedDB双写防清缓存丢失；JSON导出导入 -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥚</text></svg>">
 <!-- PWA：可安装APP（桌面图标·全屏独立运行·断网外壳兜底） -->
 <link rel="manifest" href="manifest.json">
@@ -292,11 +293,30 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--border)
   #tabbar button.active{color:var(--blue)}
   #tabbar button .ico{font-size:17px;line-height:1}
   body{padding-bottom:58px}
-  body[data-view="chart"] #side-panel,body[data-view="chart"] #plan-section,body[data-view="chart"] #ref-section,body[data-view="chart"] #spread-section{display:none}
-  body[data-view="signal"] #chart-section,body[data-view="signal"] #plan-section,body[data-view="signal"] #ref-section,body[data-view="signal"] #spread-section{display:none}
-  body[data-view="plan"] #chart-section,body[data-view="plan"] #side-panel,body[data-view="plan"] #ref-section,body[data-view="plan"] #spread-section{display:none}
-  body[data-view="ref"] #chart-section,body[data-view="ref"] #side-panel,body[data-view="ref"] #plan-section,body[data-view="ref"] #spread-section{display:none}
-  body[data-view="spread"] #chart-section,body[data-view="spread"] #side-panel,body[data-view="spread"] #plan-section,body[data-view="spread"] #ref-section{display:none}
+  body[data-view="chart"] #side-panel,body[data-view="chart"] #plan-section,body[data-view="chart"] #ref-section,body[data-view="chart"] #spread-section,body[data-view="chart"] #review-section{display:none}
+  body[data-view="signal"] #chart-section,body[data-view="signal"] #plan-section,body[data-view="signal"] #ref-section,body[data-view="signal"] #spread-section,body[data-view="signal"] #review-section{display:none}
+  body[data-view="plan"] #chart-section,body[data-view="plan"] #side-panel,body[data-view="plan"] #ref-section,body[data-view="plan"] #spread-section,body[data-view="plan"] #review-section{display:none}
+  body[data-view="ref"] #chart-section,body[data-view="ref"] #side-panel,body[data-view="ref"] #plan-section,body[data-view="ref"] #spread-section,body[data-view="ref"] #review-section{display:none}
+  body[data-view="spread"] #chart-section,body[data-view="spread"] #side-panel,body[data-view="spread"] #plan-section,body[data-view="spread"] #ref-section,body[data-view="spread"] #review-section{display:none}
+  body[data-view="review"] #chart-section,body[data-view="review"] #side-panel,body[data-view="review"] #plan-section,body[data-view="review"] #ref-section,body[data-view="review"] #spread-section{display:none}
+  /* 1008c 复盘视图 */
+  #review-section{display:flex;flex-direction:column;gap:12px}
+  .rv-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px}
+  .rv-card h4{margin:0 0 10px;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .rv-cal-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .rv-cal-row input[type="date"]{background:#1a2030;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 10px;font-size:14px;font-family:inherit;color-scheme:dark}
+  .rv-cal-row button{background:var(--blue);border:none;border-radius:8px;color:#fff;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}
+  .rv-cal-row button.ghost{background:transparent;border:1px solid var(--border);color:var(--muted2)}
+  #rv-cal-out{margin-top:10px;font-size:13px;line-height:2;color:var(--muted)}
+  #rv-cal-out .rv-big{font-size:15px}
+  #rv-cal-out b{color:var(--text)}
+  .rv-bt-row{display:flex;gap:8px;flex-wrap:wrap}
+  .rv-bt-row button{background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:6px 12px;font-size:12px;cursor:pointer}
+  .rv-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  .rv-table th{color:var(--muted2);font-weight:600;text-align:left;padding:4px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .rv-table td{padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--muted);white-space:nowrap}
+  .rv-table td.link{color:var(--blue);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  .rv-empty{color:var(--muted2);font-size:12px;padding:8px 0}
   body[data-view="signal"] #main{grid-template-columns:1fr}
   .plan-grid{grid-template-columns:repeat(2,1fr)}
   #chart-note{display:none}
@@ -436,7 +456,7 @@ window.__bootDone = false;
         <h3>📓 样本外台账 <span class="tag">每日15:05自动落账·次日对照实况打分</span></h3>
         <div class="ledger-sum" id="ledger-sum"></div>
         <div class="ledger-list" id="ledger-list"></div>
-        <div class="ledger-note" style="font-size:11px;color:var(--muted2);line-height:1.7;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">台账=系统每个交易日 15:05 后自动记录当日三层决策（方向/评分/闸门/手数/止损止盈），次日出新K线<b style="color:var(--text)">收盘后</b>按实际走势自动打分——这是向前积累的样本外实证，不受历史寻优污染；胜率/净值均扣3点/笔成本。标"补"=当日页面未打开、次日按日线重算补录（无闸门快照）。仅本设备localStorage保存，清浏览器数据会丢失。</div>
+        <div class="ledger-note" style="font-size:11px;color:var(--muted2);line-height:1.7;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">台账=系统每个交易日 15:05 后自动记录当日三层决策（方向/评分/闸门/手数/止损止盈），次日出新K线<b style="color:var(--text)">收盘后</b>按实际走势自动打分——这是向前积累的样本外实证，不受历史寻优污染；胜率/净值均扣3点/笔成本。标"补"=当日页面未打开、次日按日线重算补录（无闸门快照）。仅本设备保存（localStorage+IndexedDB双写，清缓存后自动从本机库恢复；换设备用「复盘」页导出/导入JSON）。</div>
       </div>
     </aside>
   </div>
@@ -561,6 +581,37 @@ window.__bootDone = false;
       <div class="ref-note">鸡蛋月间价差=市场对「存栏增减+季节性需求」的远期定价：<b style="color:var(--text)">近月&gt;远月</b>为贴水结构（现货紧、远期供应预期宽松），常见于现货强势期；<b style="color:var(--text)">远月&gt;近月</b>为升水结构（远期旺季预期，如中秋备货前的远月合约）。价差每5秒自动刷新，全部合约来自公开行情接口；临近交割月流动性与持仓转移需留意；本页仅供研究参考，不构成投资建议。</div>
     </div>
   </section>
+
+  <!-- 1008c 复盘：决策日历 + 台账全量 + 回测逐笔对照 -->
+  <section id="review-section">
+    <div class="rv-card">
+      <h4>🕘 决策日历 <span class="tag">选任一历史交易日，重算当日三层决策</span></h4>
+      <div class="rv-cal-row">
+        <input type="date" id="rv-date" aria-label="选择日期">
+        <button id="rv-go">查看该日决策</button>
+        <button id="rv-today" class="ghost">回到最新</button>
+      </div>
+      <div id="rv-cal-out" class="rv-empty">选择日期后展示该日：OHLC、五因子方向分、技术分、档位、仓位、止损止盈与指标值；K线自动切日线并定位到该根K线。</div>
+    </div>
+    <div class="rv-card">
+      <h4>📓 台账全量 <span class="tag" id="rv-ledger-tag">--</span>
+        <span class="rv-bt-row">
+          <button id="rv-export">导出JSON</button>
+          <button id="rv-import">导入JSON</button>
+          <button id="rv-idxdb">同步到本机库</button>
+        </span>
+      </h4>
+      <input type="file" id="rv-file" accept=".json,application/json" style="display:none">
+      <div class="ledger-sum" id="rv-ledger-sum"></div>
+      <div id="rv-ledger-table"></div>
+      <div class="ref-note">全量台账（上限400条）按日期倒序；<b style="color:var(--text)">点日期列跳转对应日线K线</b>。「同步到本机库」把台账写入浏览器 IndexedDB——localStorage 被清（清缓存/隐私清理）时自动从本机库恢复；换设备请用导出/导入JSON。15:05后每日落账，次日收盘后自动打分。</div>
+    </div>
+    <div class="rv-card">
+      <h4>🧪 回测逐笔 × 台账对照 <span class="tag">样本内 vs 样本外</span></h4>
+      <div id="rv-bt-table"></div>
+      <div class="ref-note">左=样本内回测逐笔（因子规则在历史全样本模拟，无闸门快照）；右=样本外台账实账（含双周期闸门）。按日期对齐观察：回测信号与实账决策方向相反（标"反向"）或档位差异大的日期值得复盘规则。</div>
+    </div>
+  </section>
 </div>
 
 <!-- 移动端Tab -->
@@ -570,6 +621,7 @@ window.__bootDone = false;
   <button data-v="plan"><span class="ico">🧭</span>计划</button>
   <button data-v="ref"><span class="ico">📊</span>量仓</button>
   <button data-v="spread"><span class="ico">🔀</span>价差</button>
+  <button data-v="review"><span class="ico">🕘</span>复盘</button>
 </nav>
 
 <script>/**
@@ -1903,7 +1955,8 @@ function threeLayerBacktest(){
       }
       if(exit!=null){
         const pnl=(exit-pos.entry)*pos.dir-BT_COST; /* 含3点/笔手续费滑点（口径同virtualBacktest） */
-        equity+=pnl; trades.push({pnl,reason});
+        /* 1008c: 逐笔补日期（edate=开仓日, date=平仓日），供复盘页台账对照 */
+        equity+=pnl; trades.push({pnl,reason,date:ledgerDayKey(days[i].timestamp),edate:pos.edate,dir:pos.dir});
         peak=Math.max(peak,equity); maxDD=Math.max(maxDD,peak-equity);
         pos=null;
       }
@@ -1918,7 +1971,7 @@ function threeLayerBacktest(){
         const lowVol=ap.n>=30&&ap.pct<=0.2; /* 波动过小：降频不开仓 */
         if(!lowVol){
           const s=e>0?1:-1;
-          pos={dir:s,entry:c,sl:c-1.5*atr*s,tp:c+2*atr*s};
+          pos={dir:s,entry:c,sl:c-1.5*atr*s,tp:c+2*atr*s,edate:ledgerDayKey(days[i].timestamp)}; /* 1008c: 存开仓日 */
         }
       }
     }
@@ -2446,7 +2499,61 @@ function renderSpread(){
 const LEDGER_KEY='jd_ledger';
 const TRADE_COST_PTS=3; /* 与回测一致：双边手续费+滑点3点/笔 */
 function loadLedger(){ try{ const a=JSON.parse(localStorage.getItem(LEDGER_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function saveLedger(a){ try{ localStorage.setItem(LEDGER_KEY,JSON.stringify(a)); }catch(e){} }
+function saveLedger(a){ try{ localStorage.setItem(LEDGER_KEY,JSON.stringify(a)); idbPutAll(a); }catch(e){} } /* 1008c: 双写IndexedDB */
+/* 1008c: IndexedDB 本机库（防清缓存丢台账）——库名jd_db/表kv，主键k；localStorage被清时boot自动从本机库恢复 */
+let _idbP=null;
+function openIdb(){
+  if(_idbP) return _idbP;
+  _idbP=new Promise(res=>{
+    try{
+      if(!window.indexedDB){ res(null); return; }
+      const rq=indexedDB.open('jd_db',1);
+      rq.onupgradeneeded=()=>{ try{ rq.result.createObjectStore('kv'); }catch(e){} };
+      rq.onsuccess=()=>res(rq.result);
+      rq.onerror=()=>res(null);
+    }catch(e){ res(null); }
+  });
+  return _idbP;
+}
+async function idbPutAll(arr){
+  try{
+    const db=await openIdb();
+    if(!db) return;
+    await new Promise((res,rej)=>{
+      const tx=db.transaction('kv','readwrite'), st=tx.objectStore('kv');
+      st.put(JSON.parse(JSON.stringify(arr||[])),LEDGER_KEY);
+      tx.oncomplete=res; tx.onerror=rej; tx.onabort=rej;
+    });
+  }catch(e){}
+}
+async function idbGetAll(){
+  try{
+    const db=await openIdb();
+    if(!db) return null;
+    return await new Promise(res=>{
+      const tx=db.transaction('kv','readonly'), rq=tx.objectStore('kv').get(LEDGER_KEY);
+      rq.onsuccess=()=>res(Array.isArray(rq.result)?rq.result:null);
+      rq.onerror=()=>res(null);
+    });
+  }catch(e){ return null; }
+}
+/* 1008c: localStorage台账丢失（清缓存/隐私清理）时从本机库恢复——idb条目较新或本地为空才回写 */
+async function idbRestore(){
+  try{
+    const local=loadLedger();
+    const saved=await idbGetAll();
+    if(!saved||!saved.length) return;
+    if(!local.length||saved.length>local.length){
+      saveLedger(saved);
+    }else{
+      /* 两边都有：按日期合并（idb有而local缺的补回） */
+      const have=new Set(local.map(x=>x.date));
+      let added=false;
+      for(const x of saved){ if(!have.has(x.date)){ local.push(x); added=true; } }
+      if(added){ local.sort((a,b)=>a.date<b.date?-1:1); saveLedger(local); }
+    }
+  }catch(e){}
+}
 function ledgerDayKey(ts){ const d=new Date(ts+cnOffsetMs(ts)); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
 /* 落账：当日账=收盘后(15:05+)当日日线已生成时落最终决策（含双周期闸门快照）；
    补录=页面当天没开导致的漏账，用日线在历史索引上重算补上（闸门无法重建记null，诚实标注source='backfill'）；
@@ -2504,12 +2611,20 @@ function ledgerTick(){
   }catch(e){}
 }
 function mkLedgerEntry(date,d,lots,gate,source){
+  /* 1008c: basisPts→basisRate 老bug修复（原字段名写错导致台账基差永远null）+ 扩为完整收盘快照 */
   return {
     date, act:d.act, close:d.close, atr:+d.atr.toFixed(1),
     tech:+(d.tim.tech||0).toFixed(2), dirMode:d.dir.mode, tier:d.tier, finalPct:+d.finalPct.toFixed(2),
     lots, gate, sl:+(isFinite(d.sl)?d.sl.toFixed(1):0), tp:+(isFinite(d.tp)?d.tp.toFixed(1):0),
     volCoef:+(d.flt.volCoef||1).toFixed(2), closeOnly:!!d.flt.closeOnly,
-    basis:(isFinite(d.tim.basisPts)?+d.tim.basisPts.toFixed(0):null),
+    basis:(isFinite(d.tim.basisRate)?+d.tim.basisRate.toFixed(0):null),
+    /* 1008c 完整快照：五因子分项 + 关键价位 + OHLC */
+    dirScore:+(d.dir.dirScore||0).toFixed(2), season:+(d.dir.season||0).toFixed(2),
+    wtV:+(d.dir.wt&&isFinite(d.dir.wt.v)?d.dir.wt.v:0).toFixed(2), fund:+(d.dir.fund||0).toFixed(2),
+    maV:+(isFinite(d.tim.maV)?d.tim.maV.toFixed(1):null), macdV:+(isFinite(d.tim.macdV)?d.tim.macdV.toFixed(2):null),
+    rsiV:+(isFinite(d.tim.rsiV)?d.tim.rsiV.toFixed(1):null),
+    atrPct:+(isFinite(d.flt.atrPct)?d.flt.atrPct.toFixed(2):null), volState:d.flt.volState||'',
+    ohlc:(function(){ try{ const b=state.data['1d']; if(!b||!b.length) return null; const i=b.findIndex(x=>ledgerDayKey(x.timestamp)===date); return i>=0?{o:+b[i].open.toFixed(1),h:+b[i].high.toFixed(1),l:+b[i].low.toFixed(1)}:null; }catch(e){ return null; } })(),
     source:source||'live', result:null
   };
 }
@@ -2712,6 +2827,149 @@ function renderAll(){
   renderRef();
   renderSpread();
   renderLedger();
+  renderReview();
+}
+/* ================= 1008c 复盘视图：决策日历 + 台账全量 + 回测对照 ================= */
+function renderReview(){
+  try{
+    const tag=$('rv-ledger-tag'), sum=$('rv-ledger-sum'), tbl=$('rv-ledger-table');
+    const ledger=loadLedger();
+    if(tag) tag.textContent=ledger.length?('共'+ledger.length+'条（上限400）'):'--';
+    if(sum){
+      const stats=ledgerStats();
+      sum.innerHTML=stats?`已评分 <b style="color:var(--text)">${stats.n}</b> 笔 · 胜率 <b class="${stats.rate>=50?'hl-red':'hl-green'}">${stats.rate}%</b> · 净值 <b class="${stats.pnl>=0?'hl-red':'hl-green'}">${stats.pnl>=0?'+':''}${stats.pnl}点</b> · ${stats.streak}`:'<span style="color:var(--muted2)">暂无已评分记录</span>';
+    }
+    if(tbl){
+      if(!ledger.length){ tbl.innerHTML='<div class="rv-empty">台账为空：15:05 后自动落账。</div>'; }
+      else{
+        tbl.innerHTML='<table class="rv-table"><thead><tr><th>日期</th><th>操作</th><th>档位</th><th>技术分</th><th>仓位%</th><th>闸门</th><th>方向分</th><th>季节</th><th>基差</th><th>止损</th><th>止盈</th><th>结果</th><th>盈亏</th></tr></thead><tbody>'
+          +ledger.slice().reverse().map(x=>{
+            const actT=x.act==='long'?'<span style="color:var(--red)">多</span>':x.act==='short'?'<span style="color:var(--green)">空</span>':'观望';
+            const rc=x.result==='win'?'hl-red':x.result==='lose'?'hl-green':'';
+            const oc=x.outcome==='sl'?'止损':x.outcome==='tp'?'止盈':'';
+            const tierT={normal:'二档',light:'一档',none:'--'}[x.tier]||(x.tier||'--');
+            return `<tr><td class="link" onclick="locateDay('${x.date}')">${x.date}${x.source==='backfill'?' 补':''}</td><td>${actT}${x.act!=='flat'?'×'+x.lots:''}</td><td>${tierT}</td><td>${x.tech>0?'+':''}${x.tech}</td><td>${x.finalPct!=null?x.finalPct+'%':'--'}</td><td>${x.gate&&x.gate.ok===true?'✓':x.gate&&x.gate.ok===false?'✗':'--'}</td><td>${x.dirScore!=null?x.dirScore:'--'}</td><td>${x.season!=null?x.season:'--'}</td><td>${x.basis!=null?x.basis:'--'}</td><td>${x.sl||'--'}</td><td>${x.tp||'--'}</td><td class="${rc}">${x.result==='win'?'对':x.result==='lose'?'错':x.result==='flat'?'平':'待'}</td><td>${x.pnl!=null?((x.pnl>=0?'+':'')+x.pnl+(oc?'('+oc+')':'')):'--'}</td></tr>`;
+          }).join('')+'</tbody></table>';
+      }
+    }
+    renderBtCompare();
+  }catch(e){}
+}
+/* 回测逐笔 × 台账按日期对照 */
+function renderBtCompare(){
+  try{
+    const el=$('rv-bt-table');
+    if(!el) return;
+    const bt=(typeof _btCache!=='undefined'&&_btCache&&_btCache.res)?_btCache.res:null;
+    if(!bt||!Array.isArray(bt.trades)||!bt.trades.length){ el.innerHTML='<div class="rv-empty">回测数据未就绪（等待日线加载后自动计算）。</div>'; return; }
+    const byDate={};
+    for(const t of bt.trades){ (byDate[t.date]=byDate[t.date]||[]).push(t); }
+    const led=loadLedger();
+    const ledBy={};
+    for(const e of led){ if(e.result&&e.result!=='flat'){ (ledBy[e.date]=ledBy[e.date]||[]).push(e); } }
+    const dates=Object.keys(byDate).sort().reverse().slice(0,60);
+    if(!dates.length){ el.innerHTML='<div class="rv-empty">暂无已平仓回测记录。</div>'; return; }
+    el.innerHTML='<table class="rv-table"><thead><tr><th>平仓日</th><th>开仓日</th><th>回测方向</th><th>原因</th><th>回测盈亏</th><th>台账决策</th><th>台账盈亏</th><th>对照</th></tr></thead><tbody>'
+      +dates.map(d=>{
+        const ts=byDate[d];
+        const ls=ledBy[d]||[];
+        const lsum=ls.length?ls.reduce((s,x)=>s+(x.pnl||0),0):null;
+        const lact=ls.length?ls.map(x=>x.act==='long'?'多':x.act==='short'?'空':'观').join('/'):'--';
+        const bdir=ts.some(t=>t.dir>0)&&ts.some(t=>t.dir<0)?'多/空':ts[0].dir>0?'多':'空';
+        const bl=tts(ts).reduce((s,t)=>s+t.pnl,0);
+        const contra=ls.length&&ts.length?((ts[0].dir>0&&ls.every(x=>x.act==='short'))||(ts[0].dir<0&&ls.every(x=>x.act==='long'))):false;
+        return `<tr><td class="link" onclick="locateDay('${d}')">${d.slice(5)}</td><td>${(ts[0].edate||'--').slice(5)}</td><td style="color:${ts[0].dir>0?'var(--red)':'var(--green)'}">${bdir}</td><td>${ts.map(t=>t.reason).join('/')}</td><td class="${bl>=0?'hl-red':'hl-green'}">${bl>=0?'+':''}${bl.toFixed(0)}</td><td>${lact}</td><td class="${lsum!=null&&lsum>=0?'hl-red':'hl-green'}">${lsum!=null?((lsum>=0?'+':'')+lsum.toFixed(0)+'点'):'--'}</td><td>${contra?'<span style="color:#f0b90b">反向</span>':''}</td></tr>`;
+      }).join('')+'</tbody></table>';
+  }catch(e){}
+}
+function tts(ts){ return ts||[]; } /* 小工具：防null */
+/* 决策日历：选日期→decisionAt重算展示；K线切日线并定位 */
+function renderCalDay(key){
+  try{
+    const out=$('rv-cal-out');
+    if(!out) return;
+    const days=state.data['1d'];
+    if(!days||days.length<40){ out.innerHTML='<div class="rv-empty">日线数据加载中（需≥40根），稍后再试。</div>'; return; }
+    const i=days.findIndex(b=>ledgerDayKey(b.timestamp)===key);
+    if(i<0){ out.innerHTML='<div class="rv-empty">'+key+' 非交易日或超出数据范围（数据自 '+ledgerDayKey(days[0].timestamp)+' 起）。</div>'; return; }
+    if(i<39){ out.innerHTML='<div class="rv-empty">'+key+' 早于可用历史（三层模型需前39根日K热身）。</div>'; return; }
+    const d=decisionAt(i);
+    if(!d||!d.ind){ out.innerHTML='<div class="rv-empty">该日数据不足以重算。</div>'; return; }
+    const b=days[i];
+    const tierT={normal:'二档',light:'一档',none:'观望'}[d.tier]||d.tier;
+    const wtV=d.dir.wt&&isFinite(d.dir.wt.v)?d.dir.wt.v:0;
+    out.innerHTML=`<div class="rv-big"><b>${key}</b> 收盘 <b>${d.close.toFixed(1)}</b> · O ${b.open.toFixed(1)} / H ${b.high.toFixed(1)} / L ${b.low.toFixed(1)}</div>`
+      +`方向分 <b>${(d.dir.dirScore||0).toFixed(2)}</b>（季节${(d.dir.season||0).toFixed(2)}·周趋势${wtV.toFixed(2)}·资金${(d.dir.fund||0).toFixed(2)}）→ 模式 <b>${d.dir.modeName||d.dir.mode}</b>`
+      +`<br>技术分 <b>${(d.tim.tech||0).toFixed(2)}</b>（MA${d.tim.maV!=null&&isFinite(d.tim.maV)?d.tim.maV.toFixed(1):'--'} · MACD ${d.tim.macdV!=null&&isFinite(d.tim.macdV)?d.tim.macdV.toFixed(2):'--'} · RSI ${d.tim.rsiV!=null&&isFinite(d.tim.rsiV)?d.tim.rsiV.toFixed(1):'--'} · 基差率 ${d.tim.basisRate!=null&&isFinite(d.tim.basisRate)?(d.tim.basisRate*100).toFixed(2)+'%':'--'}）`
+      +`<br>波动 ATR% <b>${d.flt.atrPct!=null?d.flt.atrPct.toFixed(2):'--'}</b> · ${d.flt.volState||'--'} · 距交割 <b>${d.flt.tdaysLeft!=null?d.flt.tdaysLeft:'--'}</b>天 ${d.flt.closeOnly?'· <span style="color:#f0b90b">只收平仓</span>':''}`
+      +`<br>→ 档位 <b>${tierT}</b> · 仓位 <b>${d.finalPct.toFixed(0)}%</b> · ${d.act==='long'?'<span style="color:var(--red)">做多</span>':d.act==='short'?'<span style="color:var(--green)">做空</span>':'观望'}${d.dir.mode!=='both'?' <span style="color:var(--muted2)">（'+d.gated+'）</span>':''}`
+      +`<br>止损 <b>${d.sl!=null&&isFinite(d.sl)?d.sl.toFixed(1):'--'}</b> · 止盈 <b>${d.tp!=null&&isFinite(d.tp)?d.tp.toFixed(1):'--'}</b>（ATR ${d.atr!=null&&isFinite(d.atr)?d.atr.toFixed(1):'--'}）`
+      +(d.flt.oi>0?`<br>持仓量 ${d.flt.oi.toFixed(0)}`:'');
+  }catch(e){ try{ const out=$('rv-cal-out'); if(out) out.innerHTML='<div class="rv-empty">重算失败：'+(e&&e.message?e.message:'未知错误')+'</div>'; }catch(e2){} }
+}
+function locateDay(key){
+  try{
+    const days=state.data['1d'];
+    if(!days||!days.length) return;
+    const i=days.findIndex(b=>ledgerDayKey(b.timestamp)===key);
+    if(i<0) return;
+    if(state.period!=='1d'){
+      state.period='1d';
+      document.querySelectorAll('#period-btns button').forEach(x=>x.classList.toggle('active',x.dataset.p==='1d'));
+      ensurePeriods();
+      updateChartData();
+    }
+    renderAll();
+    if(typeof chart!=='undefined'&&chart&&typeof chart.scrollToDataIndex==='function'){
+      setTimeout(()=>{ try{ chart.scrollToDataIndex(Math.max(0,i-3)); }catch(e){} },80);
+    }
+  }catch(e){}
+}
+/* 导出/导入 + 手动同步本机库 */
+function exportLedgerJson(){
+  try{
+    const arr=loadLedger();
+    if(!arr.length){ alert('台账为空，无可导出。'); return; }
+    const blob=new Blob([JSON.stringify(arr,null,1)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='jd_ledger_'+ledgerDayKey(Date.now())+'.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },300);
+  }catch(e){ alert('导出失败：'+(e&&e.message||e)); }
+}
+function importLedgerJson(file){
+  try{
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const arr=JSON.parse(rd.result);
+        if(!Array.isArray(arr)) throw new Error('格式不对：应为JSON数组');
+        const cur=loadLedger(), seen={};
+        for(const x of cur) seen[x.date]=x;
+        let added=0, updated=0;
+        for(const x of arr){
+          if(!x||!x.date) continue;
+          if(seen[x.date]){ updated++; Object.assign(seen[x.date],x); }
+          else{ seen[x.date]=x; added++; }
+        }
+        const merged=Object.keys(seen).map(k=>seen[k]).sort((a,b)=>a.date<b.date?-1:1);
+        while(merged.length>400) merged.shift();
+        saveLedger(merged);
+        renderAll();
+        alert('导入完成：新增'+added+'条，更新'+updated+'条，共'+merged.length+'条。');
+      }catch(err){ alert('导入失败：'+(err&&err.message||err)); }
+    };
+    rd.readAsText(file);
+  }catch(e){ alert('导入失败：'+(e&&e.message||e)); }
+}
+async function syncIdbNow(){
+  try{
+    const arr=loadLedger();
+    await idbPutAll(arr);
+    const back=await idbGetAll();
+    alert(back&&back.length===arr.length?('已同步 '+back.length+' 条到本机库 ✓'):back?('已同步（读取校验 '+back.length+' 条，本地 '+arr.length+' 条）'):'本机库不可用（浏览器不支持IndexedDB）');
+  }catch(e){ alert('同步失败：'+(e&&e.message||e)); }
 }
 
 /* ================= 提醒 ================= */
@@ -2793,8 +3051,27 @@ function bindUI(){
       b.classList.add('active');
       document.body.dataset.view=b.dataset.v;
       if(b.dataset.v==='chart'){ window.scrollTo(0,0); setTimeout(()=>{ fitChartHeight(); safe(()=>chart.resize()); },50); }
+      if(b.dataset.v==='review'){ renderReview(); } /* 1008c: 切到复盘页即时刷新台账/对照表 */
     });
   });
+  /* 1008c 复盘页事件绑定 */
+  const _rvGo=$('rv-go');
+  if(_rvGo) _rvGo.addEventListener('click',()=>{ const inp=$('rv-date'); if(inp&&inp.value) renderCalDay(inp.value); else alert('请先选择日期'); });
+  const _rvToday=$('rv-today');
+  if(_rvToday) _rvToday.addEventListener('click',()=>{
+    try{
+      const days=state.data['1d'];
+      if(days&&days.length){ const k=ledgerDayKey(days[days.length-1].timestamp); const inp=$('rv-date'); if(inp) inp.value=k; renderCalDay(k); }
+    }catch(e){}
+  });
+  const _rvExp=$('rv-export');
+  if(_rvExp) _rvExp.addEventListener('click',exportLedgerJson);
+  const _rvImp=$('rv-import');
+  if(_rvImp) _rvImp.addEventListener('click',()=>{ const f=$('rv-file'); if(f) f.click(); });
+  const _rvFile=$('rv-file');
+  if(_rvFile) _rvFile.addEventListener('change',()=>{ try{ if(_rvFile.files&&_rvFile.files[0]) importLedgerJson(_rvFile.files[0]); }catch(e){} _rvFile.value=''; });
+  const _rvIdb=$('rv-idxdb');
+  if(_rvIdb) _rvIdb.addEventListener('click',syncIdbNow);
   if(state.soundOn){ $('btn-sound').classList.add('on'); $('btn-sound').textContent='🔔 提示音开'; }
 }
 
@@ -2824,6 +3101,7 @@ function boot(){
   setInterval(()=>{ renderMarketStatus(); renderLiveStatus(); tickOnce(); fetchSpreads(); volFixTick(); },1000);
   setInterval(()=>{ ledgerTick(); ledgerScore(); },60*1000); /* 台账：每分钟检查落账/打分 */
   ledgerTick(); ledgerScore(); renderLedger();
+  idbRestore().then(()=>{ renderLedger(); renderReview(); }); /* 1008c: 异步从本机库恢复台账后刷新 */
   setInterval(()=>{ if(marketStatus(Date.now()).cls==='market-open') refreshAll(); },60000); /* 新浪全量同步仅盘中跑，休市数据不变 */
   setInterval(()=>{ autoSpot(); },30*60000);
   document.addEventListener('visibilitychange',()=>{
