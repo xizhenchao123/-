@@ -102,6 +102,8 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--border)
 .signal-badge.s-neutral{color:var(--gold);background:rgba(240,185,11,.1);border-color:rgba(240,185,11,.3)}
 .action-tip{margin-top:9px;font-size:12px;color:var(--muted);line-height:1.7;background:var(--panel2);border-radius:8px;padding:9px 11px}
 .action-tip b{color:var(--text)}
+.sig-note{margin-top:6px;font-size:11px;color:var(--muted2);line-height:1.6}
+.sig-note .sig-warn{color:var(--gold)}
 
 /* 因子表 */
 .factor-row{display:grid;grid-template-columns:64px 1fr 34px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--border)}
@@ -406,6 +408,7 @@ window.__bootDone = false;
         </div>
         <div class="signal-badge s-neutral" id="signal-badge">加载中…</div>
         <div class="action-tip" id="action-tip">正在计算多空因子…</div>
+        <div id="sig-note"></div>
       </div>
 
       <div class="card" id="card-factors">
@@ -1518,6 +1521,24 @@ function renderTopbar(){
 function renderScoreCard(a){
   const score=a?a.lastScore:NaN;
   const grade=gradeOf(score);
+  /* 1008b 防误导提示：数据截至时间戳 + 日内V反提醒（五因子趋势跟随，反转初段分数滞后属机理性质） */
+  const noteEl=$('sig-note');
+  if(noteEl){
+    let html='';
+    if(a&&a.bars&&a.bars.length){
+      const lb=a.bars[a.bars.length-1];
+      html+='<span>数据截至 '+hhmmss(lb.timestamp)+'</span>';
+      const dts=a.bars.filter(b=>sameDay(b.timestamp,lb.timestamp));
+      if(dts.length>1){
+        let lo=dts[0].low;
+        for(const b of dts){ if(b.low<lo) lo=b.low; }
+        const atr=(a.atr&&a.atr.length)?a.atr[a.bars.length-1]:NaN;
+        if(isFinite(atr)&&atr>0 && lb.close-lo>0.5*atr && score<0)
+          html+='<span class="sig-warn"> · 日内已自低点大幅反弹（+'+Math.round(lb.close-lo)+'点），注意信号滞后</span>';
+      }
+    }
+    noteEl.innerHTML=html;
+  }
   $('gauge-svg').innerHTML=gaugeSVG(score);
   const numEl=$('score-num');
   numEl.textContent=isFinite(score)?(score>0?'+':'')+Math.round(score):'--';
@@ -1674,8 +1695,8 @@ function renderStats(a, periodName){
    效果：当前方向分-0.49→-0.35回到双向模式；技术分过0.2即正常放行做多信号。
    回测对比：185日全样本改前改后完全一致(21笔/57.1%/+234点)——样本内9月仅
    4个交易日且无信号触发，零历史影响，纯前瞻修正。 */
-const SEASON_TABLE=[0.3,-0.5,-0.3,0.2,0.3,-0.3,0.5,0.8,0,-0.3,0.2,0.4]; /* 1~12月季节倾向分 0907a: 9月-0.4→0 */
-const W_MA_N=20, W_DEV_MIN=0.005, DIR_TH=0.35; /* 寻优2026-08: 平稳区[0.35,0.45]取中部 */
+const SEASON_TABLE=[0.3,-0.5,-0.3,0.2,0.3,-0.3,0.5,0.8,0,0,0.2,0.4]; /* 1~12月季节倾向分 0907a: 9月-0.4→0; 1008b: 10月-0.3→0（去年10月无现货分位数据，-0.3标定依据不足，叠加周线分会锁死只做空，见1008复盘） */
+const W_MA_N=20, W_DEV_MIN=0.005, DIR_TH=0.45; /* 寻优2026-08平稳区[0.35,0.45]取中部; 1008b: 0.35→0.45改取上沿，防周线分滞后锁死（-0.455→-0.35回到双向区） */
 const EPSR=x=>Math.round(x*1e9)/1e9; /* 消除浮点噪声：权重组合出的整数分不应被 2e-17 误差卡在阈值外 */
 const DIR_W={season:0.35,trend:0.35,fund:0.30}; /* 寻优: 0.35/0.35 优于原 0.40/0.30 */
 const TECH_W={ma:0.25,macd:0.25,rsi:0.2,basis:0.3}; /* 平稳高原中心，维持 */
