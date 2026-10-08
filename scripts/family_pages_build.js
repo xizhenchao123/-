@@ -62,12 +62,21 @@ function loadExistingSeed() {
 function main() {
   let html = fs.readFileSync(path.join(SRC, 'jd2611.html'), 'utf8');
   const existing = loadExistingSeed();
-  if (existing) {
-    const tm = html.match(/const SPOT_SEED=(\[\[[\s\S]*?\]\])/);
-    if (tm && tm[1] !== JSON.stringify(existing)) {
-      html = html.replace(tm[0], 'const SPOT_SEED=' + JSON.stringify(existing));
-      log('种子基底并回：现存输出 ' + existing.length + ' 点（模板自带 ' + JSON.parse(tm[1]).length + ' 点）');
-    }
+  const tm = html.match(/const SPOT_SEED=(\[\[[\s\S]*?\]\])/);
+  if (existing && tm) {
+    /* 并集合并：现存输出 ∪ 模板（现存优先，按日期排序，截尾 400）。
+       双向防丢——现存有注入点而模板没有（10/7 事故场景），或模板人工补点而输出没有，都不丢。 */
+    try {
+      const tplSeed = JSON.parse(tm[1]);
+      const map = {};
+      for (const p of existing) if (Array.isArray(p) && p[0]) map[p[0]] = p;
+      for (const p of tplSeed) if (Array.isArray(p) && p[0] && !map[p[0]]) map[p[0]] = p;
+      const merged = Object.keys(map).sort().map(function (k) { return map[k]; }).slice(-400);
+      if (JSON.stringify(merged) !== tm[1]) {
+        html = html.replace(tm[0], 'const SPOT_SEED=' + JSON.stringify(merged));
+        log('种子并回（并集 ' + merged.length + ' 点 = 现存 ' + existing.length + ' ∪ 模板 ' + tplSeed.length + '）');
+      }
+    } catch (e) { log('种子并回失败，按纯模板组包: ' + e.message); }
   }
   html = injectSpot(html);
 
