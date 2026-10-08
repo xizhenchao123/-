@@ -178,6 +178,28 @@ def main():
         "spot": spot_cloud(spot),
         "feed": feed,
     }
+
+    # v17.29 修复（2026-10-08 事故复盘）：单边失败时沿用旧包字段，防止好数据被 null 覆盖。
+    # 事故机理：10/7 早 7 天回看窗口滑出 9/30 → spot=None 照常写包 → family 组包模板重建 → 种子回退丢失。
+    # 原则：抓不到的沿用旧值，绝不写 null 抹掉已有好数据；仅双双失败才放弃本轮（sys.exit(1)）。
+    if out["spot"] is None or out["feed"] is None:
+        old = None
+        try:
+            with open(OUT, encoding="utf-8") as f:
+                old = json.load(f)
+        except Exception:
+            old = None
+        if out["spot"] is None:
+            old_spot = (old or {}).get("spot")
+            if isinstance(old_spot, dict) and old_spot.get("today"):
+                out["spot"] = old_spot
+                print(f"   ↩️ 现货本轮抓取失败，沿用旧包现货（{old_spot.get('auto', {}).get('date', '?')}）", flush=True)
+        if out["feed"] is None:
+            old_feed = (old or {}).get("feed")
+            if isinstance(old_feed, dict) and old_feed.get("costPerJin"):
+                out["feed"] = old_feed
+                print(f"   ↩️ 饲料本轮抓取失败，沿用旧包饲料锚（{old_feed.get('date', '?')}）", flush=True)
+
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False)
     print(f"💾 已写入 {OUT}", flush=True)
