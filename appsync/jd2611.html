@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>鸡蛋期货 JD2611 · 量化盯盘交易系统</title>
 <!-- v17.31 (1008c): 新增「复盘」视图（决策日历重算当日三层决策 / 台账全量+点日期跳K线 / 回测逐笔×台账对照）；台账扩完整快照+修basisRate老bug；IndexedDB双写防清缓存丢失；JSON导出导入 -->
+<!-- 1009a: ①日内模式开关（当天买单当天出：止盈1.2×ATR达标即走·14:15后停开新仓·14:45-15:00强平不隔夜）；②SW新版本提示条+版本徽章点击检查更新（解决旧缓存设备看不到新数据的根因） -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥚</text></svg>">
 <!-- PWA：可安装APP（桌面图标·全屏独立运行·断网外壳兜底） -->
 <link rel="manifest" href="manifest.json">
@@ -83,7 +84,14 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--border)
 #tip-btns .btn{padding:4px 9px;font-size:11px;white-space:nowrap}
 #chart{width:100%;height:600px;min-height:420px}
 #chart-note{padding:5px 12px 8px;font-size:10.5px;color:var(--muted2);border-top:1px solid var(--border)}
-.brand .ver{font-size:9px;color:var(--muted2);border:1px solid var(--border);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px;white-space:nowrap}
+.brand .ver{font-size:9px;color:var(--muted2);border:1px solid var(--border);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px;white-space:nowrap;cursor:pointer}
+.brand .ver:hover{color:var(--blue);border-color:var(--blue)}
+.brand .ver.upd{color:#f0b90b;border-color:#f0b90b}
+/* 1009a SW新版本提示条 */
+#sw-update{display:none;position:fixed;top:0;left:0;right:0;z-index:99;background:linear-gradient(90deg,#1d2a45,#16233c);border-bottom:1px solid var(--blue);padding:10px 14px;font-size:12.5px;color:var(--text);text-align:center}
+#sw-update.show{display:block}
+#sw-update button{margin-left:10px;background:var(--blue);color:#04101f;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer}
+#sw-update .sw-later{background:transparent;color:var(--muted2);border:1px solid var(--border);margin-left:6px}
 
 /* ===== 卡片 ===== */
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:13px 14px;margin-bottom:12px}
@@ -367,7 +375,7 @@ window.__bootDone = false;
     <div class="tb-row1">
       <div class="brand">
         <div class="b1"><span class="egg">🥚</span>鸡蛋 2611</div>
-        <div class="b2">JD2611 · 大连商品交易所<span class="ver">0921a</span></div>
+        <div class="b2">JD2611 · 大连商品交易所<span class="ver" id="ver-badge" title="点击检查新版本">1009a</span></div>
       </div>
       <div class="price-box">
         <div id="q-price">--</div>
@@ -484,6 +492,25 @@ window.__bootDone = false;
           <span style="opacity:.6">单合约 183 日 / 28 笔样本小，以上是结构性结论而非收益承诺；寻优引擎与页面回测逐笔对拍一致（基准口径29笔/+228，寻优后28笔/54%/+281）；<b>注：以上数字为旧口径（未扣手续费滑点、信号未去重），0828h 起页面回测每笔扣3点成本且一次一仓，0828i 起出场规则改为信号反向（原技术分回落&lt;0.2出场），数字会低于此处</b>；现货历史来源生意社（100ppi.com）参考价，每日自动获取并续档（经手机访问服务代理），手动输入优先。参数出处：本次扫描，复评时重跑同流程。</span>
         </div>
       </details>
+    </div>
+    <div class="card" id="card-intraday" style="border-color:#f0b90b55">
+      <h3>⏱ 日内模式 <span class="tag" id="intra-tag">当天买单当天出</span></h3>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <button class="btn" id="btn-intraday">开启日内模式</button>
+        <span style="font-size:11px;color:var(--muted2);line-height:1.6">匹配你的做单习惯：止盈缩至 <b style="color:var(--text)">1.2×ATR</b> 达标即走 · <b style="color:var(--text)">14:15</b> 后停开新仓 · <b style="color:var(--text)">14:45</b> 起提醒强平 · <b style="color:var(--text)">15:00</b> 前清仓不隔夜。止损仍 1.5×ATR；进场后 45 分钟浮盈不足 0.3×ATR 提示时间止损。</span>
+      </div>
+      <div id="intra-why" style="font-size:11px;color:var(--muted2);line-height:1.7">为什么适合日内：隔日波段目标 2×ATR 约 80~120 点，日内波段经常走不完就被收盘/回撤打断；日内把目标缩到 1.2×ATR（≈50 点上下），配合双周期闸门入场、技术分回落离场，盈亏比虽降但胜率与资金周转率更高，且完全规避隔夜跳空风险。开关状态保存在本设备。</div>
+      <div style="border-top:1px solid var(--border);margin-top:9px;padding-top:9px">
+        <div style="font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:6px">📍 我的今日持仓监控 <span class="tag">进场后记下价位，系统按日内规则提示离场</span></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="intra-pos-dir" style="background:#161c28;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px"><option value="1">多单</option><option value="-1">空单</option></select>
+          <input type="number" id="intra-pos-entry" placeholder="进场价" step="1" style="background:#161c28;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;width:88px">
+          <input type="number" id="intra-pos-time" placeholder="时(0-23)" min="0" max="23" step="1" style="background:#161c28;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;width:92px">
+          <button class="btn" id="btn-intra-pos-save">记录</button>
+          <button class="btn" id="btn-intra-pos-clear">清除</button>
+        </div>
+        <div id="intra-pos-out" style="font-size:11.5px;color:var(--muted2);line-height:1.8;margin-top:7px"></div>
+      </div>
     </div>
     <div class="card" id="card-manual">
       <h3>⚙️ 基本面方向 &amp; 基差 · 现货每日自动</h3>
@@ -614,6 +641,9 @@ window.__bootDone = false;
   </section>
 </div>
 
+<!-- 1009a SW新版本提示条 -->
+<div id="sw-update"><span id="sw-update-text">🆕 发现新版本</span><button id="sw-refresh">立即刷新</button><button class="sw-later" id="sw-later">稍后</button></div>
+
 <!-- 移动端Tab -->
 <nav id="tabbar">
   <button data-v="chart" class="active"><span class="ico">📈</span>图表</button>
@@ -662,8 +692,17 @@ const state = {
   calRest: false,
   lastSaveTs: 0,
   syncBusy: false,
-  netOk: null
+  netOk: null,
+  intraday: lsGet('jd_intraday')==='1'  /* 1009a 日内模式：当天买单当天出（默认关，记忆用户选择） */
 };
+
+/* ===== 1009a 日内模式常量（当天买单当天出）=====
+   鸡蛋无夜盘 15:00 收盘：
+   · TP_ATR_DAY=2（隔日波段口径） → 日内 TP=1.2×ATR（日内波幅小，达标即走落袋为安）
+   · CUTOFF_MIN=855（14:15）后信号虽可显示但标注「日内停开」，不再建议新开仓（进场后来不及走出波段的概率高）
+   · FLAT_WARN_MIN=885（14:45）起强平提醒：无论盈亏都应在 15:00 前平掉，不持隔夜仓（跳空风险全免）
+   · 止损仍 1.5×ATR；时间止损：进场后 45 分钟未达 +0.3×ATR 视为动能不足，提示离场 */
+const INTRA_TP_ATR=1.2, INTRA_CUTOFF_MIN=855, INTRA_FLAT_WARN_MIN=885, INTRA_TIME_STOP_MIN=45;
 
 /* ================= 基础工具 ================= */
 function fmtN(v, d=0){ return (v==null || !isFinite(v)) ? '--' : Number(v).toFixed(d); }
@@ -681,6 +720,10 @@ function tradingElapsedOf(ts){ const m=cnMinOfDay(ts); let e=0; for(const s of J
 /* 交易分钟数反推墙钟时间戳（e 超出当日交易总量时封顶到 15:00） */
 function elapsedToWallTs(dayStart,e){ let rem=e; for(const s of JD_SESSIONS){ const len=s[1]-s[0]; if(rem<=len) return dayStart+(s[0]+rem)*60000; rem-=len; } return dayStart+JD_SESSIONS[JD_SESSIONS.length-1][1]*60000; }
 function safe(fn, fallback){ try{ const r=fn(); return r===undefined?fallback:r; }catch(e){ console.warn(e); return fallback; } }
+/* 1009a 日内模式：当前中国分钟数（用于停开仓/强平判断） */
+function intradayNowMin(){ const d=new Date(Date.now()+cnOffsetMs(Date.now())); return d.getHours()*60+d.getMinutes(); }
+/* 日内模式下的止盈ATR倍数：隔日=2，日内=1.2 */
+function tpAtrMult(){ return state.intraday?INTRA_TP_ATR:2; }
 
 /* ================= 指标计算引擎 ================= */
 function SMA(src, n){
@@ -2136,7 +2179,7 @@ function renderPlan(){
   · 交割：距最后交易日约 ${flt.tdaysLeft} 个交易日${flt.closeOnly?' → <b>只平不开</b>':''}<br>`;
   if(d.act==='long'||d.act==='short'){
     html+=`<b>④ 执行</b> ${actName} · 仓位上限 <b class="hl-red">${(d.finalPct*100).toFixed(0)}%</b>（${d.tier==='light'?'轻仓档12%':'正常档25%'}${dir.mode==='both'?' ×双向0.7':''}${flt.volCoef<1?' ×波动0.5':''}）<br>
-  入场≈<span class="hl-red">${fmtN(d.close)}</span>（现价） · 止损=<span class="hl-green">${fmtN(d.sl)}</span>（1.5×日ATR） · 目标=<span class="hl-red">${fmtN(d.tp)}</span>（2×日ATR，达标后改移动止盈1.5×ATR） · 有效技术分回落至 ±0.2 内离场<br>`;
+  入场≈<span class="hl-red">${fmtN(d.close)}</span>（现价） · 止损=<span class="hl-green">${fmtN(d.sl)}</span>（1.5×日ATR） · 目标=<span class="hl-red">${fmtN(d.tp)}</span>（${tpAtrMult()}×日ATR${state.intraday?'·日内达标即走':'，达标后改移动止盈1.5×ATR'}） · 有效技术分回落至 ±0.2 内离场<br>`+(state.intraday?`<b style="color:#f0b90b">⏱ 日内模式</b>：当天买当天出——14:15 后停开新仓 · 14:45 起提醒强平 · 15:00 收盘前无论盈亏全部离场，不持隔夜仓。<br>`:'');
     if(gate.ok===true){
       html+=`🟢 <b>双周期闸门已放行</b>（5m ${Math.round(gate.s5)} · 15m ${Math.round(gate.s15)}，均同向越过±35）——可按上述参数入场。`;
     }else if(gate.ok===false){
@@ -2171,6 +2214,7 @@ function renderCalc(){
   if(!d){ out.textContent='--'; return; }
   const capital=parseFloat($('calc-capital').value)||100000;
   const riskPct=parseFloat($('calc-risk').value)||0.02;
+  const tpM=tpAtrMult(); /* 1009a 日内1.2 / 隔日2 */
   if(d.act!=='long'&&d.act!=='short'){
     const marginPer=Math.round(d.close*10*0.12);
     const slDist=1.5*d.atr;
@@ -2186,11 +2230,11 @@ function renderCalc(){
   const totalMargin=lots*marginPer, riskAmt=lots*lossPerHand;
   const g=m5Gate(d.act);
   const gNote=g.ok===false?('<span style="color:#f0b90b">⏳ 双周期闸门未确认（5m '+Math.round(g.s5)+'·15m '+Math.round(g.s15)+'，需同向±35）——以下手数为放行后参考，暂缓入场。</span><br>'):g.ok===true?('<span style="color:#4a9eff">🟢 双周期闸门已放行（5m '+Math.round(g.s5)+'·15m '+Math.round(g.s15)+'）。</span><br>'):'';
-  out.innerHTML=gNote+'三层建议手数：<b class="hl-red">'+lots+' 手</b>'+(lots===0?'（风险或仓位预算不足，建议观望）':'')+'<br>'+
+  out.innerHTML=(state.intraday?'<span style="color:#f0b90b">⏱ 日内模式：当天买当天出，止盈已缩至'+INTRA_TP_ATR+'×ATR；14:15后停开新仓、14:45起强平提醒。</span><br>':'')+gNote+'三层建议手数：<b class="hl-red">'+lots+' 手</b>'+(lots===0?'（风险或仓位预算不足，建议观望）':'')+'<br>'+
     '仓位上限 '+(d.finalPct*100).toFixed(0)+'% → 仓位预算 <b>'+lotsByTier+'</b> 手；单笔风险 '+(riskPct*100).toFixed(0)+'% → 风险预算 <b>'+lotsByRisk+'</b> 手，取小<br>'+
     '每手保证金 ≈ <b>'+marginPer.toLocaleString()+'</b> 元 → 总保证金 <b>'+totalMargin.toLocaleString()+'</b> 元（占用 '+(totalMargin/capital*100).toFixed(1)+'%）<br>'+
     '单手止损额（1.5×日ATR）= <b class="hl-green">'+lossPerHand.toLocaleString()+'</b> 元 → 总风险 <b class="hl-green">'+riskAmt.toLocaleString()+'</b> 元（占资金 '+(riskAmt/capital*100).toFixed(1)+'%）<br>'+
-    '达到目标（2×日ATR）每手盈利约 <b class="hl-red">'+Math.round(2*d.atr*10).toLocaleString()+'</b> 元';
+    '达到目标（'+tpM+'×日ATR）每手盈利约 <b class="hl-red">'+Math.round(tpM*d.atr*10).toLocaleString()+'</b> 元';
 }
 
 /* ================= 实时交易建议（0831b）：三层定向+双周期闸门 → 明确进出场点位，锚定实时价 ================= */
@@ -2238,14 +2282,18 @@ function renderLiveAdvice(forceD){
     const reason=d.flt.closeOnly?'临近交割·只平不开':'|有效技术分|='+Math.abs(d.eff).toFixed(2)+'，未达 0.2 或被方向层拦截';
     box.innerHTML=
       '<div class="live-banner flat"><span class="live-dir">⚪ 观望</span><span class="live-st">当前<b>不进场</b>——'+reason+'。<br>信号触发后本卡自动给出进出场点位：|技术分|≥0.2 且与方向层（'+d.dir.modeName+'）同向 → 轻仓12%；≥0.5 → 正常25%；再经 5m+15m 闸门同向 ±'+GATE_TH+' 放行。</span></div>'+
-      '<div class="live-note">参考：日ATR <b>'+fmtN(atr)+'</b> 点；若信号触发，单手止损距离≈<b>'+fmtN(1.5*atr)+'</b>点（≈'+Math.round(1.5*atr*10).toLocaleString()+'元/手），目标距离≈<b>'+fmtN(2*atr)+'</b>点（≈'+Math.round(2*atr*10).toLocaleString()+'元/手）。'+(fact?'当前5m：'+fact.f1d+'。':'')+'</div>'+why;
+      '<div class="live-note">参考：日ATR <b>'+fmtN(atr)+'</b> 点；若信号触发，单手止损距离≈<b>'+fmtN(1.5*atr)+'</b>点（≈'+Math.round(1.5*atr*10).toLocaleString()+'元/手），目标距离≈<b>'+fmtN(tpAtrMult()*atr)+'</b>点（≈'+Math.round(tpAtrMult()*atr*10).toLocaleString()+'元/手'+(state.intraday?'·日内口径':'')+'）。'+(fact?'当前5m：'+fact.f1d+'。':'')+'</div>'+why;
     return;
   }
 
   /* --- 有方向：点位锚定实时价（鸡蛋1点=1元，取整整跳） --- */
+  /* 1009a 日内模式：收盘纪律（14:15停开 / 14:45强平提醒）+ 止盈缩至1.2×ATR */
+  const nowMin=intradayNowMin();
+  const intraCutoff=state.intraday&&mktOpen&&nowMin>=INTRA_CUTOFF_MIN;
+  const intraFlat=state.intraday&&mktOpen&&nowMin>=INTRA_FLAT_WARN_MIN;
   const entry=px;
   const sl=Math.round(entry-s*1.5*atr);
-  const tp=Math.round(entry+s*2*atr);
+  const tp=Math.round(entry+s*tpAtrMult()*atr);
   const slPts=Math.abs(entry-sl), tpPts=Math.abs(tp-entry);
   const marginPer=Math.round(entry*10*0.12);
   const lossPerHand=Math.round(1.5*atr*10);
@@ -2256,16 +2304,17 @@ function renderLiveAdvice(forceD){
   const ladder=dim=>'<div class="live-grid'+(dim?' dim':'')+'">'+
     '<div class="live-cell lc-entry"><div class="k">进场点位'+(dim?'（预案）':'（现价·市价）')+'</div><div class="v">'+entry+'</div><div class="n">'+(mktOpen?'每秒刷新':'休市参考')+'</div></div>'+
     '<div class="live-cell lc-sl"><div class="k">止损点位</div><div class="v">'+sl+'</div><div class="n">'+(s>0?'-':'+')+slPts+'点 ≈ '+(s>0?'-':'+')+Math.round(slPts*10).toLocaleString()+'元/手</div></div>'+
-    '<div class="live-cell lc-tp"><div class="k">止盈点位</div><div class="v">'+tp+'</div><div class="n">'+(s>0?'+':'-')+tpPts+'点 ≈ '+(s>0?'+':'-')+Math.round(tpPts*10).toLocaleString()+'元/手</div></div>'+
+    '<div class="live-cell lc-tp"><div class="k">止盈点位'+(state.intraday?'（日内'+INTRA_TP_ATR+'×ATR）':'')+'</div><div class="v">'+tp+'</div><div class="n">'+(s>0?'+':'-')+tpPts+'点 ≈ '+(s>0?'+':'-')+Math.round(tpPts*10).toLocaleString()+'元/手</div></div>'+
     '<div class="live-cell lc-lots"><div class="k">建议手数'+(dim?'（放行后）':'')+'</div><div class="v">'+lots+' 手</div><div class="n">盈亏比≈'+(tpPts/Math.max(1,slPts)).toFixed(1)+' · 保证金'+(lots*marginPer).toLocaleString()+'元</div></div>'+
     '</div>';
 
   if(gate.ok===true){
     if(tag){tag.textContent=dirName+'·可进场';}
+    const intraNote=state.intraday?'<br>⏱ <b>日内模式</b>：止盈已缩至 '+INTRA_TP_ATR+'×ATR 达标即走；14:15 后停开新仓；15:00 前无论盈亏全部离场。':'';
     box.innerHTML=
-      '<div class="live-banner '+(s>0?'ok-long':'ok-short')+'"><span class="live-dir">'+(s>0?'▲':'▼')+' '+dirName+'</span><span class="live-st">🟢 <b>双周期同向·放行</b>（'+gateS+'）——可按<b>现价 '+entry+'</b> 市价进场，仓位上限 '+(d.finalPct*100).toFixed(0)+'%（'+(d.tier==='light'?'轻仓12%档':'正常25%档')+(d.flt.volCoef<1?'·高波动×0.5':'')+(d.dir.mode==='both'?'·双向×0.7':'')+'）。<br>离场三条件：① 触及止损 <b>'+sl+'</b>；② 触及止盈 <b>'+tp+'</b>（达标后可改移动止盈1.5×ATR）；③ 技术分与持仓方向真正反向。</span></div>'+
+      '<div class="live-banner '+(s>0?'ok-long':'ok-short')+'"><span class="live-dir">'+(s>0?'▲':'▼')+' '+dirName+'</span><span class="live-st">🟢 <b>双周期同向·放行</b>（'+gateS+'）——可按<b>现价 '+entry+'</b> 市价进场，仓位上限 '+(d.finalPct*100).toFixed(0)+'%（'+(d.tier==='light'?'轻仓12%档':'正常25%档')+(d.flt.volCoef<1?'·高波动×0.5':'')+(d.dir.mode==='both'?'·双向×0.7':'')+'）。<br>离场三条件：① 触及止损 <b>'+sl+'</b>；② 触及止盈 <b>'+tp+'</b>（达标后可改移动止盈1.5×ATR）；③ 技术分与持仓方向真正反向。'+intraNote+'</span></div>'+
       ladder(false)+
-      '<div class="live-note">止损=现价'+(s>0?'−':'＋')+'1.5×日ATR、止盈=现价'+(s>0?'＋':'−')+'2×日ATR，随行情每秒刷新；已含每笔约3点成本口径。实际下单以期货公司盘口为准。</div>'+why;
+      '<div class="live-note">止损=现价'+(s>0?'−':'＋')+'1.5×日ATR、止盈=现价'+(s>0?'＋':'−')+tpAtrMult()+'×日ATR，随行情每秒刷新；已含每笔约3点成本口径。实际下单以期货公司盘口为准。</div>'+why;
   }else{
     const gtxt=gate.ok===false?gate.txt:'分钟数据未就绪';
     if(tag){tag.textContent=dirName+'·等待';}
@@ -2281,6 +2330,12 @@ function renderLiveAdvice(forceD){
       '<div class="live-banner wait"><span class="live-dir">'+(s>0?'▲':'▼')+' '+dirName+'</span><span class="live-st">⏳ <b>'+gtxt+'</b>（'+gateS+'）——三层已定向，但闸门未放行，<b>暂不进场</b>；待 5m 与 15m 同向越过 ±'+GATE_TH+' 后按现价进场。'+(trig?'<br>'+trig:'')+'</span></div>'+
       ladder(true)+
       '<div class="live-note">上表为<b>放行后的预案</b>（锚定现价随行情刷新）；已持仓者不受闸门影响，按止损/止盈/技术分反向离场。'+(mktOpen?'':'当前休市。')+'</div>'+why;
+  }
+  /* 1009a 日内收盘纪律：覆盖在结果之后（最高优先级提醒） */
+  if(intraFlat){
+    box.innerHTML='<div class="live-banner flat"><span class="live-dir">⏰ 日内强平提醒</span><span class="live-st">已过 <b>14:45</b>——日内模式今天收工：无论当前持仓盈亏，<b>15:00 收盘前全部平掉</b>，不持隔夜仓（鸡蛋虽无夜盘，但隔夜跳空+次日低开风险全免，明天再看明天机会）。</span></div>'+(box.innerHTML||'');
+  }else if(intraCutoff){
+    box.innerHTML='<div class="live-banner wait"><span class="live-dir">🚫 日内停开新仓</span><span class="live-st">已过 <b>14:15</b>——日内模式不再建议新开仓（进场后来不及走出波段），<b>已有持仓 14:45 起逐步离场，15:00 前清仓</b>。</span></div>'+(box.innerHTML||'');
   }
 }
 
@@ -2732,6 +2787,37 @@ function renderLiveStatus(){
       $('live-status-text').textContent='连接中…';
     }
   }
+  /* 1009a: 日内持仓监控随秒级轮询刷新 */
+  renderIntraPos();
+}
+/* ================= 1009a 日内持仓监控：时间止损 + 日内止盈止损 + 强平倒计时 ================= */
+function loadIntraPos(){ return safe(()=>{ const v=lsGet('jd_intra_pos'); return v?JSON.parse(v):null; },null)||null; }
+function saveIntraPos(p){ try{ if(p) localStorage.setItem('jd_intra_pos',JSON.stringify(p)); else localStorage.removeItem('jd_intra_pos'); }catch(e){} }
+function renderIntraPos(){
+  const out=$('intra-pos-out'); if(!out) return;
+  const p=loadIntraPos();
+  if(!p||!(p.entry>0)){ out.innerHTML='<span style="opacity:.7">未记录持仓。进场后记录方向+进场价+时间（如 09:32 记 9），系统自动盯：触止盈/止损、45分钟时间止损、14:45强平提醒。</span>'; return; }
+  const q=state.quote, px=q&&q.price>0?q.price:null;
+  const d=threeLayerDecision();
+  const A=(d&&d.atr)||null;
+  const s=p.dir>0?1:-1;
+  const pnl=(px!=null)?(px-p.entry)*s:null;
+  const tp=p.entry+s*INTRA_TP_ATR*A, sl=p.entry-s*1.5*A;
+  const minsOpen=(()=>{ const now=new Date(Date.now()+cnOffsetMs(Date.now())); let m=now.getHours()*60+now.getMinutes(); return m-p.h; })();
+  let lines=[];
+  lines.push((s>0?'▲ 多单':'▼ 空单')+' · 进场 <b>'+p.entry+'</b>'+(px!=null?' · 现价 <b>'+px+'</b> · 浮动 <b class="'+(pnl>=0?'hl-red':'hl-green')+'">'+(pnl>=0?'+':'')+fmtN(pnl)+'点 ≈ '+(pnl>=0?'+':'')+Math.round(pnl*10).toLocaleString()+'元/手</b>':''));
+  if(A){
+    const tpHit=s>0?(px>=tp):(px<=tp), slHit=s>0?(px<=sl):(px>=sl);
+    lines.push('日内止盈 <b>'+Math.round(tp)+'</b>（'+INTRA_TP_ATR+'×ATR）· 止损 <b>'+Math.round(sl)+'</b>（1.5×ATR）');
+    if(tpHit) lines.push('<b style="color:#ff5d5d">🎯 已达日内止盈——达标即走，建议立即平仓落袋</b>');
+    else if(slHit) lines.push('<b style="color:#4a9eff">🛑 已触止损——无条件离场，保住本金</b>');
+    else if(minsOpen>=INTRA_TIME_STOP_MIN&&pnl!=null&&pnl<0.3*A) lines.push('<b style="color:#f0b90b">⏱ 时间止损：进场已 '+minsOpen+' 分钟、浮盈不足 0.3×ATR——动能不足，建议离场换机会</b>');
+    else lines.push('⏱ 已持仓 '+minsOpen+' 分钟（45分钟未达 0.3×ATR 将提示时间止损）');
+  }
+  const m=intradayNowMin(), openNow=marketStatus(Date.now()).cls==='market-open';
+  if(openNow&&m>=INTRA_FLAT_WARN_MIN) lines.push('<b style="color:#ff5d5d">⏰ 已过 14:45——日内模式今天收工，15:00 前无论盈亏全部平掉，不持隔夜仓</b>');
+  else if(openNow&&m>=INTRA_CUTOFF_MIN) lines.push('<b style="color:#f0b90b">🚫 已过 14:15 停开新仓时段——持仓准备 14:45 起离场</b>');
+  out.innerHTML=lines.join('<br>');
 }
 
 /* ================= 后台数据同步（静默，无刷新UI） ================= */
@@ -3045,6 +3131,35 @@ function bindUI(){
   const _recalc=()=>{ renderCalc(); renderLiveAdvice(); };
   $('calc-capital').addEventListener('input',_recalc);
   $('calc-risk').addEventListener('change',_recalc);
+  /* 1009a 日内模式开关 */
+  const _bi=$('btn-intraday');
+  if(_bi){
+    const syncIntraBtn=()=>{
+      _bi.textContent=state.intraday?'✓ 日内模式已开启':'开启日内模式';
+      _bi.classList.toggle('on',state.intraday);
+      const tg=$('intra-tag'); if(tg){ tg.textContent=state.intraday?'已开启·1.2×ATR止盈·14:15停开·14:45强平':'当天买单当天出'; }
+    };
+    syncIntraBtn();
+    _bi.addEventListener('click',()=>{
+      state.intraday=!state.intraday;
+      try{ localStorage.setItem('jd_intraday',state.intraday?'1':'0'); }catch(e){}
+      syncIntraBtn();
+      renderPlan(); renderCalc(); renderLiveAdvice();
+      if(state.soundOn) beep();
+    });
+    /* 1009a 日内持仓监控：记录/清除 */
+    const _ips=$('btn-intra-pos-save'), _ipc=$('btn-intra-pos-clear');
+    if(_ips) _ips.addEventListener('click',()=>{
+      const dir=parseInt(($('intra-pos-dir')||{}).value||'1',10);
+      const entry=parseFloat(($('intra-pos-entry')||{}).value);
+      const h=parseInt(($('intra-pos-time')||{}).value,10);
+      if(!(entry>0)){ alert('请填写进场价'); return; }
+      saveIntraPos({dir,entry,h:(isFinite(h)&&h>=0&&h<=23)?h:9});
+      renderIntraPos();
+    });
+    if(_ipc) _ipc.addEventListener('click',()=>{ saveIntraPos(null); renderIntraPos(); });
+    renderIntraPos();
+  }
   document.querySelectorAll('#tabbar button').forEach(b=>{
     b.addEventListener('click',()=>{
       document.querySelectorAll('#tabbar button').forEach(x=>x.classList.remove('active'));
@@ -3076,6 +3191,7 @@ function bindUI(){
 }
 
 /* ================= 启动 ================= */
+let _swReg=null; /* 1009a: SW注册引用，供更新提示条使用 */
 function boot(){
   // 1) 快照兜底
   if(SNAPSHOT_5M.length){ const b=normalizeSina(SNAPSHOT_5M); if(b) state.data['5m']=b; }
@@ -3107,9 +3223,47 @@ function boot(){
   document.addEventListener('visibilitychange',()=>{
     if(!document.hidden){ tickOnce(); refreshAll(); }
   });
-  /* PWA：注册 Service Worker（HTTPS 或 localhost 下生效；局域网 HTTP 静默跳过，不影响使用） */
+  /* PWA：Service Worker 注册见下方 1009a 增强版（含新版本提示条/手动检查更新/30分钟自动检测） */
+  /* 1009a SW更新检测：新版本就绪时显示顶部提示条（用户点击才刷新，不打断盯盘）；
+     版本徽章可随时手动「检查更新」——这是旧缓存设备看不到新数据的根治入口 */
+  function showSwUpdate(){
+    const bar=$('sw-update'); if(bar){ bar.classList.add('show'); }
+    const vb=$('ver-badge'); if(vb){ vb.classList.add('upd'); vb.title='有新版本待刷新'; }
+  }
+  function bindSwBar(){
+    const r=$('sw-refresh'), l=$('sw-later');
+    if(r) r.addEventListener('click',()=>{ try{ if(_swReg&&_swReg.waiting){ _swReg.waiting.postMessage({type:'SKIP_WAITING'}); } }catch(e){} setTimeout(()=>location.reload(),120); });
+    if(l) l.addEventListener('click',()=>{ const bar=$('sw-update'); if(bar) bar.classList.remove('show'); });
+  }
+  function checkSwUpdate(){
+    if(!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.getRegistration().then(reg=>{
+      _swReg=reg||null;
+      if(!reg) return;
+      if(reg.waiting && navigator.serviceWorker.controller){ showSwUpdate(); return; }
+      reg.update().catch(()=>{});
+    }).catch(()=>{});
+  }
   if('serviceWorker' in navigator){
-    try{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }catch(e){}
+    try{
+      navigator.serviceWorker.register('sw.js').then(reg=>{
+        _swReg=reg;
+        /* 安装期监听：新SW装好待激活 → 提示条 */
+        reg.addEventListener('updatefound',()=>{
+          const nw=reg.installing; if(!nw) return;
+          nw.addEventListener('statechange',()=>{
+            if(nw.state==='installed'&&navigator.serviceWorker.controller) showSwUpdate();
+          });
+        });
+      }).catch(()=>{});
+      navigator.serviceWorker.addEventListener('message',e=>{
+        if(e.data&&e.data.type==='SW_ACTIVATED'){ checkSwUpdate(); }
+      });
+      bindSwBar();
+      if($('ver-badge')) $('ver-badge').addEventListener('click',checkSwUpdate);
+      setInterval(checkSwUpdate,30*60*1000); /* 每30分钟静默查一次更新 */
+      setTimeout(checkSwUpdate,3000);          /* 开机3秒后先查一次 */
+    }catch(e){}
   }
   window.__bootDone = true;
 }
