@@ -6,7 +6,7 @@
 <title>鸡蛋期货 JD2611 · 量化盯盘交易系统</title>
 <!-- v17.31 (1008c): 新增「复盘」视图（决策日历重算当日三层决策 / 台账全量+点日期跳K线 / 回测逐笔×台账对照）；台账扩完整快照+修basisRate老bug；IndexedDB双写防清缓存丢失；JSON导出导入 -->
 <!-- 1009a: ①日内模式开关（当天买单当天出：止盈1.2×ATR达标即走·14:15后停开新仓·14:45-15:00强平不隔夜）；②SW新版本提示条+版本徽章点击检查更新（解决旧缓存设备看不到新数据的根因） -->
-<!-- 1012a: ①东财K线CORS备用源（新浪JSONP被广告拦截插件/运营商阻断时自动降级，实测故障：价格正常但K线计划停留09-30多日）；②数据陈旧看门狗——K线落后实时行情所属交易日即红色告警条+一键修复+每2分钟自动自愈；③数据来源徽标（新浪/东财备线/缓存）透明可见 -->
+<!-- 1012a: ①东财K线备用源（新浪JSONP被广告拦截插件/运营商阻断时自动降级：标准fetch→东财cb-JSONP脚本两级；另东财快照可tick合成当日日bar，实测故障：价格正常但K线计划停留09-30多日）；②数据陈旧看门狗——K线落后实时行情所属交易日即红色告警条+一键修复+每2分钟自动自愈；③数据来源徽标（新浪/东财备线/缓存）透明可见 -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥚</text></svg>">
 <!-- PWA：可安装APP（桌面图标·全屏独立运行·断网外壳兜底） -->
 <link rel="manifest" href="manifest.json">
@@ -986,24 +986,45 @@ async function fetchPeriod(p){
   const raw=await jsonp(sinaUrl(p,varName),varName);
   return normalizeSina(raw);
 }
-/* 1012a: 东财K线备用源（标准fetch/CORS）。新浪JSONP在部分设备被广告拦截插件整域拉黑或运营商劫持导致持续超时，
-   日线停在本地缓存末日（实测故障现象：价格跳动正常但计划页K线停留多日），东财行情域名与秒级快照同源通常可达。
+/* 1012a: 东财K线备用源。新浪JSONP在部分设备被广告拦截插件整域拉黑或运营商劫持导致持续超时，
+   日线停在本地缓存末日（实测故障现象：价格跳动正常但计划页K线停留多日）。
+   取数两级：标准fetch → 失败降级东财cb-JSONP脚本（script标签不受CORS限制）。
    klines字段顺序：日期,开盘,收盘,最高,最低,成交量,成交额,振幅%（注意是开-收-高-低，非开高低收）；分钟无持仓量→OI留空，新浪恢复后整体替换/tick补当日 */
 const EM_SECID='114.'+SYMBOL.toLowerCase();
+function jsonpEm(url, cbName, timeout){
+  return new Promise((resolve,reject)=>{
+    let done=false;
+    const script=document.createElement('script');
+    const cleanup=()=>{ if(script.parentNode) script.parentNode.removeChild(script); try{ delete window[cbName]; }catch(e){ window[cbName]=undefined; } };
+    const timer=setTimeout(()=>{ if(!done){ done=true; cleanup(); reject(new Error('em-jsonp timeout')); } },timeout||12000);
+    window[cbName]=d=>{ if(!done){ done=true; clearTimeout(timer); cleanup(); resolve(d); } };
+    script.onerror=()=>{ if(!done){ done=true; clearTimeout(timer); cleanup(); reject(new Error('em-jsonp network')); } };
+    script.src=url;
+    document.head.appendChild(script);
+  });
+}
 async function fetchPeriodEM(p){
   const klt={'5m':5,'15m':15,'30m':30,'60m':60,'1d':101}[p];
   const lmt=p==='1d'?300:(p==='5m'?1500:900);
-  const url='https://push2his.eastmoney.com/api/qt/stock/kline/get?secid='+EM_SECID
+  const base='https://push2his.eastmoney.com/api/qt/stock/kline/get?secid='+EM_SECID
     +'&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58'
     +'&klt='+klt+'&fqt=0&beg=0&end=20500101&lmt='+lmt+'&_='+Date.now();
-  const ctrl=new AbortController();
-  const to=setTimeout(()=>ctrl.abort(),12000);
-  let j;
+  let rows=null;
   try{
-    const r=await fetch(url,{cache:'no-store',signal:ctrl.signal});
-    j=await r.json();
-  }finally{ clearTimeout(to); }
-  const rows=j&&j.data&&j.data.klines;
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),10000);
+    let j;
+    try{
+      const r=await fetch(base,{cache:'no-store',signal:ctrl.signal});
+      j=await r.json();
+    }finally{ clearTimeout(to); }
+    rows=j&&j.data&&j.data.klines;
+  }catch(eFetch){
+    /* fetch被CORS/插件拦→东财cb-JSONP脚本兜底 */
+    const cb='_emk'+(p==='1d'?'d':p)+'_'+Date.now();
+    const j=await jsonpEm(base+'&cb='+cb,cb);
+    rows=j&&j.data&&j.data.klines;
+  }
   if(!Array.isArray(rows)||!rows.length) throw new Error('em empty');
   const out=[];
   for(const line of rows){
@@ -1313,9 +1334,15 @@ function applyTick(q){
       dl.close=q.price;
       dl.volume=q.volume;
       dl.openInterest=q.openInterest;
-    }else if(bt>dl.timestamp&&sameDay(bt,q.time)&&marketStatus(q.time).cls==='market-open'&&q.open>0&&q.volume>0){
-      /* 仅当交易所时间已入今日、盘中、且今日确有成交时才开新日线，防止午夜/开盘前陈旧行情推幽灵bar */
-      dd.push({timestamp:cnDayStart(bt),open:q.open,high:q.high,low:q.low,close:q.price,volume:q.volume,openInterest:q.openInterest});
+    }else if(bt>dl.timestamp&&sameDay(bt,q.time)&&q.open>0&&q.volume>0){
+      /* 1012a：交易所时刻已过9:00（含盘中/盘后/周末回看）且今日确有成交即可用东财快照OHLCV合成今日日bar，
+         不再硬性要求盘中——历史K线源被拦、盘后才打开页面时当日结构仍可见（补不了更早的断层日，待历史源恢复整体替换）；
+         9:00前不推，防开盘前陈旧快照造幽灵bar。synth标记=tick合成，同源真bar恢复后按stale规则自然替换 */
+      const _dN=new Date(bt+cnOffsetMs(bt)), _hm=_dN.getHours()*60+_dN.getMinutes();
+      if(_hm>=9*60){
+        dd.push({timestamp:cnDayStart(bt),open:q.open,high:q.high,low:q.low,close:q.price,volume:q.volume,openInterest:q.openInterest,synth:true});
+        try{ ensurePeriods(); recomputeAll(); updateChartData(); renderAll(); }catch(e){}
+      }
     }
   }
   for(const p of ['1w','1M']){
