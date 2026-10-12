@@ -6,6 +6,7 @@
 <title>鸡蛋期货 JD2611 · 量化盯盘交易系统</title>
 <!-- v17.31 (1008c): 新增「复盘」视图（决策日历重算当日三层决策 / 台账全量+点日期跳K线 / 回测逐笔×台账对照）；台账扩完整快照+修basisRate老bug；IndexedDB双写防清缓存丢失；JSON导出导入 -->
 <!-- 1009a: ①日内模式开关（当天买单当天出：止盈1.2×ATR达标即走·14:15后停开新仓·14:45-15:00强平不隔夜）；②SW新版本提示条+版本徽章点击检查更新（解决旧缓存设备看不到新数据的根因） -->
+<!-- 1012a: ①东财K线CORS备用源（新浪JSONP被广告拦截插件/运营商阻断时自动降级，实测故障：价格正常但K线计划停留09-30多日）；②数据陈旧看门狗——K线落后实时行情所属交易日即红色告警条+一键修复+每2分钟自动自愈；③数据来源徽标（新浪/东财备线/缓存）透明可见 -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥚</text></svg>">
 <!-- PWA：可安装APP（桌面图标·全屏独立运行·断网外壳兜底） -->
 <link rel="manifest" href="manifest.json">
@@ -92,6 +93,12 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--border)
 #sw-update.show{display:block}
 #sw-update button{margin-left:10px;background:var(--blue);color:#04101f;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer}
 #sw-update .sw-later{background:transparent;color:var(--muted2);border:1px solid var(--border);margin-left:6px}
+/* 1012a 数据陈旧告警条（红=K线数据落后于实时行情所属交易日） */
+#stale-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:98;background:linear-gradient(90deg,#3a1420,#2c0f18);border-bottom:1px solid #ff4d4f;padding:10px 14px;font-size:12.5px;color:#ffd7da;text-align:center}
+#stale-banner.show{display:block}
+#stale-banner button{margin-left:10px;background:#ff4d4f;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer}
+#stale-banner.fixing button{opacity:.6;pointer-events:none}
+body[data-swbar="1"] #stale-banner{top:40px}
 
 /* ===== 卡片 ===== */
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:13px 14px;margin-bottom:12px}
@@ -375,7 +382,7 @@ window.__bootDone = false;
     <div class="tb-row1">
       <div class="brand">
         <div class="b1"><span class="egg">🥚</span>鸡蛋 2611</div>
-        <div class="b2">JD2611 · 大连商品交易所<span class="ver" id="ver-badge" title="点击检查新版本">1009a</span></div>
+        <div class="b2">JD2611 · 大连商品交易所<span id="src-badge" style="font-size:10px;margin-left:6px"></span><span class="ver" id="ver-badge" title="点击检查新版本">1012a</span></div>
       </div>
       <div class="price-box">
         <div id="q-price">--</div>
@@ -643,6 +650,7 @@ window.__bootDone = false;
 
 <!-- 1009a SW新版本提示条 -->
 <div id="sw-update"><span id="sw-update-text">🆕 发现新版本</span><button id="sw-refresh">立即刷新</button><button class="sw-later" id="sw-later">稍后</button></div>
+<div id="stale-banner"><span id="stale-text"></span><button id="stale-fix">立即修复</button></div>
 
 <!-- 移动端Tab -->
 <nav id="tabbar">
@@ -977,6 +985,38 @@ async function fetchPeriod(p){
   const varName='_jdqp_'+p.replace(/\W/g,'');
   const raw=await jsonp(sinaUrl(p,varName),varName);
   return normalizeSina(raw);
+}
+/* 1012a: 东财K线备用源（标准fetch/CORS）。新浪JSONP在部分设备被广告拦截插件整域拉黑或运营商劫持导致持续超时，
+   日线停在本地缓存末日（实测故障现象：价格跳动正常但计划页K线停留多日），东财行情域名与秒级快照同源通常可达。
+   klines字段顺序：日期,开盘,收盘,最高,最低,成交量,成交额,振幅%（注意是开-收-高-低，非开高低收）；分钟无持仓量→OI留空，新浪恢复后整体替换/tick补当日 */
+const EM_SECID='114.'+SYMBOL.toLowerCase();
+async function fetchPeriodEM(p){
+  const klt={'5m':5,'15m':15,'30m':30,'60m':60,'1d':101}[p];
+  const lmt=p==='1d'?300:(p==='5m'?1500:900);
+  const url='https://push2his.eastmoney.com/api/qt/stock/kline/get?secid='+EM_SECID
+    +'&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58'
+    +'&klt='+klt+'&fqt=0&beg=0&end=20500101&lmt='+lmt+'&_='+Date.now();
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(),12000);
+  let j;
+  try{
+    const r=await fetch(url,{cache:'no-store',signal:ctrl.signal});
+    j=await r.json();
+  }finally{ clearTimeout(to); }
+  const rows=j&&j.data&&j.data.klines;
+  if(!Array.isArray(rows)||!rows.length) throw new Error('em empty');
+  const out=[];
+  for(const line of rows){
+    const a=String(line).split(',');
+    if(a.length<6) continue;
+    const ds=a[0];
+    const ts=new Date((ds.length<=10?ds+'T00:00:00':ds.replace(' ','T')+':00')+'+08:00').getTime();
+    const b={timestamp:ts,open:+a[1],close:+a[2],high:+a[3],low:+a[4],volume:+a[5],openInterest:null};
+    if(isFinite(ts)&&b.close>0) out.push(b);
+  }
+  out.sort((x,y)=>x.timestamp-y.timestamp);
+  if(!out.length) throw new Error('em parse empty');
+  return out;
 }
 /* ================= 当日量值修复（0902c）=================
    背景：新浪5m接口的分钟量偶发断流(2026-09-02实测当日全天少报3.5倍，25.9K vs 真实91.7K)，且东财tick按"日累计-已bar合计"
@@ -2789,6 +2829,63 @@ function renderLiveStatus(){
   }
   /* 1009a: 日内持仓监控随秒级轮询刷新 */
   renderIntraPos();
+  /* 1012a: K线数据陈旧看门狗（价格正常但K线停留多日时红色告警） */
+  renderStaleBanner();
+}
+/* ================= 1012a 数据陈旧看门狗 =================
+   判据：东财tick交易所时间所属交易日 > 日线末根交易日，且交易所时间已过9:00。
+   周末/节假日东财utime自然停在上一交易日，不会误报；无需维护休市日历。 */
+function dayKeyCN(ts){ const d=new Date(ts+cnOffsetMs(ts)); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function dataStaleInfo(){
+  const q=state.quote; if(!q) return null;
+  const bt=q.utime>0?q.utime:q.time;
+  if(!bt||bt<=0) return null;
+  const dd=state.data['1d']; if(!dd||!dd.length) return null;
+  const tickDay=cnDayStart(bt), lastDay=cnDayStart(dd[dd.length-1].timestamp);
+  if(tickDay<=lastDay) return null;
+  const d=new Date(bt+cnOffsetMs(bt)), hm=d.getHours()*60+d.getMinutes();
+  if(hm<9*60) return null; /* 盘前无新日线属正常 */
+  return {tickDay,lastDay,lastKey:dayKeyCN(dd[dd.length-1].timestamp),tickKey:dayKeyCN(bt),gap:Math.round((tickDay-lastDay)/86400000)};
+}
+let _staleFixing=false, _staleLastAuto=0, _staleFail=0;
+function renderStaleBanner(){
+  const bar=$('stale-banner'); if(!bar) return;
+  renderSrcBadge();
+  const info=dataStaleInfo();
+  const swOn=!!$('sw-update').classList.contains('show');
+  document.body.dataset.swbar=swOn?'1':'';
+  if(!info){ bar.classList.remove('show'); return; }
+  const txt=$('stale-text'), btn=$('stale-fix');
+  bar.classList.add('show');
+  bar.classList.toggle('fixing',_staleFixing);
+  if(txt) txt.innerHTML='⚠️ K线数据停留在 <b>'+info.lastKey+'</b>（实时价格正常），行情K线接口可能被本机网络/广告拦截插件阻断，计划与图表不是最新';
+  if(btn) btn.textContent=_staleFixing?'修复中…':(_staleFail?'再次修复（东财备用线）':'立即修复');
+}
+async function forceFixData(){
+  if(_staleFixing) return;
+  _staleFixing=true; renderStaleBanner();
+  await refreshAll(true); /* 东财备用源优先 */
+  _staleFixing=false;
+  const still=dataStaleInfo();
+  _staleFail=still?(_staleFail+1):0;
+  renderStaleBanner();
+  return !still;
+}
+async function staleWatchdog(){
+  const info=dataStaleInfo();
+  if(!info) return;
+  const now=Date.now();
+  if(now-_staleLastAuto<100*1000) return; /* 自动尝试限频100秒 */
+  _staleLastAuto=now;
+  const ok=await forceFixData();
+  if(ok) _staleFail=0;
+}
+/* K线数据来源徽标（sina=新浪 / em=东财备用），透明展示，故障溯源用 */
+function renderSrcBadge(){
+  const el=$('src-badge'); if(!el) return;
+  const s=state.src&&state.src['1d'];
+  el.textContent=s==='em'?'K线:东财备线':(s==='sina'?'K线:新浪':'K线:缓存');
+  el.style.color=s==='em'?'#f0b90b':'var(--muted2)';
 }
 /* ================= 1009a 日内持仓监控：时间止损 + 日内止盈止损 + 强平倒计时 ================= */
 function loadIntraPos(){ return safe(()=>{ const v=lsGet('jd_intra_pos'); return v?JSON.parse(v):null; },null)||null; }
@@ -2821,13 +2918,19 @@ function renderIntraPos(){
 }
 
 /* ================= 后台数据同步（静默，无刷新UI） ================= */
-async function refreshAll(){
+async function refreshAll(forceEM){
   if(state.syncBusy) return;
   state.syncBusy=true;
   const jobs=PERIOD_LIST.map(async p=>{
     try{
-      const bars=await fetchPeriod(p);
+      let bars=null, src='';
+      /* 1012a：新浪JSONP优先（含持仓量），失败/空/超时→东财CORS备用；forceEM时顺序反过来（手动修复/看门狗确认新浪被拦） */
+      const chain=forceEM?[['em',fetchPeriodEM],['sina',fetchPeriod]]:[['sina',fetchPeriod],['em',fetchPeriodEM]];
+      for(const [name,fn] of chain){
+        try{ const v=await fn(p); if(v&&v.length){ bars=v; src=name; break; } }catch(e){}
+      }
       if(bars&&bars.length){
+        state.src=state.src||{}; state.src[p]=src;
         const cur=state.data[p];
         if(!cur||!cur.length){ state.data[p]=bars; }
         else{
@@ -2836,10 +2939,12 @@ async function refreshAll(){
           const dayB=cnDayStart(b.timestamp);
           const cntA=cur.filter(x=>cnDayStart(x.timestamp)===dayB).length;
           const cntB=bars.filter(x=>cnDayStart(x.timestamp)===dayB).length;
+          /* em源无OI：若本地同bar已有OI则保留，避免新浪→em切换时抹掉持仓轨迹 */
+          if(src==='em'){ for(const nb of bars){ const ob=cur.find(x=>x.timestamp===nb.timestamp); if(ob&&ob.openInterest&&(nb.openInterest==null||nb.openInterest===0)) nb.openInterest=ob.openInterest; } }
           if(!stale||cntB>cntA||bars.length>cur.length) state.data[p]=bars; /* 新浪末日bar更多或总条数反超=本地历史断层/巨量假bar，强制采纳修复 */
         }
       }
-      return true;
+      return !!(bars&&bars.length);
     }catch(e){ return false; }
   });
   try{
@@ -3220,6 +3325,10 @@ function boot(){
   idbRestore().then(()=>{ renderLedger(); renderReview(); }); /* 1008c: 异步从本机库恢复台账后刷新 */
   setInterval(()=>{ if(marketStatus(Date.now()).cls==='market-open') refreshAll(); },60000); /* 新浪全量同步仅盘中跑，休市数据不变 */
   setInterval(()=>{ autoSpot(); },30*60000);
+  /* 1012a 数据陈旧看门狗：每2分钟自检，K线落后于tick所属交易日即自动走东财备用线修复；另绑手动修复按钮 */
+  setTimeout(staleWatchdog,20000);
+  setInterval(staleWatchdog,2*60*1000);
+  const _sf=$('stale-fix'); if(_sf) _sf.addEventListener('click',forceFixData);
   document.addEventListener('visibilitychange',()=>{
     if(!document.hidden){ tickOnce(); refreshAll(); }
   });
