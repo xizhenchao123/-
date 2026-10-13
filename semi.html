@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>JD2611 半量化研判系统 · 手机离线版</title>
+<!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -3739,7 +3740,14 @@ function renderStrategy(){
     }
   }
   rows.push(`<tr><td><b>禁止入场触发条件</b></td><td>${ban.join('<br>')}</td></tr>`);
+  /* n17: 数据截至徽标 + 陈旧检测——本卡指标全部由 S.bars 实时重算，若日线数据冻结则明示数据年龄并阻断误读 */
+  const dLastD=S.bars.d.length?bjStr(new Date(S.bars.d[S.bars.d.length-1].t)):null;
+  const todayStr=bjStr(bj());
+  const tickTodayD=S.emTick&&S.emTick.t&&bjStr(new Date(S.emTick.t))===todayStr;
+  const dataStale=dLastD&&dLastD<todayStr&&tickTodayD;
   el.innerHTML=
+   `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:4px"><span class="tag">📅 数据截至 ${dLastD||'--'}（日线 ${S.bars.d.length} 根）</span>${dataStale?'<span class="tag" style="color:#ff8a80;border-color:#e6483d">今日日线未更新</span>':''}</div>`+
+   (dataStale?`<div style="margin:0 0 6px;padding:8px 10px;border-radius:8px;background:rgba(230,72,61,.15);border:1px solid #e6483d;color:#ff8a80;font-size:12px;line-height:1.6"><b>⛔ 本卡指标基于截至 ${dLastD} 的日线计算，今日（${todayStr}，交易日）日线尚未更新</b>——设备数据源可能被拦截。请先按顶部看门狗提示修复数据，在此之前请勿按本卡价位操作。</div>`:'')+
    `<div class="recaph" style="border-left-color:var(--purple)">🤖 AI 策略输出（评级+价位+一票否决自动生成，非交易指令）</div>`+
    `<div class="lvlwrap"><table class="lvl"><tr><th style="width:130px">项目</th><th>内容</th></tr>${rows.join('')}</table></div>`+
    `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">本区块由既有打分（总分 ${A.total}）、关键价位（支撑 ${A.sup[0]?A.sup[0].price.toFixed(0):'--'} / 压力 ${A.res[0]?A.res[0].price.toFixed(0):'--'}）与一票否决规则自动汇总生成，未新增任何计算；参数为量化参考位，是否开仓与实际执行由人工决定，盈亏自负。</div>`;
@@ -3775,7 +3783,7 @@ function renderStrategy(){
           entry:R?+R.entry.toFixed(0):null, stop:R?+R.stop.toFixed(0):null,
           t1:R?+R.target.toFixed(0):null, t2:R?+(R.entry+2*(R.target-R.entry)).toFixed(0):null,
           rr:R&&R.rr!=null?+R.rr.toFixed(2):null, pos:posTxt,
-          recapText:$('recapBody').innerText.trim(), stratText:$('strategyBody').innerText.trim()
+          recapText:$('recapBody').innerText.trim(), stratText:$('stratBody').innerText.trim()
         };
         const list=JSON.parse(LS.get('strategies')||'[]');
         const i=list.findIndex(x=>x.day===rec.day);
@@ -3789,9 +3797,13 @@ function renderStrategy(){
       const card=$('histCard'), body=$('histBody');
       let list=[];
       try{ list=JSON.parse(LS.get('strategies')||'[]'); }catch(e){}
-      $('histTag').textContent=list.length+' 条';
+      const lastDay=list.length?list[list.length-1].day:null;
+      $('histTag').textContent=list.length+' 条'+(lastDay?' · 末档 '+lastDay:'');
       if(!list.length){ card.style.display='none'; body.innerHTML=''; return; }
       card.style.display='block';
+      /* n17: 历史存档静态卡防误导——存档为收盘快照不随行情更新，末档早于今日时升级红标 */
+      const _hToday=bjStr(bj());
+      const _hStale=lastDay&&lastDay<_hToday;
       const rows=list.slice().reverse().map(r=>{
         const gc=r.grade==='A'?'var(--ok)':(r.grade==='B'?'var(--gold)':(r.grade==='C'?'var(--txt)':'var(--risk)'));
         const vt=r.vetos&&r.vetos.length?`　<span style="color:var(--risk);font-size:10px">⛔ ${esc(r.vetos[0])}</span>`:'';
@@ -3803,8 +3815,9 @@ function renderStrategy(){
           `<td style="color:var(--dim)">${r.pos}</td></tr>`;
       }).join('');
       body.innerHTML=
+        `<div style="margin-bottom:6px;padding:8px 10px;border-radius:8px;background:${_hStale?'rgba(230,72,61,.15)':'rgba(240,185,11,.10)'};border:1px solid ${_hStale?'#e6483d':'#f0b90b'};color:${_hStale?'#ff8a80':'#e8c66a'};font-size:12px;line-height:1.6"><b>🗂 历史策略存档（收盘快照，不随行情更新）</b>：以下为各交易日收盘后的存档${_hStale?`，最近存档 <b>${lastDay}</b> 早于今日（${_hToday}）——非实时研判，请勿按档内价位操作；实时决策以顶部实时价与「AI 交易策略输出」卡为准`:`，最近存档 ${lastDay||'--'}；实时决策以「AI 交易策略输出」卡为准`}。</div>`+
         `<div class="lvlwrap"><table class="lvl"><tr><th style="width:88px">交易日</th><th style="width:110px">评级</th><th style="width:190px">定性</th><th>策略参数</th><th style="width:110px">仓位</th></tr>${rows}</table></div>`+
-        `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:var(--dim)">展开最近一日完整研判与策略原文</summary><pre id="histDetail" style="white-space:pre-wrap;font-size:11px;line-height:1.7;color:var(--dim);background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:6px;max-height:300px;overflow:auto"></pre></details>`;
+        `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:var(--dim)">展开最近一日（${lastDay||'--'}）完整研判与策略原文（历史档案）</summary><pre id="histDetail" style="white-space:pre-wrap;font-size:11px;line-height:1.7;color:var(--dim);background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:6px;max-height:300px;overflow:auto"></pre></details>`;
       const last=list[list.length-1];
       $('histDetail').textContent=(last.day||'')+'\n\n'+(last.recapText||'')+'\n\n'+(last.stratText||'');
     }
@@ -4260,7 +4273,7 @@ function bindUI(){
   };
   /* k3-1 复盘一键复制（clipboard API + 降级方案）；n1 起附带 AI 策略区块 */
   $('recapCopy').onclick=()=>{
-    const strat=$('strategyBody').innerText.trim();
+    const strat=$('stratBody').innerText.trim();
     const stratTxt=strat?'\n\n—— AI 策略输出 ——\n'+strat:'';
     const txt='【JD2611 半量化研判 · 收盘复盘 '+$('recapdate').textContent+'】\n'+$('recapBody').innerText+stratTxt;
     const done=()=>{ const b=$('recapCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复盘+策略',1500); };
