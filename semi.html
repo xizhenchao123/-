@@ -1944,6 +1944,22 @@ function watchdog(){
     document.body.appendChild(_wd);
   } else if(!stale&&_wd){ _wd.remove(); _wd=null; }
 }
+
+/* n16: 静态沙盘防误导 */
+function tagStaleSandbox(){
+  document.querySelectorAll('div,section').forEach(el=>{
+    if(el.dataset.sbTag||!el.firstChild) return;
+    const t=el.textContent||'';
+    if(t.length>3000) return;
+    if(t.includes('3715')&&t.includes('3651')&&(t.includes('9/30')||t.includes('09-30')||t.includes('09/30'))){
+      el.dataset.sbTag='1';
+      const b=document.createElement('div');
+      b.style.cssText='margin:6px 0;padding:8px 10px;border-radius:8px;background:rgba(230,72,61,.15);border:1px solid #e6483d;color:#ff8a80;font-size:12px;line-height:1.6';
+      b.innerHTML='<b>⛔ 历史沙盘档案（已失效）</b>：本卡数据为 9/30 构建期静态快照，非实时数据。按卡内条款「收盘跌破 3651 即作废」，10-12 收盘 3629 已触发作废——卡内价位与路线图仅供历史回顾，请勿按其操作。实时决策以顶部实时价与盘面研判卡为准。';
+      el.insertBefore(b, el.firstChild);
+    }
+  });
+}
 /* =====================================================================
  *  n4 行情API接入预留接口
  *  - 默认数据源：内置新浪 JSONP（零配置）；
@@ -4088,6 +4104,7 @@ function restartTimers(){
         renderPanels();
         renderStrategy();   /* n11: 策略输出卡片逐秒联动（live 模式 renderRecap 提前返回不会带它） */
         watchdog();         /* n15: K线停更看门狗 */
+        tagStaleSandbox();   /* n16: 静态沙盘防误导标注 */
         /* n13: 主图重绘已移至 timerClock（每秒必跳，与网络解耦），此处不再重复调用 onTick */
         const hb=$('hb'); if(hb){ hb.style.color='var(--ok)'; hb.title='每秒心跳正常 · 数据同步正常'; }
       }catch(e){
@@ -4341,7 +4358,7 @@ function bindUI(){
   await fullCycle();
   restartTimers();
   /* 模式可能在运行中切换（开盘/收盘跨越），每分钟检测 */
-  setInterval(()=>{ const m=S.mode; detectMode(); if(m!==S.mode) restartTimers(); }, 30000);
+  setInterval(()=>{ const m=S.mode; detectMode(); if(m!==S.mode) restartTimers(); tagStaleSandbox(); }, 30000);
 })();
 </script>
 </body>
