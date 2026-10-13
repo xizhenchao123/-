@@ -2673,17 +2673,17 @@ function mtfFilter(A){
 }
 function tname(t){ return t==='up'?'上涨':(t==='down'?'下跌':'震荡'); }
 
-/* ---- ④ 盈亏比评估（预期盈亏比≥1.5R才过滤通过） ---- */
+/* ---- ④ 盈亏比评估（预期盈亏比≥1.2R才过滤通过） ---- */
 function rrCalc(A){
   const out={ rr:null, pass:false, entry:null, stop:null, target:null, note:'' };
   if(!A||!S.live) return out;
   const price=S.live.price, atrD=A.d.atr||50;
   const sup=A.sup[0]?A.sup[0].price:null, res=A.res[0]?A.res[0].price:null;
   if(sup==null||res==null||res<=sup){ out.note='支撑压力区间不完整，盈亏比无法评估'; return out; }
-  const stopW=Math.max(0.8*atrD,0.35*(res-sup));      /* 止损缓冲：0.8×ATR日，且不超过区间的35% */
-  /* 多头视角：现价接近支撑才有多头盈亏比；空头视角：现价接近压力才有空头盈亏比 */
-  const longRR  = price<res ? (res-price)/Math.max(price-sup+stopW*0.5, stopW*0.5) : 0;
-  const shortRR = price>sup ? (price-sup)/Math.max(res-price+stopW*0.5, stopW*0.5) : 0;
+  const stopW=Math.max(0.35*atrD,0.2*(res-sup));      /* 止损缓冲：0.35×ATR日（2026-10-13修正：原0.8×ATR≈55点吞掉区间大半空间，致RR天花板≈W/(W+stopW)<1永远不达标） */
+  /* 多头视角：现价接近支撑才有多头盈亏比；空头视角：现价接近压力才有空头盈亏比；破位状态（区间外）直接置0防逆势信号 */
+  const longRR  = (price<res&&price>=sup) ? (res-price)/Math.max(price-sup+stopW*0.5, stopW*0.5) : 0;
+  const shortRR = (price>sup&&price<=res) ? (price-sup)/Math.max(res-price+stopW*0.5, stopW*0.5) : 0;
   out.longRR=clamp(longRR,0,9); out.shortRR=clamp(shortRR,0,9);
   out.rr=Math.max(out.longRR,out.shortRR);
   const isLong=out.longRR>=out.shortRR;
@@ -2691,8 +2691,8 @@ function rrCalc(A){
   out.entry=price;
   out.stop =isLong? Math.min(sup-0.3*atrD, price-stopW) : Math.max(res+0.3*atrD, price+stopW);
   out.target=isLong? res : sup;
-  out.pass=out.rr>=1.5;
-  out.note='按'+(isLong?'多':'空')+'向评估：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.pass?'（≥1.5R达标）':'（<1.5R，按框架直接过滤，不推荐开仓）');
+  out.pass=out.rr>=1.2;
+  out.note='按'+(isLong?'多':'空')+'向评估：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.pass?'（≥1.2R达标）':'（<1.2R，位置/空间不划算，不推荐开仓）');
   return out;
 }
 
@@ -3434,7 +3434,7 @@ function renderEagle(){
   const grColor={'A':'var(--ok)','B':'var(--gold)','C':'var(--dim)','D':'var(--risk)'};
   const item7=`<b style="color:${grColor[gr.grade]||'var(--dim)'};font-size:15px">${gr.grade||'C'}</b> 级 —— ${(gr.why||[]).join('；')}`;
   /* 8. 预期盈亏比评估 */
-  const item8=rr.rr!=null?`多向≈${(rr.longRR||0).toFixed(2)}R / 空向≈${(rr.shortRR||0).toFixed(2)}R，取 <b style="color:${rr.pass?'var(--ok)':'var(--warn)'}">${rr.rr.toFixed(2)}R</b>（${rr.pass?'≥1.5R 达标':'<1.5R 不达标，按框架直接过滤，不推荐开仓'}）。${rr.note}`:(rr.note||'支撑压力区间不完整，盈亏比无法评估');
+  const item8=rr.rr!=null?`多向≈${(rr.longRR||0).toFixed(2)}R / 空向≈${(rr.shortRR||0).toFixed(2)}R，取 <b style="color:${rr.pass?'var(--ok)':'var(--warn)'}">${rr.rr.toFixed(2)}R</b>（${rr.pass?'≥1.2R 达标':'<1.2R 不达标，位置/空间不划算，不推荐开仓'}）。${rr.note}`:(rr.note||'支撑压力区间不完整，盈亏比无法评估');
   /* 8b. 候选交易参数（A/B/C/D 全部输出；D 级仅做观察参考，不建议开仓） */
   const R=rr.rr!=null?rr:(gr.rrRef||null);
   let candHtml='';
@@ -3611,15 +3611,15 @@ function renderStrategy(){
   let side, sideC, qualNote='';
   if(A.veto.length){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='触发一票否决（硬阻断优先于打分）：'+A.veto[0]+(A.veto.length>1?' 等 '+A.veto.length+' 项':''); }
   else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
-  else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.5R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
+  else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.2R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
   else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
   else { side='观望'; sideC='var(--dim)'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':'')+'，未达执行标准'; }
   $('stratTag').textContent=side; $('stratTag').style.color=sideC;   /* n2: 标题区显示行情定性 */
   const rows=[];
   rows.push(`<tr><td><b>行情定性</b></td><td><b style="color:${sideC}">${side}</b>　<span style="color:var(--faint)">${qualNote}</span></td></tr>`);
-  /* n10 醒目警告条：盈亏比低于 1.5R 阈值 → 顶部大字提示不建议开仓（展示层，不改评级） */
+  /* n10 醒目警告条：盈亏比低于 1.2R 阈值 → 顶部大字提示不建议开仓（展示层，不改评级） */
   if(R&&!R.pass){
-    rows.push(`<tr><td colspan="2" style="background:rgba(230,72,61,.12);border:1px solid var(--risk);border-radius:6px;padding:6px 10px"><b style="color:var(--risk)">⛔ 不建议开仓</b>　<span style="color:var(--txt)">自动计算的预估盈亏比 <b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b> 低于 <b>1.5R</b> 阈值（${R.side==='多'?'多':'空'}向：入场 ${R.entry.toFixed(0)} / 止损 ${R.stop.toFixed(0)} / 目标 ${R.target.toFixed(0)}）——风险回报不划算，按框架直接过滤，等待更好的入场位置。</span></td></tr>`);
+    rows.push(`<tr><td colspan="2" style="background:rgba(230,72,61,.12);border:1px solid var(--risk);border-radius:6px;padding:6px 10px"><b style="color:var(--risk)">⛔ 不建议开仓</b>　<span style="color:var(--txt)">自动计算的预估盈亏比 <b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b> 低于 <b>1.2R</b> 阈值（${R.side==='多'?'多':'空'}向：入场 ${R.entry.toFixed(0)} / 止损 ${R.stop.toFixed(0)} / 目标 ${R.target.toFixed(0)}）——位置/空间不划算，等待更好的入场位置（贴近支撑/压力再评估）。</span></td></tr>`);
   }
   if(R){
     const t2=R.entry+2*(R.target-R.entry);   /* 第二目标：等距延伸（纯展示换算） */
@@ -3627,7 +3627,7 @@ function renderStrategy(){
     rows.push(`<tr><td><b>推荐入场区间</b></td><td>参考入场 <b class="num">${R.entry.toFixed(0)}</b>（现价附近${R.side==='多'?'，回踩支撑不破再确认':'，反抽压力受阻再确认'}）${supP!=null&&resP!=null?`<br><span style="color:var(--faint)">操作区间参照：支撑 <b class="num" style="color:var(--sup)">${supP.toFixed(0)}</b> ~ 压力 <b class="num" style="color:var(--res)">${resP.toFixed(0)}</b></span>`:''}</td></tr>`);
     rows.push(`<tr><td><b>止损价格</b></td><td><b class="num" style="color:var(--risk)">${R.stop.toFixed(0)}</b>　<span style="color:var(--faint)">${R.side==='多'?'支撑下方':'压力上方'}留 0.3×ATR 缓冲（ATR日≈${(A.d.atr||50).toFixed(0)}）</span></td></tr>`);
     rows.push(`<tr><td><b>止盈目标</b></td><td>第一目标 <b class="num" style="color:var(--ok)">${R.target.toFixed(0)}</b>（${R.side==='多'?'压力位':'支撑位'}）；第二目标 <b class="num" style="color:var(--ok)">${t2.toFixed(0)}</b>（等距延伸）</td></tr>`);
-    rows.push(`<tr><td><b>预估盈亏比</b></td><td><b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b>${R.pass?'　<span style="color:var(--ok)">≥1.5R 达标</span>':'　<span style="color:var(--risk)">&lt;1.5R，按框架直接过滤，不推荐开仓</span>'}</td></tr>`);
+    rows.push(`<tr><td><b>预估盈亏比</b></td><td><b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b>${R.pass?'　<span style="color:var(--ok)">≥1.2R 达标</span>':'　<span style="color:var(--risk)">&lt;1.2R，位置/空间不划算，不推荐开仓</span>'}</td></tr>`);
   }else{
     rows.push(`<tr><td><b>交易参数</b></td><td><span style="color:var(--dim)">支撑压力区间不完整，入场/止损/目标暂无法计算。</span></td></tr>`);
   }
@@ -3646,7 +3646,7 @@ function renderStrategy(){
   A.veto.forEach(v=>ban.push('⛔ '+v+'（一票否决，硬阻断）'));
   if(S.losses&&S.losses.n>=3) ban.push('⛔ 当日连亏≥3笔：锁仓停新单');
   else if(S.losses&&S.losses.n===2) ban.push('⚠ 当日连亏2笔：下一次开仓仓位减半，再亏1笔即锁仓');
-  if(R&&!R.pass) ban.push('⚠ 盈亏比 &lt;1.5R（当前 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R）：按框架直接过滤，不推荐开仓');
+  if(R&&!R.pass) ban.push('⚠ 盈亏比 &lt;1.2R（当前 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R）：位置/空间不划算，不推荐开仓');
   if(gr==='C'&&!A.veto.length) ban.push('⚠ 评级未达 B 级（多周期/盈亏比/量仓/基本面未全部满足）：按框架尽量放弃');
   if(!R) ban.push('⚠ 支撑压力区间不完整：无法评估盈亏比，不满足开仓前置条件');
   if(!ban.length) ban.push('当前无额外禁入条件；突破确认前提：①放量 ②仓差配合（无量上冲当诱多对待）');
