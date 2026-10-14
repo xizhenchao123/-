@@ -11,6 +11,7 @@
 <!-- n21: 手机版底部Tab分区导航（盘面/研判/策略/复盘/设置 五区）：每区单一滚动上下文，卡片内嵌滚动区窄屏取消改自然高度，免责声明条改文档流尾随；桌面双栏布局不变；K线切回盘面自动重绘；LS记忆上次分区(semi_tab) -->
 <!-- n22: 盘面残影修复：draw()改全背板清除（容器尺寸漂移后旧布局残留区外与当前布局叠加的bug）；移动端K线卡取消吸顶（不再滑入粘性header下方）+画布固定高430px杜绝尺寸漂移；window resize联动重排 -->
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
+<!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -3055,14 +3056,17 @@ function intradayBP(A){
   out.trig=out.dir==='多'?upLvl:dnLvl;
   const price=S.live.price;
   out.inZone=out.dir==='多'?(price>=out.trig&&price<=out.trig+out.zoneW):(price<=out.trig&&price>=out.trig-out.zoneW);
+  /* 过冲状态：价格已越过跟进区远端（突破后走出>0.3×ATR）——不再按"等待触发"口径显示，防追单误导 */
+  out.past=out.dir==='多'?price>out.trig+out.zoneW:price<out.trig-out.zoneW;
   out.entry=price; out.stop=out.dir==='多'?price-1.5*atrD:price+1.5*atrD; out.target=out.dir==='多'?price+1.2*atrD:price-1.2*atrD;
   /* 突破防抖状态（复用 detectValidBreak 结果） */
   const vb=(A.validBreaks||[]).find(v=>Math.abs(v.level-out.trig)<1.5);
   out.breakTxt=vb?(vb.confirmed?'已确认（防抖通过）':(vb.pending?'待确认：下一根5分钟收盘站稳 '+out.trig.toFixed(0)+' 才有效':'刺破未确认')):'尚未突破';
-  /* 降级规则：前日大阳(≥1%)+今日未高开 → 多单轻仓或等回踩（空头对称） */
+  /* 降级规则（仅多头侧）：前日大阳(≥1%)+今日未高开 → 多单轻仓或等回踩。
+     空头侧不设开盘降级——扩样回测(2026-10-13)：大阴+不低开 exp+6.23 最优、大阴+低开 -2.63 最差，开盘降级会误伤最优分支 */
   const todayBar=S.bars.d.find(b=>bjStr(new Date(b.t))===today);
   const todayOpen=todayBar?todayBar.o:(S.live.dayOpen!=null?S.live.dayOpen:null);
-  out.downgrade=(out.dir==='多'&&out.prevChg>=1&&todayOpen!=null&&todayOpen<=prev.c)||(out.dir==='空'&&out.prevChg<=-1&&todayOpen!=null&&todayOpen>=prev.c);
+  out.downgrade=out.dir==='多'&&out.prevChg>=1&&todayOpen!=null&&todayOpen<=prev.c;
   /* 14:15 停开新仓（仅盘中硬约束；收盘模式整体作为次日预案） */
   const now=bj(); out.cutoff=(now.getHours()*100+now.getMinutes())>=1415&&S.mode==='live';
   return out;
@@ -3985,6 +3989,7 @@ function renderStrategy(){
   const BP=intradayBP(A);
   if(A.veto.length){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='触发一票否决（硬阻断优先于打分）：'+A.veto[0]+(A.veto.length>1?' 等 '+A.veto.length+' 项':''); }
   else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
+  else if(BP.on&&BP.past){ side='已突破跟进区 · 不追单'; sideC='var(--warn)'; qualNote=BP.dir+'向已越过跟进区远端（触发位 '+BP.trig.toFixed(0)+'，跟进区 ±'+BP.zoneW.toFixed(0)+' 点）——顺势段已走完，追单盈亏比恶化：等'+(BP.dir==='多'?'回踩':'反抽')+'跟进区再评估，勿按"等待触发"口径误判'; }
   else if(BP.on&&BP.inZone&&BP.cutoff){ side='顺势窗口已关闭'; sideC='var(--warn)'; qualNote='14:15 后停开新仓（日内纪律）：'+BP.dir+'向触发位 '+BP.trig.toFixed(0)+' 仍在跟进区内，仅观察不再跟进'; }
   else if(BP.on&&BP.inZone){ side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'破位跟进'); sideC=BP.dir==='多'?C.up:C.dn; qualNote='前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：'+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':''); }
   else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
@@ -3995,8 +4000,12 @@ function renderStrategy(){
   const rows=[];
   rows.push(`<tr><td><b>行情定性</b></td><td><b style="color:${sideC}">${side}</b>　<span style="color:var(--faint)">${qualNote}</span></td></tr>`);
   /* n10 醒目警告条：盈亏比低于 1.2R 阈值 → 顶部大字提示不建议开仓（展示层，不改评级） */
-  if(R&&!R.pass){
+  if(R&&!R.pass&&!(BP.on&&(BP.inZone||BP.past))){
+    if(BP.on){ /* n24 等待突破触发：黄色衔接文案替代红色硬警告，与定性口径一致 */
+      rows.push(`<tr><td colspan="2" style="background:rgba(240,180,41,.10);border:1px solid var(--warn);border-radius:6px;padding:6px 10px"><b style="color:var(--warn)">⏳ 等待突破触发</b>　<span style="color:var(--txt)">区间口径预估盈亏比 <b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b> 暂不划算——今日为顺势日（前日 ${BP.prevChg.toFixed(2)}%），预案：等 ${BP.dir}向触到 <b class="num">${BP.trig.toFixed(0)}</b>（跟进区 ±${BP.zoneW.toFixed(0)} 点）再按顺势口径评估，详见下方"日内顺势口径"。</span></td></tr>`);
+    }else{
     rows.push(`<tr><td colspan="2" style="background:rgba(230,72,61,.12);border:1px solid var(--risk);border-radius:6px;padding:6px 10px"><b style="color:var(--risk)">⛔ 不建议开仓</b>　<span style="color:var(--txt)">自动计算的预估盈亏比 <b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b> 低于 <b>1.2R</b> 阈值（${R.side==='多'?'多':'空'}向：入场 ${R.entry.toFixed(0)} / 止损 ${R.stop.toFixed(0)} / 目标 ${R.target.toFixed(0)}）——位置/空间不划算，等待更好的入场位置（贴近支撑/压力再评估）。</span></td></tr>`);
+    }
   }
   if(R){
     const t2=R.entry+2*(R.target-R.entry);   /* 第二目标：等距延伸（纯展示换算） */
@@ -4072,6 +4081,8 @@ function renderStrategy(){
         const BPs=intradayBP(A);
         if(A.veto.length){ side='观望 · 禁止开仓'; qualNote='触发一票否决：'+A.veto[0]; }
         else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓'; }
+        else if(BPs.on&&BPs.past){ side='已突破跟进区 · 不追单'; qualNote=BPs.dir+'向已越过跟进区（触发 '+BPs.trig.toFixed(0)+' ±'+BPs.zoneW.toFixed(0)+'）：等'+(BPs.dir==='多'?'回踩':'反抽')+'再评估'; }
+        else if(BPs.on&&BPs.inZone&&BPs.cutoff){ side='顺势窗口已关闭'; qualNote='14:15 后停开新仓：'+BPs.dir+'向触发 '+BPs.trig.toFixed(0)+' 仅观察'; }
         else if(BPs.on&&BPs.inZone){ side='顺势跟进参考'+(BPs.downgrade?'（降级轻仓）':''); qualNote='前日 '+BPs.prevChg.toFixed(2)+'% 顺势日·S1口径：'+BPs.dir+'向触发 '+BPs.trig.toFixed(0); }
         else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 达标'; }
         else if(R&&!R.pass&&BPs.on){ side='等待突破触发'; qualNote='前日 '+BPs.prevChg.toFixed(2)+'% 顺势日：'+BPs.dir+'向触发位 '+BPs.trig.toFixed(0); }
