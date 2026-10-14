@@ -1,10 +1,10 @@
-/* 鸡蛋JD2611 PWA Service Worker
+/* 鸡蛋JD2612 PWA Service Worker
    策略：外壳（页面/图标/清单）network-first + 离线回缓存；
    东财/新浪等外域行情请求直连不缓存（实时数据不许陈旧，失败由页面降级提示）。
    电脑睡眠场景：隧道进程随宿主机暂停，Cloudflare边缘对死隧道返回5xx错误页——
    页面请求遇非200也降级回缓存外壳（否则用户看到的是Cloudflare错误页而不是APP）；
    /api/spot 同理回503 JSON，页面自动降级"预置(离线)"现货徽标 */
-const CACHE = 'jd2611-shell-v7';   /* 1012a: 东财K线备用源+数据陈旧看门狗（修复新浪被拦截时K线计划停留多日），升版本强制全设备刷新外壳缓存 */
+const CACHE = 'jd2612-shell-v8';   /* 1014a: 主力换月 JD2611→JD2612，升版本强制全设备刷新外壳缓存 */
 const SHELL = ['jd2611.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 
 self.addEventListener('install', e => {
