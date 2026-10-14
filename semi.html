@@ -8,6 +8,7 @@
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
 <!-- n19: 主力换月 JD2611→JD2612；内联种子换 TDX 2612 真实数据（日线60根+当日5m实行情）；持仓排行暂缺自动降级；旧localStorage合约一次性迁移 -->
+<!-- n21: 手机版底部Tab分区导航（盘面/研判/策略/复盘/设置 五区）：每区单一滚动上下文，卡片内嵌滚动区窄屏取消改自然高度，免责声明条改文档流尾随；桌面双栏布局不变；K线切回盘面自动重绘；LS记忆上次分区(semi_tab) -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -140,6 +141,24 @@ table.lvl th{color:var(--faint);font-weight:400;text-align:left;padding:4px 4px;
 table.lvl td{padding:4px;border-bottom:1px dashed rgba(255,255,255,.05);color:var(--dim)}
 table.lvl td b{color:var(--txt)}
 .lvlwrap{overflow-x:auto;-webkit-overflow-scrolling:touch} /* k3-2 移动端横向滚动 */
+/* ---------- n21 底部Tab分区（仅窄屏启用，桌面布局不变） ---------- */
+#tabbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:65;background:rgba(11,14,20,.97);backdrop-filter:blur(8px);border-top:1px solid var(--line);gap:2px;padding:4px 6px calc(5px + env(safe-area-inset-bottom))}
+#tabbar button{flex:1;background:none;border:none;color:var(--faint);font-size:12px;padding:7px 0 3px;cursor:pointer;position:relative;font-weight:600}
+#tabbar button.on{color:var(--gold)}
+#tabbar button.on::before{content:'';position:absolute;top:-5px;left:22%;right:22%;height:2px;background:var(--gold);border-radius:2px}
+@media(max-width:960px){
+  body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+  #tabbar{display:flex}
+  footer{position:static;margin:10px 12px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  #gear,#settings{bottom:calc(72px + env(safe-area-inset-bottom))}
+  #events,#caseList,#jList,#histDetail{max-height:none;overflow:visible}
+  body[data-tab="market"] main .card:not(.tm){display:none!important}
+  body[data-tab="judge"] main .card:not(.tj){display:none!important}
+  body[data-tab="strat"] main .card:not(.ts){display:none!important}
+  body[data-tab="recap"] main .card:not(.tr){display:none!important}
+  body[data-tab="set"] main .card:not(.tg){display:none!important}
+  body[data-tab="strat"] #stratCard{order:-1} /* 策略区：AI策略输出置顶（flex order，不动DOM） */
+}
 </style>
 <script>
 /* n-mobile: 内联数据包（由 build_mobile.js 生成）——file:// 离线环境无法 fetch 本地 json，改为内联注入 */
@@ -1668,7 +1687,7 @@ window.__TRAE_PUSH_INLINE__={
 };
 </script>
 </head>
-<body>
+<body data-tab="market">
 
 <header>
   <div class="hrow">
@@ -1701,7 +1720,7 @@ window.__TRAE_PUSH_INLINE__={
 
 <main>
   <!-- 左：图表 -->
-  <section class="card" id="chartcard">
+  <section class="card tm" id="chartcard">
     <h3>
       <span id="charttitle">鸡蛋JD2612</span><span class="tag" id="datatime">数据: --</span>
       <div class="tftabs">
@@ -1730,7 +1749,7 @@ window.__TRAE_PUSH_INLINE__={
   <!-- 右：分析面板 -->
   <aside style="display:flex;flex-direction:column;gap:10px;min-width:0">
 
-    <div class="card">
+    <div class="card tj">
       <h3>四项打分 <span class="tag">规则引擎 · 每项0~25</span></h3>
       <div id="scoretotal">
         <div id="totalwrap">
@@ -1747,32 +1766,32 @@ window.__TRAE_PUSH_INLINE__={
       <div id="vetobox"><div class="vt">⛔ 一票否决触发：【高风险 · 观望 · 不视为交易机会】</div><ul id="vetolist"></ul><div class="vtnote">规则说明：一票否决是硬阻断，优先级高于四项打分；触发后总分按 ×0.65 折算，最高封顶 45 分——无论打分高低均不视为交易机会，仅供复盘观察。</div></div>
     </div>
 
-    <div class="card" id="shiweiCard">
+    <div class="card tj" id="shiweiCard">
       <h3>势 · 位 · 态 <span class="tag" id="swtag">--</span></h3>
       <div class="sec" id="shiBody">加载中…</div>
       <div class="sec" id="mtfBody" style="margin-top:6px"></div>
     </div>
 
-    <div class="card">
+    <div class="card tj">
       <h3>位 · 关键价位 <span class="tag">仅保留重要波段点</span></h3>
       <div id="levelsBody"></div>
     </div>
 
-    <div class="card">
+    <div class="card tj">
       <h3>资金鹰眼 · 威科夫量仓 <span class="tag" id="wytag">--</span></h3>
       <div class="sec" id="wyBody" style="margin-bottom:8px">加载中…</div>
       <div id="events"></div>
     </div>
 
     <!-- n-ifind2: iFinD 权威指标面板（纯展示+交叉校验，不参与打分；与上方鹰眼独立） -->
-    <div class="card" id="ifindCard" style="display:none">
+    <div class="card tj" id="ifindCard" style="display:none">
       <h3>🛰 iFinD 权威指标 <span class="tag">同花顺官方取数</span><span class="tag" id="ifindTag">--</span></h3>
       <div class="sec" id="ifindBody">加载中…</div>
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据源：TDX 通达信（JD2612.DCE）。日线指标/持仓为权威值；当日5分钟为 TDX 实际行情，60分钟为当日5分钟按 09:00/10:00/10:30/13:30/14:30 五桶聚合。系统内部 RSI 为14周期自算值，本面板展示 iFinD 官方 RSI(6) 供交叉校验——两者口径不同，出现背离属正常现象。</div>
     </div>
 
     <!-- n9: 主力资金动向分析（方案A：独立辅助风险预警模块，不参与四项打分/一票否决/评级计算） -->
-    <div class="card" id="mfCard">
+    <div class="card tj" id="mfCard">
       <h3>🐋 主力资金动向分析 <span class="tag">方案A · 辅助风险预警</span><span class="tag">不参与总分计算</span><span class="tag" id="mfTag">未录入</span></h3>
       <div class="inp">
         <div><label>投机多头持仓（手）</label><input id="mfLong" type="number" step="1" placeholder="如 12000"></div>
@@ -1786,12 +1805,12 @@ window.__TRAE_PUSH_INLINE__={
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">数据来源：交易所每日收盘后公布的成交持仓排名（前20会员分投机/套保口径人工转录）。本模块为方案A辅助风险预警：仅输出资金面文字解读与背离提示，不参与四项打分、一票否决与评级计算，不影响任何底层逻辑。</div>
     </div>
 
-    <div class="card" id="eagleCard">
+    <div class="card tj" id="eagleCard">
       <h3>🦅 研判输出 · 固定模板 <span class="tag">傅海棠供需→势位态→威科夫鹰眼</span><span class="tag">盘中11项/收盘6项</span><span class="tag" id="eagleTag">--</span></h3>
       <div class="sec" id="eagleBody">加载中…</div>
     </div>
 
-    <div class="card" id="trackCard">
+    <div class="card ts" id="trackCard">
       <h3>持仓跟踪 · 人工录入 <span class="tag">第五步 · 持仓后自动监测</span><span class="tag" id="trackTag">未持仓</span></h3>
       <div class="inp">
         <div><label>持仓方向</label><select id="posDir"><option value="none">无持仓</option><option value="long">持多</option><option value="short">持空</option></select></div>
@@ -1815,7 +1834,7 @@ window.__TRAE_PUSH_INLINE__={
       </div>
     </div>
 
-    <div class="card" id="caseCard">
+    <div class="card tr" id="caseCard">
       <h3>📚 历史案例库 <span class="tag" id="caseCount">--</span><span id="caseFoldBtn" style="float:right;cursor:pointer;color:var(--faint);font-size:11px;font-weight:400">▸ 展开</span></h3>
       <div id="caseFold" style="display:none">
       <div id="caseSim"></div>
@@ -1825,7 +1844,7 @@ window.__TRAE_PUSH_INLINE__={
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">内置案例取自2013-2026主连日线与2026年4-9月5分钟全样本；此后每日收盘自动积累。「次日±%」为JD0主连真实次日涨跌（联网自动计算，缺数据不显示），供历史案例后续走势参考；风险标签见各条目。仅供盘面复盘对照，不构成投资建议。历史案例存在样本偏差（仅收录满足特定筛选条件的行情），不能预判未来行情。</div>
     </div>
 
-    <div class="card" id="recapCard" style="display:none">
+    <div class="card tr" id="recapCard" style="display:none">
       <h3>收盘复盘 <span class="tag" id="recapdate">--</span><button class="fbtn" id="recapCopy" style="float:right;margin-top:-1px">📋 复盘+策略</button></h3>
       <div id="recapBody"></div>
       <!-- n1: AI 策略输出区块（复用打分/价位/一票否决变量，不新增计算） -->
@@ -1833,13 +1852,13 @@ window.__TRAE_PUSH_INLINE__={
     </div>
 
     <!-- n2: AI 交易策略输出（live/close 双模式均显示，不依赖收盘复盘卡片；底层逻辑复用 renderStrategy，不新增计算规则） -->
-    <div class="card" id="stratCard">
+    <div class="card ts" id="stratCard">
       <h3>🤖 AI 交易策略输出 <span class="tag" id="stratTag">--</span><button class="fbtn" id="stratCopy" style="float:right;margin-top:-1px">📋 复制策略</button></h3>
       <div id="stratBody"></div>
     </div>
 
     <!-- n10: 交易日志（人工录入每笔交易 + 自动统计胜率/盈亏比/期望值 + 规则化 AI 错误复盘；纯展示层模块，不参与打分/评级） -->
-    <div class="card" id="journalCard">
+    <div class="card tr" id="journalCard">
       <h3>📓 交易日志 · AI 自动复盘 <span class="tag" id="jTag">0 笔</span><button class="fbtn" id="jFoldBtn" style="float:right;margin-top:-1px">▾ 展开</button></h3>
       <div id="jFold" style="display:none">
       <div class="inp">
@@ -1866,14 +1885,14 @@ window.__TRAE_PUSH_INLINE__={
     </div>
 
     <!-- n3: Chart.js 简易K线速览（5分钟K线+成交量柱，纯可视化不参与计算；CDN加载失败自动隐藏） -->
-    <div class="card" id="cjsCard" style="display:none">
+    <div class="card tm" id="cjsCard" style="display:none">
       <h3>5分钟K线速览 <span class="tag">Chart.js · 近60根</span></h3>
       <div style="height:280px;position:relative"><canvas id="chartjs5m"></canvas></div>
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">红=涨 / 绿=跌（量柱同色），黄线为收盘价参考；量柱见底部下轴。仅作速览，精确看盘请用上方主图（自研渲染，无外部依赖）。</div>
     </div>
 
     <!-- n5: 历史策略回查（localStorage 每日自动存档，支持导出JSON/清空） -->
-    <div class="card" id="histCard" style="display:none">
+    <div class="card tr" id="histCard" style="display:none">
       <h3>历史策略回查 <span class="tag" id="histTag">0 条</span>
         <button class="fbtn" id="histExport" style="float:right;margin-top:-1px">⤓ 导出JSON</button>
         <button class="fbtn" id="histClear" style="float:right;margin-top:-1px;margin-right:6px">🗑 清空</button></h3>
@@ -1881,8 +1900,8 @@ window.__TRAE_PUSH_INLINE__={
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">每个交易日收盘复盘时自动存档当日研判与策略（同日刷新覆盖，最多保留 90 条），保存在本机浏览器中，不上传任何服务器。</div>
     </div>
 
-    <div class="card">
-      <h3>现货基本面 · 人工输入 <span class="tag">半量化人工因子</span></h3>
+    <div class="card tg">
+      <h3>现货基本面 · 人工录入 <span class="tag">半量化人工因子</span></h3>
       <div class="inp">
         <div><label>今日现货均价（元/斤）</label><input id="spotToday" type="number" step="0.01" placeholder="如 5.27"></div>
         <div><label>昨日现货均价（元/斤）</label><input id="spotYest" type="number" step="0.01" placeholder="如 5.65"></div>
@@ -1899,7 +1918,7 @@ window.__TRAE_PUSH_INLINE__={
     </div>
 
     <!-- n4: 行情API接入预留接口（默认走内置新浪源；配置自定义源后自动拉取覆盖S.bars，无需手动填数） -->
-    <div class="card" id="apiCard">
+    <div class="card tg" id="apiCard">
       <h3>行情数据源 · API 接入 <span class="tag">预留接口</span></h3>
       <div class="inp">
         <div style="grid-column:1/-1"><label>数据源</label>
@@ -1917,7 +1936,7 @@ window.__TRAE_PUSH_INLINE__={
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px;line-height:1.7">返回需为 JSON 数组，每根K线一个对象；字段名兼容 <b>d/date/time</b>（日期串或秒/毫秒时间戳）、<b>o/open · h/high · l/low · c/close · v/volume · p/oi/open_interest</b>，自动经统一管线（toBars）清洗后写入 K线数据。配置后每个数据周期自动同步（60秒一次，与主流程同频），失败时静默保留内置源数据。跨域限制：目标接口需允许 CORS，否则请经自建代理转发。</div>
     </div>
 
-    <div class="card">
+    <div class="card tm">
       <h3>风险提示 <span class="tag" id="risktag">--</span></h3>
       <div class="sec" id="riskBody">--</div>
     </div>
@@ -4608,6 +4627,34 @@ function bindUI(){
   restartTimers();
   /* 模式可能在运行中切换（开盘/收盘跨越），每分钟检测 */
   setInterval(()=>{ const m=S.mode; detectMode(); if(m!==S.mode) restartTimers(); tagStaleSandbox(); }, 30000);
+})();
+</script>
+<!-- n21: 底部Tab分区导航（仅窄屏显示；纯布局层，不动任何数据链路/功能ID） -->
+<nav id="tabbar">
+  <button data-tab="market" class="on">盘面</button>
+  <button data-tab="judge">研判</button>
+  <button data-tab="strat">策略</button>
+  <button data-tab="recap">复盘</button>
+  <button data-tab="set">设置</button>
+</nav>
+<script>
+/* n21: Tab 分区切换 —— 每区单一滚动上下文；localStorage(semi_tab) 记忆上次分区；切回盘面强制K线重排重绘（隐藏期间canvas尺寸为0） */
+(function(){
+  var TABS=['market','judge','strat','recap','set'], KEY='semi_tab';
+  function apply(t,isUser){
+    if(TABS.indexOf(t)<0)t='market';
+    document.body.setAttribute('data-tab',t);
+    try{localStorage.setItem(KEY,t)}catch(e){}
+    var bs=document.querySelectorAll('#tabbar button');
+    for(var i=0;i<bs.length;i++)bs[i].classList.toggle('on',bs[i].getAttribute('data-tab')===t);
+    if(isUser)window.scrollTo(0,0);
+    if(t==='market'&&typeof chart!=='undefined'&&chart&&chart.cv)chart.resize();
+  }
+  document.getElementById('tabbar').addEventListener('click',function(e){
+    var b=e.target.closest('button[data-tab]'); if(b)apply(b.getAttribute('data-tab'),true);
+  });
+  var saved=null; try{saved=localStorage.getItem(KEY)}catch(e){}
+  apply(saved||'market',false);
 })();
 </script>
 </body>
