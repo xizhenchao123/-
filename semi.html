@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>JD2611 半量化研判系统 · 手机离线版</title>
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
+<!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -55,7 +56,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;padding:10p
 .card h3{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .card h3 .tag{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--faint);font-weight:400}
 /* ---------- chart ---------- */
-#chartcard{display:flex;flex-direction:column;min-height:480px}
+#chartcard{display:flex;flex-direction:column;min-height:480px;max-height:560px;align-self:start;position:sticky;top:10px} /* n18: 桌面双栏下K线限高不再随右列拉伸+吸顶 */
 .tftabs{display:flex;gap:6px;margin-left:auto}
 .tftabs button,.zbtn{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
 .tftabs button.on{color:var(--gold);border-color:rgba(240,185,11,.45);background:rgba(240,185,11,.08);font-weight:700}
