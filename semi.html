@@ -9,6 +9,7 @@
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
 <!-- n19: 主力换月 JD2611→JD2612；内联种子换 TDX 2612 真实数据（日线60根+当日5m实行情）；持仓排行暂缺自动降级；旧localStorage合约一次性迁移 -->
 <!-- n21: 手机版底部Tab分区导航（盘面/研判/策略/复盘/设置 五区）：每区单一滚动上下文，卡片内嵌滚动区窄屏取消改自然高度，免责声明条改文档流尾随；桌面双栏布局不变；K线切回盘面自动重绘；LS记忆上次分区(semi_tab) -->
+<!-- n22: 盘面残影修复：draw()改全背板清除（容器尺寸漂移后旧布局残留区外与当前布局叠加的bug）；移动端K线卡取消吸顶（不再滑入粘性header下方）+画布固定高430px杜绝尺寸漂移；window resize联动重排 -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -158,6 +159,8 @@ table.lvl td b{color:var(--txt)}
   body[data-tab="recap"] main .card:not(.tr){display:none!important}
   body[data-tab="set"] main .card:not(.tg){display:none!important}
   body[data-tab="strat"] #stratCard{order:-1} /* 策略区：AI策略输出置顶（flex order，不动DOM） */
+  #chartcard{position:static;max-height:none} /* n22: 移动端取消吸顶——吸顶图会滑入粘性header下方，且与后续卡片产生叠压观感 */
+  #chartwrap{height:430px;min-height:0;flex:none} /* n22: 画布固定高——杜绝h3换行/标签文案变化引起的容器高度漂移残影 */
 }
 </style>
 <script>
@@ -3219,6 +3222,7 @@ const chart = {
     const wrap=$('chartwrap');
     const ro=new ResizeObserver(()=>this.resize());
     ro.observe(wrap);
+    window.addEventListener('resize',()=>this.resize()); /* n22: 窗口尺寸/旋转/缩放联动重排 */
     this.resize();
     this.cv.addEventListener('mousemove',e=>{ const r=this.cv.getBoundingClientRect(); this.hover={x:e.clientX-r.left,y:e.clientY-r.top}; this.draw(); this.showTip(); });
     this.cv.addEventListener('mouseleave',()=>{ this.hover=null; $('tip').style.display='none'; this.draw(); });
@@ -3249,7 +3253,7 @@ const chart = {
   },
   draw(){
     const ctx=this.ctx; if(!ctx) return;
-    ctx.clearRect(0,0,this.w,this.h);
+    ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,this.cv.width,this.cv.height);ctx.restore(); /* n22: 全背板清除——修复容器高度漂移后旧布局残影与当前布局叠加 */
     const L=this.layout();
     ctx.fillStyle=C.bg; ctx.fillRect(0,0,this.w,this.h);
     const bars=this.bars;
