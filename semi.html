@@ -6,6 +6,7 @@
 <title>JD2612 半量化研判系统 · 手机离线版</title>
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
+<!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
 <!-- n19: 主力换月 JD2611→JD2612；内联种子换 TDX 2612 真实数据（日线60根+当日5m实行情）；持仓排行暂缺自动降级；旧localStorage合约一次性迁移 -->
 <style>
 :root{
@@ -63,7 +64,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;padding:10p
 .tftabs button.on{color:var(--gold);border-color:rgba(240,185,11,.45);background:rgba(240,185,11,.08);font-weight:700}
 .zbtn{padding:2px 9px;font-size:13px}
 #chartwrap{position:relative;flex:1;min-height:400px}
-#chart{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+#chart{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:pan-y}
 #tip{position:absolute;pointer-events:none;background:rgba(14,19,29,.95);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.7;color:var(--dim);display:none;z-index:5;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5)}
 #tip b{color:var(--txt)}
 #chartfoot{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--faint);padding-top:6px;border-top:1px solid var(--line);margin-top:6px}
