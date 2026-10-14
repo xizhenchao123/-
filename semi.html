@@ -10,6 +10,7 @@
 <!-- n19: 主力换月 JD2611→JD2612；内联种子换 TDX 2612 真实数据（日线60根+当日5m实行情）；持仓排行暂缺自动降级；旧localStorage合约一次性迁移 -->
 <!-- n21: 手机版底部Tab分区导航（盘面/研判/策略/复盘/设置 五区）：每区单一滚动上下文，卡片内嵌滚动区窄屏取消改自然高度，免责声明条改文档流尾随；桌面双栏布局不变；K线切回盘面自动重绘；LS记忆上次分区(semi_tab) -->
 <!-- n22: 盘面残影修复：draw()改全背板清除（容器尺寸漂移后旧布局残留区外与当前布局叠加的bug）；移动端K线卡取消吸顶（不再滑入粘性header下方）+画布固定高430px杜绝尺寸漂移；window resize联动重排 -->
+<!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -3034,6 +3035,39 @@ function rrCalc(A){
   return out;
 }
 
+/* ---- ⑥ 日内顺势破位跟进口径（n23：回测验证的主打法——方向过滤是核心edge：前日|涨跌|≥0.5%顺势日 S1破位跟进；TP1.2×ATR/SL1.5×ATR/45m时间止损/14:15停新仓/不隔夜。仅供策略卡输出，不改评级/打分/一票否决） ---- */
+function intradayBP(A){
+  const out={ on:false, dir:null, prevChg:null, trig:null, zoneW:0, breakTxt:'', downgrade:false, cutoff:false, inZone:false, entry:null, stop:null, target:null, why:[] };
+  if(!A||!S.live) return out;
+  const atrD=A.d.atr||50;
+  out.zoneW=0.3*atrD;
+  const today=bjStr(bj());
+  const past=S.bars.d.filter(b=>bjStr(new Date(b.t))<today);
+  const prev=past[past.length-1], prev2=past[past.length-2];
+  if(!prev||!prev2||!prev.c||!prev2.c){ out.why.push('日线样本不足：方向过滤无法计算'); return out; }
+  out.prevChg=(prev.c-prev2.c)/prev2.c*100;
+  /* 方向过滤（回测核心edge）：前日|涨跌|≥0.5% → 顺势积极日；小阴小阳/十字星 → 日内轻仓或不做 */
+  if(!isFinite(out.prevChg)||Math.abs(out.prevChg)<0.5){ out.why.push('前日涨跌 '+(isFinite(out.prevChg)?out.prevChg.toFixed(2)+'%':'--')+'（|涨跌|<0.5% 小阴小阳）：历史回测该状态下日内无稳定edge，轻仓或不做'); return out; }
+  out.dir=out.prevChg>0?'多':'空'; out.on=true;
+  /* 触发位：顺势方向的前日极值与区间边界取外侧；跟进区 ±0.3×ATR日 */
+  const upLvl=Math.max(prev.h, A.res[0]?A.res[0].price:0);
+  const dnLvl=Math.min(prev.l, A.sup[0]?A.sup[0].price:1e9);
+  out.trig=out.dir==='多'?upLvl:dnLvl;
+  const price=S.live.price;
+  out.inZone=out.dir==='多'?(price>=out.trig&&price<=out.trig+out.zoneW):(price<=out.trig&&price>=out.trig-out.zoneW);
+  out.entry=price; out.stop=out.dir==='多'?price-1.5*atrD:price+1.5*atrD; out.target=out.dir==='多'?price+1.2*atrD:price-1.2*atrD;
+  /* 突破防抖状态（复用 detectValidBreak 结果） */
+  const vb=(A.validBreaks||[]).find(v=>Math.abs(v.level-out.trig)<1.5);
+  out.breakTxt=vb?(vb.confirmed?'已确认（防抖通过）':(vb.pending?'待确认：下一根5分钟收盘站稳 '+out.trig.toFixed(0)+' 才有效':'刺破未确认')):'尚未突破';
+  /* 降级规则：前日大阳(≥1%)+今日未高开 → 多单轻仓或等回踩（空头对称） */
+  const todayBar=S.bars.d.find(b=>bjStr(new Date(b.t))===today);
+  const todayOpen=todayBar?todayBar.o:(S.live.dayOpen!=null?S.live.dayOpen:null);
+  out.downgrade=(out.dir==='多'&&out.prevChg>=1&&todayOpen!=null&&todayOpen<=prev.c)||(out.dir==='空'&&out.prevChg<=-1&&todayOpen!=null&&todayOpen>=prev.c);
+  /* 14:15 停开新仓（仅盘中硬约束；收盘模式整体作为次日预案） */
+  const now=bj(); out.cutoff=(now.getHours()*100+now.getMinutes())>=1415&&S.mode==='live';
+  return out;
+}
+
 /* ---- 机会评级 A/B/C/D ---- */
 function gradeABCD(A){
   const g={ grade:'C', why:[] };
@@ -3946,12 +3980,16 @@ function renderStrategy(){
   if(!A){ el.innerHTML=''; $('stratTag').textContent='--'; return; }
   const gr=A.grade?A.grade.grade:'--';
   const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
-  /* ① 行情定性：一票否决 > 连亏纪律 > 盈亏比不足(直接不建议开仓) > 评级+盈亏比达标 > 观望 */
+  /* ① 行情定性：一票否决 > 连亏纪律 > 日内顺势跟进(n23回测口径) > 盈亏比达标 > 等待触发/不建议 > 观望 */
   let side, sideC, qualNote='';
+  const BP=intradayBP(A);
   if(A.veto.length){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='触发一票否决（硬阻断优先于打分）：'+A.veto[0]+(A.veto.length>1?' 等 '+A.veto.length+' 项':''); }
   else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
-  else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.2R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
+  else if(BP.on&&BP.inZone&&BP.cutoff){ side='顺势窗口已关闭'; sideC='var(--warn)'; qualNote='14:15 后停开新仓（日内纪律）：'+BP.dir+'向触发位 '+BP.trig.toFixed(0)+' 仍在跟进区内，仅观察不再跟进'; }
+  else if(BP.on&&BP.inZone){ side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'破位跟进'); sideC=BP.dir==='多'?C.up:C.dn; qualNote='前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：'+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':''); }
   else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
+  else if(R&&!R.pass&&BP.on){ side='等待突破触发'; sideC='var(--warn)'; qualNote='前日 '+BP.prevChg.toFixed(2)+'% 顺势日：当前区间内盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 不划算，等 '+BP.dir+'向触到 '+BP.trig.toFixed(0)+'（跟进区 ±'+BP.zoneW.toFixed(0)+' 点）再按顺势口径评估'; }
+  else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.2R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
   else { side='观望'; sideC='var(--dim)'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':'')+'，未达执行标准'; }
   $('stratTag').textContent=side; $('stratTag').style.color=sideC;   /* n2: 标题区显示行情定性 */
   const rows=[];
@@ -3969,6 +4007,12 @@ function renderStrategy(){
     rows.push(`<tr><td><b>预估盈亏比</b></td><td><b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b>${R.pass?'　<span style="color:var(--ok)">≥1.2R 达标</span>':'　<span style="color:var(--risk)">&lt;1.2R，位置/空间不划算，不推荐开仓</span>'}</td></tr>`);
   }else{
     rows.push(`<tr><td><b>交易参数</b></td><td><span style="color:var(--dim)">支撑压力区间不完整，入场/止损/目标暂无法计算。</span></td></tr>`);
+  }
+  /* n23 日内顺势口径明细（回测S1打法，不参与打分/评级） */
+  if(BP.on){
+    rows.push(`<tr><td><b>日内顺势口径</b><br><span style="font-weight:400;color:var(--faint)">回测S1 · 破位跟进</span></td><td>前日涨跌 <b class="num">${BP.prevChg.toFixed(2)}%</b>（|涨跌|≥0.5%=顺势积极日）· ${BP.dir}向触发位 <b class="num">${BP.trig.toFixed(0)}</b>（前日${BP.dir==='多'?'高点':'低点'}与区间${BP.dir==='多'?'压力':'支撑'}取${BP.dir==='多'?'高':'低'}）· 跟进区 ±${BP.zoneW.toFixed(0)} 点${BP.inZone?'<b style="color:var(--gold)">（当前已入跟进区）</b>':''}<br>触发后纪律：止损 1.5×ATR日 · 止盈 1.2×ATR日达标即走 · 45分钟未走出0.3×ATR时间止损 · 14:15停新仓 · 不隔夜${BP.breakTxt?'<br>突破状态：'+esc(BP.breakTxt):''}${BP.downgrade?'<br><b style="color:var(--warn)">⚠ 降级规则：前日大阳(≥1%)+今日未高开 → 轻仓或等回踩</b>':''}${S.mode==='close'?'<br><span style="color:var(--faint)">当前为收盘复盘模式：以上作为次日预案参考</span>':''}</td></tr>`);
+  }else if(BP.why.length){
+    rows.push(`<tr><td><b>日内顺势口径</b><br><span style="font-weight:400;color:var(--faint)">回测S1 · 方向过滤</span></td><td><span style="color:var(--dim)">${esc(BP.why[0])}</span></td></tr>`);
   }
   /* ② 建议仓位：评级纪律映射（连亏2笔减半 / 3笔锁仓） */
   const half=s=>(S.losses&&S.losses.n===2)?`（连亏2笔，仓位减半→${s}）`:'';
@@ -4025,9 +4069,12 @@ function renderStrategy(){
         const gr=A.grade?A.grade.grade:'--';
         const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
         let side, qualNote='';
+        const BPs=intradayBP(A);
         if(A.veto.length){ side='观望 · 禁止开仓'; qualNote='触发一票否决：'+A.veto[0]; }
         else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓'; }
+        else if(BPs.on&&BPs.inZone){ side='顺势跟进参考'+(BPs.downgrade?'（降级轻仓）':''); qualNote='前日 '+BPs.prevChg.toFixed(2)+'% 顺势日·S1口径：'+BPs.dir+'向触发 '+BPs.trig.toFixed(0); }
         else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 达标'; }
+        else if(R&&!R.pass&&BPs.on){ side='等待突破触发'; qualNote='前日 '+BPs.prevChg.toFixed(2)+'% 顺势日：'+BPs.dir+'向触发位 '+BPs.trig.toFixed(0); }
         else { side='观望'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':''); }
         let posTxt;
         if(A.veto.length) posTxt='0%（一票否决）';
