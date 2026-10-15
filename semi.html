@@ -13,6 +13,7 @@
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
 <!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
+<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -1712,6 +1713,17 @@ window.__TRAE_PUSH_INLINE__={
 
 <div id="chips"></div>
 <div class="errbox" id="errbox"></div>
+
+<!-- n27: 方向总纲置顶横幅：多/空信号票箱汇总（复用biasSummary口径，renderStrategy同帧更新） -->
+<div class="card" id="biasBanner" style="display:none;margin:10px 12px 0">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-weight:800;font-size:13px">🎯 方向总纲</span>
+    <b id="biasSide" class="num" style="font-size:18px">--</b>
+    <span id="biasTagL" class="tag" style="display:none">多 0 票</span>
+    <span id="biasTagS" class="tag" style="display:none">空 0 票</span>
+  </div>
+  <div id="biasWhy" style="margin-top:6px;font-size:11px;color:var(--faint);line-height:1.6"></div>
+</div>
 
 <!-- 评级横幅卡片（k1-3）：综合得分 / 机会评级 / 一票否决状态 -->
 <div class="card" id="gradeBanner" style="display:none;margin:10px 12px 0">
@@ -4007,7 +4019,7 @@ function renderRecap(){
 function renderStrategy(){
   const el=$('stratBody'); const A=S.A;
   /* n2: 移除 live 模式拦截，策略输出在 live/close 双模式下均显示 */
-  if(!A){ el.innerHTML=''; $('stratTag').textContent='--'; return; }
+  if(!A){ el.innerHTML=''; $('stratTag').textContent='--'; const _bb=$('biasBanner'); if(_bb) _bb.style.display='none'; return; }   /* n27: 无数据时顶部横幅同步隐藏 */
   const gr=A.grade?A.grade.grade:'--';
   const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
   /* ① 行情定性：一票否决 > 连亏纪律 > 日内顺势跟进(n23回测口径) > 盈亏比达标 > 等待触发/不建议 > 观望 */
@@ -4028,6 +4040,16 @@ function renderStrategy(){
   const BIAS=biasSummary(A,BP);
   const bCls=BIAS.side.indexOf('偏多')>=0?C.up:(BIAS.side.indexOf('偏空')>=0?C.dn:'var(--dim)');
   rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
+  /* n27: 顶部方向总纲横幅——与策略卡共用同一BIAS对象同帧写入（零口径差），全Tab常显 */
+  (function(){
+    const bb=$('biasBanner'); if(!bb) return;
+    $('biasSide').textContent='今日'+BIAS.side; $('biasSide').style.color=bCls;
+    const tl=$('biasTagL'), ts=$('biasTagS');
+    tl.style.display=BIAS.long>0?'':'none'; tl.textContent='多 '+BIAS.long+' 票';
+    ts.style.display=BIAS.short>0?'':'none'; ts.textContent='空 '+BIAS.short+' 票';
+    $('biasWhy').innerHTML=BIAS.votes.length?BIAS.votes.map(v=>'『'+esc(v[0])+'』'+esc(v[1])).join('；')+'。<br>':'';
+    $('biasWhy').innerHTML+='方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓以"策略"Tab行情定性＋一票否决为准。';
+  })();
   rows.push(`<tr><td><b>行情定性</b></td><td><b style="color:${sideC}">${side}</b>　<span style="color:var(--faint)">${qualNote}</span></td></tr>`);
   /* n10 醒目警告条：盈亏比低于 1.2R 阈值 → 顶部大字提示不建议开仓（展示层，不改评级） */
   if(R&&!R.pass&&!(BP.on&&(BP.inZone||BP.past))){
