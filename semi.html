@@ -1843,6 +1843,7 @@ window.__TRAE_PUSH_INLINE__={
     <div class="card tr" id="caseCard">
       <h3>📚 历史案例库 <span class="tag" id="caseCount">--</span><span id="caseFoldBtn" style="float:right;cursor:pointer;color:var(--faint);font-size:11px;font-weight:400">▸ 展开</span></h3>
       <div id="caseFold" style="display:none">
+      <div id="caseStats"></div>
       <div id="caseSim"></div>
       <div id="caseFilters"></div>
       <div id="caseList" style="max-height:300px;overflow-y:auto"></div>
@@ -4243,10 +4244,42 @@ function caseSimRows(){
 }
 let caseFilter='全部', caseKey='';
 const CASE_FILTERS=['全部','吸筹','拉升','派发','砸盘','空头回补','多头离场','涨跌停','巨量','仓变','宽幅','时段巨量','开盘冲击','量大价不动','一票否决','本机'];
+/* n26: 案例库聚合统计卡——纯展示汇总，回应"有案例无统计"：按行为/异动类型分组，次日表现取JD0主连真实数据（缺失不显示，绝不编造），不新增行情计算 */
+function renderCaseStats(){
+  const el=$('caseStats'); if(!el) return;
+  const nxOf=d=>(_jd0Map&&_jd0Map.get(d)!=null)?_jd0Map.get(d):null;
+  const sgn=v=>v>0?'+':''+v;
+  const cell=(v,up)=>v==null?'<td style="color:var(--faint)">—</td>':`<td><b style="color:${up!=null?(up?'var(--up)':'var(--dn)'):'var(--txt)'}">${sgn(v)}</b></td>`;
+  const grp=rows=>{ const has=rows.filter(r=>r.nx!=null); return { n:rows.length, nHas:has.length,
+    ax:rows.length?+(rows.reduce((a,r)=>a+(r.x||0),0)/rows.length).toFixed(1):null,
+    nx:has.length?+(has.reduce((a,b)=>a+b.nx,0)/has.length).toFixed(1):null,
+    up:has.length?Math.round(100*has.filter(r=>r.nx>0).length/has.length):null }; };
+  let html='<div class="simrow" style="margin-bottom:8px"><b>案例库统计总览</b>（机械阈值筛选的极端日样本，非随机样本；n过小的行无统计意义，仅供复盘对照）'+
+    (_jd0Map?'':'<br><span style="color:var(--faint)">次日数据联网获取后自动补充。</span>')+
+    '<table class="lvl" style="margin-top:6px"><tr><th>日线行为(主连)</th><th>笔数</th><th>当日均涨跌%</th><th>次日均%</th><th>次日上涨占比</th></tr>';
+  for(const b of ['吸筹','拉升','派发','砸盘','空头回补','多头离场']){
+    const g=grp(CASE_LIB.D.filter(c=>c[5]===b).map(c=>({x:c[1],nx:nxOf(c[0])})));
+    if(!g.n) continue;
+    html+=`<tr><td><b>${b}</b></td><td>${g.n}</td>${cell(g.ax,g.ax!=null?g.ax>=0:null)}${cell(g.nx,g.nx!=null?g.nx>=0:null)}<td>${g.up==null?'—':g.up+'%'}<span style="color:var(--faint)">(n${g.nHas})</span></td></tr>`;
+  }
+  const tagMap={};
+  for(const c of CASE_LIB.I) for(const t of (c[2]||[])) (tagMap[t]=tagMap[t]||[]).push(c[0]);
+  const iRows=Object.keys(tagMap).sort((a,b)=>tagMap[b].length-tagMap[a].length);
+  if(iRows.length){
+    html+='</table><table class="lvl" style="margin-top:6px"><tr><th>日内异动(26年4-9月)</th><th>次数</th><th>次日均%</th><th>次日上涨占比</th></tr>';
+    for(const t of iRows){
+      const g=grp(tagMap[t].map(d=>({x:0,nx:nxOf(d)})));
+      html+=`<tr><td><b>${t}</b></td><td>${g.n}</td>${cell(g.nx,g.nx!=null?g.nx>=0:null)}<td>${g.up==null?'—':g.up+'%'}<span style="color:var(--faint)">(n${g.nHas})</span></td></tr>`;
+    }
+  }
+  html+='</table></div>';
+  el.innerHTML=html;
+}
 function renderCases(){
   const uc=userCases();
   const total=CASE_LIB.D.length+CASE_LIB.I.length+uc.length;
   $('caseCount').textContent=total+' 条';
+  renderCaseStats();                                  /* n26: 统计总览（放在缓存判断前，JD0数据到达后必刷新） */
   const key=[S.mode,caseFilter,uc.length,S.recap?S.recap.day:''].join('#');
   if(key===caseKey) return;                        /* 内容未变不重绘（保留滚动位置） */
   caseKey=key;
