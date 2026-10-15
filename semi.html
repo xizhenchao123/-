@@ -12,6 +12,7 @@
 <!-- n22: 盘面残影修复：draw()改全背板清除（容器尺寸漂移后旧布局残留区外与当前布局叠加的bug）；移动端K线卡取消吸顶（不再滑入粘性header下方）+画布固定高430px杜绝尺寸漂移；window resize联动重排 -->
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
+<!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -3072,6 +3073,30 @@ function intradayBP(A){
   return out;
 }
 
+/* n25 方向总纲：既有方向性信号的透明票箱汇总（不新增计算指标，只做加总） */
+function biasSummary(A,BP){
+  const out={long:0,short:0,votes:[],side:'中性'};
+  if(!A) return out;
+  const M=A.mtf||{};
+  if(M.d==='up'&&M.h1==='up'){ out.long++; out.votes.push(['多周期共振','日线+60分钟同向向上']); }
+  else if(M.d==='down'&&M.h1==='down'){ out.short++; out.votes.push(['多周期共振','日线+60分钟同向向下']); }
+  else out.votes.push(['多周期共振','日线/60分钟方向分歧，弃权']);
+  const beh=(A.wy&&A.wy.behavior)||'';
+  if(/吸筹|拉升/.test(beh)){ out.long++; out.votes.push(['量仓行为',beh+'：资金面偏多']); }
+  else if(/砸盘|派发/.test(beh)){ out.short++; out.votes.push(['量仓行为',beh+'：资金面偏空']); }
+  else if(beh) out.votes.push(['量仓行为',beh+'：方向性不明确，弃权']);
+  const fu=(A.fu&&A.fu.verdict)||'';
+  if(/利多|偏多/.test(fu)){ out.long++; out.votes.push(['现货供需',fu]); }
+  else if(/利空|偏空/.test(fu)){ out.short++; out.votes.push(['现货供需',fu]); }
+  if(BP&&BP.on){
+    if(BP.dir==='多'){ out.long+=2; out.votes.push(['动量过滤','前日+'+BP.prevChg.toFixed(2)+'%顺势日（回测核心edge，×2权重）']); }
+    else { out.short+=2; out.votes.push(['动量过滤','前日'+BP.prevChg.toFixed(2)+'%顺势日（回测核心edge，×2权重）']); }
+  } else if(BP&&BP.why&&BP.why.length){ out.votes.push(['动量过滤','小阴小阳无方向edge，弃权']); }
+  const net=out.long-out.short;
+  out.side= net>=2?'偏多':(net<=-2?'偏空':(net===1?'略偏多':(net===-1?'略偏空':'中性震荡')));
+  return out;
+}
+
 /* ---- 机会评级 A/B/C/D ---- */
 function gradeABCD(A){
   const g={ grade:'C', why:[] };
@@ -3998,6 +4023,10 @@ function renderStrategy(){
   else { side='观望'; sideC='var(--dim)'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':'')+'，未达执行标准'; }
   $('stratTag').textContent=side; $('stratTag').style.color=sideC;   /* n2: 标题区显示行情定性 */
   const rows=[];
+  /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差≥2偏多/偏空 */
+  const BIAS=biasSummary(A,BP);
+  const bCls=BIAS.side.indexOf('偏多')>=0?C.up:(BIAS.side.indexOf('偏空')>=0?C.dn:'var(--dim)');
+  rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
   rows.push(`<tr><td><b>行情定性</b></td><td><b style="color:${sideC}">${side}</b>　<span style="color:var(--faint)">${qualNote}</span></td></tr>`);
   /* n10 醒目警告条：盈亏比低于 1.2R 阈值 → 顶部大字提示不建议开仓（展示层，不改评级） */
   if(R&&!R.pass&&!(BP.on&&(BP.inZone||BP.past))){
@@ -4087,6 +4116,8 @@ function renderStrategy(){
         else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 达标'; }
         else if(R&&!R.pass&&BPs.on){ side='等待突破触发'; qualNote='前日 '+BPs.prevChg.toFixed(2)+'% 顺势日：'+BPs.dir+'向触发位 '+BPs.trig.toFixed(0); }
         else { side='观望'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':''); }
+        const BIASm=biasSummary(A,BPs);   /* n25 存档带方向总纲 */
+        if(BIASm.side!=='中性') side='【今日'+BIASm.side+'】'+side;
         let posTxt;
         if(A.veto.length) posTxt='0%（一票否决）';
         else if(S.losses&&S.losses.n>=3) posTxt='0%（连亏'+S.losses.n+'笔锁仓）';
