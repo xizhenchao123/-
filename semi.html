@@ -13,7 +13,7 @@
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
 <!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
-<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession -->
+<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -2080,11 +2080,12 @@ function jsonp(service, params, timeoutMs=9000){
 function toBars(raw, cap){
   const out=[];
   for(const r of raw){
-    const ds=String(r.d);
-    const iso = ds.indexOf(' ')>=0 ? ds.replace(' ','T') : ds+'T00:00:00';
-    const t = Date.parse(iso+'+08:00');
+    /* n30: 修复 d=0 bug——normalizeRaw 通道只回 t 不回 d，toBars 原 String(r.d)=undefined→NaN 全丢弃；现补 t 直读通道 */
+    let t=NaN;
+    if(r.d!=null){ const ds=String(r.d); const iso = ds.indexOf(' ')>=0 ? ds.replace(' ','T') : ds+'T00:00:00'; t=Date.parse(iso+'+08:00'); }
+    else if(r.t!=null){ t=+r.t; }
     if(isNaN(t)) continue;
-    const b = { t, o:+r.o, h:+r.h, l:+r.l, c:+r.c, v:+r.v, oi:+(r.p||0) };
+    const b = { t, o:+r.o, h:+r.h, l:+r.l, c:+r.c, v:+r.v, oi:+(r.p||r.oi||0) };   /* n30: 兼容 normalizeRaw 的 oi 字段名 */
     if(r.s>0) b.s = +r.s;
     if(b.h>0 && b.l>0) out.push(b);
   }
