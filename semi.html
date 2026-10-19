@@ -4301,7 +4301,8 @@ function sigStats(){
     cCache[day]=v; return v; };
   const px45=(t,day)=>{ const target=t+45*60*1000;
     for(let i=0;i<S.bars.m5.length;i++){ const b=S.bars.m5[i]; const ds=bjStr(new Date(b.t));
-      if(ds<day) break; if(ds>day) continue;
+      if(ds<day) continue;   /* n32修：m5起点可早于快照日（正序遍历），跳过而非中断 */
+      if(ds>day) break;
       if(b.t+5*60*1000>=target) return b.c; }
     return null; };
   sigLoad().forEach(r=>{
