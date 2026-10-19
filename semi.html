@@ -13,7 +13,7 @@
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
 <!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
-<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 --><!-- n33: n32审查加固：sigSnapshot空catch补console.warn（写入失败不再静默）+快照价isFinite守卫（NaN/0不入库污染统计） --><!-- n34: 复盘驱动四改：①动量过滤3日累计≥1.5%备用通道（连续小阴小阳单日擦边不再漏单边，×1权重降级）②S1破位跟进态（昨收破近5日低+反抽未收复→降权顺势）③对账卡日振幅对比（有信号日vs纯观望日，检验弃权代价）④横幅中性时明示多空对冲票数；标题去"手机离线版"（实为在线降级混合架构） -->
+<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 --><!-- n33: n32审查加固：sigSnapshot空catch补console.warn（写入失败不再静默）+快照价isFinite守卫（NaN/0不入库污染统计） --><!-- n34: 复盘驱动四改：①动量过滤3日累计≥1.5%备用通道（连续小阴小阳单日擦边不再漏单边，×1权重降级）②S1破位跟进态（昨收破近5日低+反抽未收复→降权顺势）③对账卡日振幅对比（有信号日vs纯观望日，检验弃权代价）④横幅中性时明示多空对冲票数；标题去"手机离线版"（实为在线降级混合架构） --><!-- n35: n34审查修文案口径：①票箱降权通道误标"回测核心edge"→按momSrc分叉"扩样假设降级/回测核心edge" ②策略卡"破位跟进"与n23突破跟进撞词改"入场区"+降权通道qualNote不再称"顺势日（回测S1口径）"（等待触发分支同修） ③弃权文案cum3缺失改"3日累计数据不足"（不再断言未达标） -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -3103,7 +3103,7 @@ function intradayBP(A){
         out.dir='空'; out.on=true; out.momSrc='破位跟进（跌破近5日低点 '+lb.toFixed(0)+' 未收复，×1权重降级）';
         out.why.push('前日涨跌 '+out.prevChg.toFixed(2)+'% 单日无edge，但昨日收于近5日低点 '+lb.toFixed(0)+' 下方且现价反抽未收复：结构性破位，降权顺势跟进（×1权重）');
       } else {
-        out.why.push('前日涨跌 '+(isFinite(out.prevChg)?out.prevChg.toFixed(2)+'%':'--')+'（|涨跌|<0.5% 小阴小阳）'+(out.cum3!=null?'，3日累计 '+(out.cum3!=null&&isFinite(out.cum3)?out.cum3.toFixed(2)+'%':'--')+' 未达1.5%':'')+'：历史回测该状态下日内无稳定edge，轻仓或不做'); return out;
+        out.why.push('前日涨跌 '+(isFinite(out.prevChg)?out.prevChg.toFixed(2)+'%':'--')+'（|涨跌|<0.5% 小阴小阳）'+(out.cum3!=null&&isFinite(out.cum3)?'，3日累计 '+out.cum3.toFixed(2)+'% 未达1.5%':'，3日累计数据不足')+'：历史回测该状态下日内无稳定edge，轻仓或不做'); return out;   /* n35: cum3缺失时不再断言"未达1.5%" */
       }
     }
   } else { out.dir=out.prevChg>0?'多':'空'; out.on=true; out.momSrc=null; }
@@ -3145,8 +3145,8 @@ function biasSummary(A,BP){
   else if(/利空|偏空/.test(fu)){ out.short++; out.votes.push(['现货供需',fu]); }
   if(BP&&BP.on){
     const w=BP.momSrc?1:2;   /* n34: 3日累计通道扩样假设，×1权重；回测验证的单日通道保持×2 */
-    if(BP.dir==='多'){ out.long+=w; out.votes.push(['动量过滤',(BP.momSrc||('前日+'+BP.prevChg.toFixed(2)+'%顺势日'))+'（回测核心edge，×'+w+'权重）']); }
-    else { out.short+=w; out.votes.push(['动量过滤',(BP.momSrc||('前日'+BP.prevChg.toFixed(2)+'%顺势日'))+'（回测核心edge，×'+w+'权重）']); }
+    if(BP.dir==='多'){ out.long+=w; out.votes.push(['动量过滤',(BP.momSrc||('前日+'+BP.prevChg.toFixed(2)+'%顺势日'))+(BP.momSrc?'（扩样假设降级，×'+w+'权重）':'（回测核心edge，×'+w+'权重）')]); }
+    else { out.short+=w; out.votes.push(['动量过滤',(BP.momSrc||('前日'+BP.prevChg.toFixed(2)+'%顺势日'))+(BP.momSrc?'（扩样假设降级，×'+w+'权重）':'（回测核心edge，×'+w+'权重）')]); }
   } else if(BP&&BP.why&&BP.why.length){ out.votes.push(['动量过滤','单日+3日累计动量均无方向edge，弃权']); }
   const net=out.long-out.short;
   out.side= net>=2?'偏多':(net<=-2?'偏空':(net===1?'略偏多':(net===-1?'略偏空':'中性震荡')));
@@ -4097,9 +4097,9 @@ function renderStrategy(){
   else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
   else if(BP.on&&BP.past){ side='已突破跟进区 · 不追单'; sideC='var(--warn)'; qualNote=BP.dir+'向已越过跟进区远端（触发位 '+BP.trig.toFixed(0)+'，跟进区 ±'+BP.zoneW.toFixed(0)+' 点）——顺势段已走完，追单盈亏比恶化：等'+(BP.dir==='多'?'回踩':'反抽')+'跟进区再评估，勿按"等待触发"口径误判'; }
   else if(BP.on&&BP.inZone&&BP.cutoff){ side='顺势窗口已关闭'; sideC='var(--warn)'; qualNote='14:15 后停开新仓（日内纪律）：'+BP.dir+'向触发位 '+BP.trig.toFixed(0)+' 仍在跟进区内，仅观察不再跟进'; }
-  else if(BP.on&&BP.inZone){ side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'破位跟进'); sideC=BP.dir==='多'?C.up:C.dn; qualNote='前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：'+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':''); }
+  else if(BP.on&&BP.inZone){ side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'入场区'); sideC=BP.dir==='多'?C.up:C.dn; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：')+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':''); }   /* n35: "破位跟进"撞词改"入场区"，降权通道不称"顺势日" */
   else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
-  else if(R&&!R.pass&&BP.on){ side='等待突破触发'; sideC='var(--warn)'; qualNote='前日 '+BP.prevChg.toFixed(2)+'% 顺势日：当前区间内盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 不划算，等 '+BP.dir+'向触到 '+BP.trig.toFixed(0)+'（跟进区 ±'+BP.zoneW.toFixed(0)+' 点）再按顺势口径评估'; }
+  else if(R&&!R.pass&&BP.on){ side='等待突破触发'; sideC='var(--warn)'; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日：')+'当前区间内盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 不划算，等 '+BP.dir+'向触到 '+BP.trig.toFixed(0)+'（跟进区 ±'+BP.zoneW.toFixed(0)+' 点）再按顺势口径评估'; }
   else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.2R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
   else { side='观望'; sideC='var(--dim)'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':'')+'，未达执行标准'; }
   $('stratTag').textContent=side; $('stratTag').style.color=sideC;   /* n2: 标题区显示行情定性 */
