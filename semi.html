@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>JD2612 半量化研判系统 · 手机离线版</title>
+<title>JD2612 半量化研判系统</title>
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
@@ -13,7 +13,7 @@
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
 <!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
-<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 --><!-- n33: n32审查加固：sigSnapshot空catch补console.warn（写入失败不再静默）+快照价isFinite守卫（NaN/0不入库污染统计） -->
+<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 --><!-- n33: n32审查加固：sigSnapshot空catch补console.warn（写入失败不再静默）+快照价isFinite守卫（NaN/0不入库污染统计） --><!-- n34: 复盘驱动四改：①动量过滤3日累计≥1.5%备用通道（连续小阴小阳单日擦边不再漏单边，×1权重降级）②S1破位跟进态（昨收破近5日低+反抽未收复→降权顺势）③对账卡日振幅对比（有信号日vs纯观望日，检验弃权代价）④横幅中性时明示多空对冲票数；标题去"手机离线版"（实为在线降级混合架构） -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -3086,14 +3086,31 @@ function intradayBP(A){
   const prev=past[past.length-1], prev2=past[past.length-2];
   if(!prev||!prev2||!prev.c||!prev2.c){ out.why.push('日线样本不足：方向过滤无法计算'); return out; }
   out.prevChg=(prev.c-prev2.c)/prev2.c*100;
-  /* 方向过滤（回测核心edge）：前日|涨跌|≥0.5% → 顺势积极日；小阴小阳/十字星 → 日内轻仓或不做 */
-  if(!isFinite(out.prevChg)||Math.abs(out.prevChg)<0.5){ out.why.push('前日涨跌 '+(isFinite(out.prevChg)?out.prevChg.toFixed(2)+'%':'--')+'（|涨跌|<0.5% 小阴小阳）：历史回测该状态下日内无稳定edge，轻仓或不做'); return out; }
-  out.dir=out.prevChg>0?'多':'空'; out.on=true;
+  const price=S.live.price;   /* n34: 提前声明（破位跟进态判定需要现价） */
+  /* n34: 3日累计动量备用通道——连续小阴小阳单日擦边弃权时，累计动量仍可捕捉单边阴跌/阳涨（扩样假设，×1权重降级使用） */
+  const past3=past[past.length-4];
+  out.cum3=past3?(prev.c-past3.c)/past3.c*100:null;
+  /* 方向过滤（回测核心edge）：前日|涨跌|≥0.5% → 顺势积极日；小阴小阳/十字星 → 3日累计|≥1.5% 补位；两者都不满足 → 日内轻仓或不做 */
+  if(!isFinite(out.prevChg)||Math.abs(out.prevChg)<0.5){
+    if(out.cum3!=null&&isFinite(out.cum3)&&Math.abs(out.cum3)>=1.5){
+      out.dir=out.cum3>0?'多':'空'; out.on=true; out.momSrc='3日累计'+out.cum3.toFixed(2)+'%（单日擦边，×1权重降级）';
+      out.why.push('前日涨跌 '+out.prevChg.toFixed(2)+'%（|涨跌|<0.5% 单日无edge），但3日累计 '+out.cum3.toFixed(2)+'% 单边动量显著：降权顺势跟进（×1权重）');
+    } else {
+      /* n34-2: 破位跟进态——昨日放量跌破近5日低点+今日现价反抽未收复破位点 → 结构性单边，降权跟进（×1权重，扩样假设） */
+      const lb=Math.min(...past.slice(-5).map(b=>b.l));
+      const brokeDown=prev.c<=lb&&prev.l<=lb&&price!=null&&price<lb;   /* 昨收=近5日新低 且 现价仍压在破位下方 */
+      if(brokeDown&&Math.abs(out.cum3||0)>=1){
+        out.dir='空'; out.on=true; out.momSrc='破位跟进（跌破近5日低点 '+lb.toFixed(0)+' 未收复，×1权重降级）';
+        out.why.push('前日涨跌 '+out.prevChg.toFixed(2)+'% 单日无edge，但昨日收于近5日低点 '+lb.toFixed(0)+' 下方且现价反抽未收复：结构性破位，降权顺势跟进（×1权重）');
+      } else {
+        out.why.push('前日涨跌 '+(isFinite(out.prevChg)?out.prevChg.toFixed(2)+'%':'--')+'（|涨跌|<0.5% 小阴小阳）'+(out.cum3!=null?'，3日累计 '+(out.cum3!=null&&isFinite(out.cum3)?out.cum3.toFixed(2)+'%':'--')+' 未达1.5%':'')+'：历史回测该状态下日内无稳定edge，轻仓或不做'); return out;
+      }
+    }
+  } else { out.dir=out.prevChg>0?'多':'空'; out.on=true; out.momSrc=null; }
   /* 触发位：顺势方向的前日极值与区间边界取外侧；跟进区 ±0.3×ATR日 */
   const upLvl=Math.max(prev.h, A.res[0]?A.res[0].price:0);
   const dnLvl=Math.min(prev.l, A.sup[0]?A.sup[0].price:1e9);
   out.trig=out.dir==='多'?upLvl:dnLvl;
-  const price=S.live.price;
   out.inZone=out.dir==='多'?(price>=out.trig&&price<=out.trig+out.zoneW):(price<=out.trig&&price>=out.trig-out.zoneW);
   /* 过冲状态：价格已越过跟进区远端（突破后走出>0.3×ATR）——不再按"等待触发"口径显示，防追单误导 */
   out.past=out.dir==='多'?price>out.trig+out.zoneW:price<out.trig-out.zoneW;
@@ -3127,9 +3144,10 @@ function biasSummary(A,BP){
   if(/利多|偏多/.test(fu)){ out.long++; out.votes.push(['现货供需',fu]); }
   else if(/利空|偏空/.test(fu)){ out.short++; out.votes.push(['现货供需',fu]); }
   if(BP&&BP.on){
-    if(BP.dir==='多'){ out.long+=2; out.votes.push(['动量过滤','前日+'+BP.prevChg.toFixed(2)+'%顺势日（回测核心edge，×2权重）']); }
-    else { out.short+=2; out.votes.push(['动量过滤','前日'+BP.prevChg.toFixed(2)+'%顺势日（回测核心edge，×2权重）']); }
-  } else if(BP&&BP.why&&BP.why.length){ out.votes.push(['动量过滤','小阴小阳无方向edge，弃权']); }
+    const w=BP.momSrc?1:2;   /* n34: 3日累计通道扩样假设，×1权重；回测验证的单日通道保持×2 */
+    if(BP.dir==='多'){ out.long+=w; out.votes.push(['动量过滤',(BP.momSrc||('前日+'+BP.prevChg.toFixed(2)+'%顺势日'))+'（回测核心edge，×'+w+'权重）']); }
+    else { out.short+=w; out.votes.push(['动量过滤',(BP.momSrc||('前日'+BP.prevChg.toFixed(2)+'%顺势日'))+'（回测核心edge，×'+w+'权重）']); }
+  } else if(BP&&BP.why&&BP.why.length){ out.votes.push(['动量过滤','单日+3日累计动量均无方向edge，弃权']); }
   const net=out.long-out.short;
   out.side= net>=2?'偏多':(net<=-2?'偏空':(net===1?'略偏多':(net===-1?'略偏空':'中性震荡')));
   return out;
@@ -4103,6 +4121,10 @@ function renderStrategy(){
     const tl=$('biasTagL'), ts=$('biasTagS');
     tl.style.display=BIAS.long>0?'':'none'; tl.textContent='多 '+BIAS.long+' 票';
     ts.style.display=BIAS.short>0?'':'none'; ts.textContent='空 '+BIAS.short+' 票';
+    /* n34-4: 中性且票数对冲归零时，明示"不是真弃权而是对冲"，防误读 */
+    if(BIAS.side==='中性震荡'&&BIAS.long>0&&BIAS.short>0){
+      $('biasSide').textContent='今日中性（对冲：多'+BIAS.long+' vs 空'+BIAS.short+'）';
+    }
     $('biasWhy').innerHTML=BIAS.votes.length?BIAS.votes.map(v=>'『'+esc(v[0])+'』'+esc(v[1])).join('；')+'。<br>':'';
     $('biasWhy').innerHTML+='方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓以"策略"Tab行情定性＋一票否决为准。';
   })();
@@ -4321,6 +4343,18 @@ function sigStats(){
       if(p4!=null){ const q=(p4-r.price)*sgn; g.p45n++; g.p45pts.push(q); if(q>0)g.p45w++; }
     });
   });
+  /* n34-3: 观望日 vs 信号日振幅对比——检验弃权阈值是否太宽（观望日振幅远大于信号日=系统失声代价） */
+  const dayAmp={};
+  const daySeen={};
+  sigLoad().forEach(r=>{ if(r.c!==S.contract) return; daySeen[r.day]=daySeen[r.day]||(!!r.dir); if(!!r.dir) daySeen[r.day]=true; });
+  const ampOf=day=>{ if(dayAmp[day]!==undefined) return dayAmp[day];
+    let v=null; for(let i=S.bars.d.length-1;i>=0;i--){ const ds=bjStr(new Date(S.bars.d[i].t));
+      if(ds===day){ const b=S.bars.d[i]; v=(b.h-b.l)/b.c*100; break; } if(ds<day) break; }
+    dayAmp[day]=v; return v; };
+  const ampSig=[],ampWatch=[];
+  Object.keys(daySeen).forEach(d=>{ const a=ampOf(d); if(a==null) return; (daySeen[d]?ampSig:ampWatch).push(a); });
+  st.amp={ sig:ampSig.length?ampSig.reduce((a,b)=>a+b,0)/ampSig.length:null, sigN:ampSig.length,
+           watch:ampWatch.length?ampWatch.reduce((a,b)=>a+b,0)/ampWatch.length:null, watchN:ampWatch.length };
   return st;
 }
 function renderSigStats(){
@@ -4351,6 +4385,7 @@ function renderSigStats(){
    row('方向总纲',st.bias,'总纲偏多/偏空（含仅总纲有方向的状态）')+
    row('执行信号',st.exec,'顺势跟进 / 盈亏比达标')+
    `</table></div>`+
+   (st.amp.sigN||st.amp.watchN?`<div style="margin-top:6px;font-size:11px;color:var(--dim)">日振幅对比（n34，检验弃权代价）：有信号日均值 <b class="num">${st.amp.sig!=null?st.amp.sig.toFixed(2)+'%':'--'}</b>（${st.amp.sigN}天）vs 纯观望日均值 <b class="num">${st.amp.watch!=null?st.amp.watch.toFixed(2)+'%':'--'}</b>（${st.amp.watchN}天）${(st.amp.watch!=null&&st.amp.sig!=null&&st.amp.watch>st.amp.sig*1.5)?' —— <b style="color:var(--risk)">观望日振幅显著更大：弃权阈值可能过宽</b>':''}</div>`:'')+
    `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">快照 ${list.length} 条（${esc(S.contract)}，仅本机浏览器localStorage，跨设备不同步为设计行为）· 待结算 ${st.pend} 条（今日盘中快照，收盘出日线后自动对赌）· 观望/无方向 ${st.watch} 条（含否决态 ${st.vetoN} 条）只存不赌 · 数据不足排除 ${st.na} 条（超出本地K线覆盖）。<br>⚠ 快照是「状态序列」非独立交易（同一趋势会连续记录多个同向状态），命中率≠实盘胜率；样本 &lt;20 条无统计意义。方向总纲为量化参考加总，非预测非指令，不构成投资建议。</div>`;
 }
 
