@@ -13,7 +13,7 @@
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
 <!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
-<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 -->
+<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 --><!-- n33: n32审查加固：sigSnapshot空catch补console.warn（写入失败不再静默）+快照价isFinite守卫（NaN/0不入库污染统计） -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -4280,14 +4280,16 @@ function sigSnapshot(A){
     else if(BIAS.side==='偏空'||BIAS.side==='略偏空') bd='空';
     const key=(dir||'-')+'|'+(src||'-')+'|'+(bd||'-')+'|'+gr+'|'+(A.veto.length?'V':'-');
     const now=Date.now();
+    const px=+S.live.price.toFixed(0);
+    if(!isFinite(px)||px<=0){ console.warn('[n32] 快照价格异常，跳过：',S.live.price); return; }   /* n33修：价格守卫 */
     const list=sigLoad();
     const last=list[list.length-1];
     if(last&&last.key===key&&now-last.t<30*60*1000) return;   /* 同态30分钟内只留一个检查点 */
-    list.push({t:now,day:bjStr(bj()),c:S.contract,price:+S.live.price.toFixed(0),key,dir,src,bd,gr,total:A.total,veto:A.veto.length?1:0,bias:BIAS.side});
+    list.push({t:now,day:bjStr(bj()),c:S.contract,price:px,key,dir,src,bd,gr,total:A.total,veto:A.veto.length?1:0,bias:BIAS.side});
     while(list.length>SIG_MAX) list.shift();
     LS.set('sigSnaps',JSON.stringify(list));
     renderSigStats();
-  }catch(e){}
+  }catch(e){ console.warn('[n32] 快照写入失败',e); }   /* n33修：不再静默 */
 }
 function sigStats(){
   const today=bjStr(bj());
