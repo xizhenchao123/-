@@ -13,7 +13,7 @@
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
 <!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
-<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） -->
+<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -1873,8 +1873,14 @@ window.__TRAE_PUSH_INLINE__={
 
     <!-- n2: AI 交易策略输出（live/close 双模式均显示，不依赖收盘复盘卡片；底层逻辑复用 renderStrategy，不新增计算规则） -->
     <div class="card ts" id="stratCard">
-      <h3>🤖 AI 交易策略输出 <span class="tag" id="stratTag">--</span><button class="fbtn" id="stratCopy" style="float:right;margin-top:-1px">📋 复制策略</button></h3>
+      <h3>🤖 AI 交易策略输出 <span class="tag" id="staleBadge" style="display:none;color:#ff8a80;border-color:#e6483d" title="日线数据未含今日且处于盘中：本卡打分/评级/否决为历史口径，非实时信号">⚠ 非实时</span><span class="tag" id="stratTag">--</span><button class="fbtn" id="stratCopy" style="float:right;margin-top:-1px">📋 复制策略</button></h3>
       <div id="stratBody"></div>
+    </div>
+
+    <!-- n32: 信号对账卡（系统信号自动快照+事后对赌统计）：纯本机localStorage，跨设备不同步为设计行为 -->
+    <div class="card tr" id="sigCard" style="display:none">
+      <h3>🧪 信号对账 · 系统自检 <span class="tag" id="sigTag">0 条快照</span></h3>
+      <div id="sigBody"></div>
     </div>
 
     <!-- n10: 交易日志（人工录入每笔交易 + 自动统计胜率/盈亏比/期望值 + 规则化 AI 错误复盘；纯展示层模块，不参与打分/评级） -->
@@ -3556,12 +3562,19 @@ function renderHeader(){
   }
   const d=bj();
   $('clock').textContent=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
-  /* n29: 分析口径新鲜度提示——日线未含今日时明确告知打分为历史口径（P0时间戳） */
+  /* n32: 分析口径新鲜度提示——拆双时间戳（日线截至X / 5分钟截至Y），混合口径如实标注 */
   (function(){ const sb=$('stalebox'); if(!sb) return;
+    const tStr=bjStr(d);
     const lastD=S.bars.d.length? bjStr(new Date(S.bars.d[S.bars.d.length-1].t)) : null;
-    const stale=lastD&&lastD!==bjStr(d)&&inSession();
+    const lastM=S.bars.m5.length? S.bars.m5[S.bars.m5.length-1] : null;
+    const m5TodayN=lastM? S.bars.m5.filter(b=>bjStr(new Date(b.t))===tStr).length : 0;
+    const m5Txt=lastM? (m5TodayN?('今日 '+fmtT(lastM.t)+'（含今日 '+m5TodayN+' 根）'):(bjStr(new Date(lastM.t))+' '+fmtT(lastM.t)+'（历史）')):'--';
+    const stale=lastD&&lastD!==tStr&&inSession();
     const pushStale=S.pushStale?('服务端推送包已停更(截至'+S.pushStale.slice(0,10)+')，已降级浏览器实时取数；'):'';
-    if(stale){ sb.style.display='block'; sb.textContent='⚠ '+pushStale+'分析K线截至 '+lastD+'（今日日线未生成）——打分/否决/研判为历史口径非实时，顶部现价为实时'; }
+    if(stale){
+      sb.style.display='block';
+      sb.textContent='⚠ '+pushStale+'分析口径为混合时点：日线截至 '+lastD+'（趋势/打分骨架为历史） / 5分钟截至 '+m5Txt+'（量仓/短线部分）——打分/否决/研判非当日完整口径，顶部现价为实时';
+    }
     else if(pushStale){ sb.style.display='block'; sb.textContent='ℹ '+pushStale; }
     else sb.style.display='none';
   })();
@@ -4055,6 +4068,9 @@ function renderStrategy(){
   /* n2: 移除 live 模式拦截，策略输出在 live/close 双模式下均显示 */
   if(!A){ el.innerHTML=''; $('stratTag').textContent='--'; const _bb=$('biasBanner'); if(_bb) _bb.style.display='none'; return; }   /* n27: 无数据时顶部横幅同步隐藏 */
   const gr=A.grade?A.grade.grade:'--';
+  /* n32: 非实时判定（与stalebox同口径）——日线未含今日且盘中 → 评级卡整组降透明度+「非实时」角标 */
+  const _dLastN=S.bars.d.length?bjStr(new Date(S.bars.d[S.bars.d.length-1].t)):null;
+  const nonLive=!!(_dLastN&&_dLastN!==bjStr(bj())&&inSession());
   const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
   /* ① 行情定性：一票否决 > 连亏纪律 > 日内顺势跟进(n23回测口径) > 盈亏比达标 > 等待触发/不建议 > 观望 */
   let side, sideC, qualNote='';
@@ -4069,6 +4085,9 @@ function renderStrategy(){
   else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.2R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
   else { side='观望'; sideC='var(--dim)'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':'')+'，未达执行标准'; }
   $('stratTag').textContent=side; $('stratTag').style.color=sideC;   /* n2: 标题区显示行情定性 */
+  /* n32: 陈旧态应用——角标+整卡降透明度（不只靠顶部黄条），恢复新鲜后自动还原 */
+  { const _sbe=$('staleBadge'); if(_sbe) _sbe.style.display=nonLive?'':'none';
+    el.style.opacity=nonLive?'0.55':''; }
   const rows=[];
   /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差≥2偏多/偏空 */
   const BIAS=biasSummary(A,BP);
@@ -4078,6 +4097,8 @@ function renderStrategy(){
   (function(){
     const bb=$('biasBanner'); if(!bb) return;
     bb.style.display='';   /* n28: 修复横幅忘记显示——内容已写入但display仍为none */
+    bb.style.opacity=nonLive?'0.55':'';   /* n32: 陈旧态横幅同步降透明度 */
+    const _gb=$('gradeBanner'); if(_gb) _gb.style.opacity=nonLive?'0.55':'';   /* n32: 评级横幅同组处理 */
     $('biasSide').textContent='今日'+BIAS.side; $('biasSide').style.color=bCls;
     const tl=$('biasTagL'), ts=$('biasTagS');
     tl.style.display=BIAS.long>0?'':'none'; tl.textContent='多 '+BIAS.long+' 票';
@@ -4150,6 +4171,9 @@ function renderStrategy(){
    `<div class="recaph" style="border-left-color:var(--purple)">🤖 AI 策略输出（评级+价位+一票否决自动生成，非交易指令）</div>`+
    `<div class="lvlwrap"><table class="lvl"><tr><th style="width:130px">项目</th><th>内容</th></tr>${rows.join('')}</table></div>`+
    `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">本区块由既有打分（总分 ${A.total}）、关键价位（支撑 ${A.sup[0]?A.sup[0].price.toFixed(0):'--'} / 压力 ${A.res[0]?A.res[0].price.toFixed(0):'--'}）与一票否决规则自动汇总生成，未新增任何计算；参数为量化参考位，是否开仓与实际执行由人工决定，盈亏自负。</div>`;
+  /* n32: 信号对账——live盘中每次渲染尝试落快照（状态变化才真正写入），并限频刷新统计卡 */
+  sigSnapshot(A);
+  { const _tn=Date.now(); if(_tn-(S._sigT||0)>30000){ S._sigT=_tn; renderSigStats(); } }
   if(S.mode==='close') saveStrategyToLS();   /* n5: 收盘复盘渲染成功后自动存档当日策略 */
 }
 /* =====================================================================
@@ -4227,6 +4251,105 @@ function renderStrategy(){
       const last=list[list.length-1];
       $('histDetail').textContent=(last.day||'')+'\n\n'+(last.recapText||'')+'\n\n'+(last.stratText||'');
     }
+
+/* =====================================================================
+ *  n32 信号对账：系统自身信号的事后对赌闭环（纯本机 localStorage，不上传）
+ *  - 快照：live盘中记录系统状态（方向总纲/执行信号/评级/否决/快照价）；
+ *    状态键变化才新增，同态30分钟一个检查点（防逐秒抖动刷库），上限250条FIFO。
+ *  - 对赌：偏多/偏空与执行方向按两个时点自动对赌——①当日收盘价（次日有日线后结算）
+ *    ②+45分钟价（对齐S1时间止损口径，5分钟bar结算）；今日快照一律待收盘，防半根日线提前结算。
+ *  - 统计：分组命中率/期望值(点每条)/平均盈亏点；观望与否决态只存不赌。
+ *  - 局限：快照为状态序列非独立交易，命中率≠实盘胜率；样本<20无统计意义。
+ * ===================================================================== */
+const SIG_MAX=250;
+function sigLoad(){ try{ return JSON.parse(LS.get('sigSnaps')||'[]'); }catch(e){ return []; } }
+function sigSnapshot(A){
+  try{
+    if(S.mode!=='live'||!inSession()||!A||!S.live) return;
+    const BP=intradayBP(A);
+    const BIAS=biasSummary(A,BP);
+    const gr=A.grade?A.grade.grade:'--';
+    const R=(A.rr&&A.rr.entry!=null)?A.rr:((A.grade&&A.grade.rrRef&&A.grade.rrRef.entry!=null)?A.grade.rrRef:null);
+    let dir=null,src=null;
+    if(!A.veto.length&&!(S.losses&&S.losses.n>=3)){
+      if(BP.on&&BP.inZone&&!BP.cutoff&&BP.entry!=null){ dir=BP.dir; src='顺势跟进'; }
+      else if(R&&R.pass&&(gr==='A'||gr==='B')){ dir=R.side; src='盈亏比达标'; }
+    }
+    let bd=null;
+    if(BIAS.side==='偏多'||BIAS.side==='略偏多') bd='多';
+    else if(BIAS.side==='偏空'||BIAS.side==='略偏空') bd='空';
+    const key=(dir||'-')+'|'+(src||'-')+'|'+(bd||'-')+'|'+gr+'|'+(A.veto.length?'V':'-');
+    const now=Date.now();
+    const list=sigLoad();
+    const last=list[list.length-1];
+    if(last&&last.key===key&&now-last.t<30*60*1000) return;   /* 同态30分钟内只留一个检查点 */
+    list.push({t:now,day:bjStr(bj()),c:S.contract,price:+S.live.price.toFixed(0),key,dir,src,bd,gr,total:A.total,veto:A.veto.length?1:0,bias:BIAS.side});
+    while(list.length>SIG_MAX) list.shift();
+    LS.set('sigSnaps',JSON.stringify(list));
+    renderSigStats();
+  }catch(e){}
+}
+function sigStats(){
+  const today=bjStr(bj());
+  const mk=()=>({n:0,w:0,pts:[],win:[],los:[],p45n:0,p45w:0,p45pts:[]});
+  const st={bias:mk(),exec:mk(),watch:0,vetoN:0,pend:0,na:0};
+  const cCache={};
+  const closeOf=day=>{ if(cCache[day]!==undefined) return cCache[day];
+    let v=null;
+    for(let i=S.bars.d.length-1;i>=0;i--){ const ds=bjStr(new Date(S.bars.d[i].t));
+      if(ds===day){ v=S.bars.d[i].c; break; } if(ds<day) break; }
+    cCache[day]=v; return v; };
+  const px45=(t,day)=>{ const target=t+45*60*1000;
+    for(let i=0;i<S.bars.m5.length;i++){ const b=S.bars.m5[i]; const ds=bjStr(new Date(b.t));
+      if(ds<day) break; if(ds>day) continue;
+      if(b.t+5*60*1000>=target) return b.c; }
+    return null; };
+  sigLoad().forEach(r=>{
+    if(r.c!==S.contract) return;
+    if(r.veto) st.vetoN++;
+    if(!r.bd&&!r.dir){ st.watch++; return; }
+    if(r.day>=today){ st.pend++; return; }   /* 今日快照等收盘日线再结算 */
+    const cl=closeOf(r.day), p4=px45(r.t,r.day);
+    [[r.bd,st.bias],[r.dir,st.exec]].forEach(pr=>{
+      const d0=pr[0], g=pr[1]; if(!d0||!g) return;
+      const sgn=d0==='多'?1:-1;
+      if(cl!=null){ const p=(cl-r.price)*sgn; g.n++; g.pts.push(p); if(p>0){g.w++;g.win.push(p);} else if(p<0)g.los.push(p); }
+      else st.na++;
+      if(p4!=null){ const q=(p4-r.price)*sgn; g.p45n++; g.p45pts.push(q); if(q>0)g.p45w++; }
+    });
+  });
+  return st;
+}
+function renderSigStats(){
+  const card=$('sigCard'); if(!card) return;
+  const list=sigLoad().filter(r=>r.c===S.contract);
+  const tag=$('sigTag'); if(tag) tag.textContent=list.length+' 条快照';
+  if(!list.length){ card.style.display='none'; return; }
+  card.style.display='';
+  const st=sigStats();
+  const pc=v=>v==null?'--':(v>0?'+':'')+v.toFixed(1);
+  const exC=v=>v==null?'inherit':(v>=0?'var(--ok)':'var(--risk)');
+  const row=(name,g,hint)=>{
+    const n=g.pts.length, n4=g.p45pts.length;
+    const wr=n?(' <b class="num" style="color:'+(g.w/n>=0.5?'var(--ok)':'var(--risk)')+'">'+Math.round(g.w/n*100)+'%</b>'):'--';
+    const ex=n?g.pts.reduce((a,b)=>a+b,0)/n:null;
+    const wr4=n4?Math.round(g.p45w/n4*100)+'%':'--';
+    const ex4=n4?g.p45pts.reduce((a,b)=>a+b,0)/n4:null;
+    const aw=g.win.length?g.win.reduce((a,b)=>a+b,0)/g.win.length:null;
+    const al=g.los.length?g.los.reduce((a,b)=>a+b,0)/g.los.length:null;
+    return `<tr><td><b>${name}</b><br><span style="font-size:10px;color:var(--faint)">${hint}</span></td>`+
+      `<td>样本 <b class="num">${n}</b> · 命中${wr}<br>期望 <b class="num" style="color:${exC(ex)}">${pc(ex)}</b> 点/条</td>`+
+      `<td>样本 <b class="num">${n4}</b> · 命中 ${wr4}<br>期望 <b class="num" style="color:${exC(ex4)}">${pc(ex4)}</b> 点/条</td>`+
+      `<td>盈 <b class="num" style="color:var(--up)">${pc(aw)}</b><br>亏 <b class="num" style="color:var(--dn)">${pc(al)}</b> 点</td></tr>`;
+  };
+  $('sigBody').innerHTML=
+   `<div style="margin-bottom:6px;font-size:11px;color:var(--dim);line-height:1.6">系统给出方向信号时自动存快照（时间/价格/评级/方向，状态变化才记，同态30分钟一个检查点），事后与 <b>当日收盘价</b>、<b>+45分钟价</b>（对齐S1时间止损口径）自动对赌，统计这套规则自身的命中率与期望——为打分权重与否决阈值提供证伪依据，不改任何交易逻辑。</div>`+
+   `<div class="lvlwrap"><table class="lvl"><tr><th style="width:118px">信号组</th><th>当日收盘对赌</th><th>+45分钟对赌</th><th style="width:86px">平均盈/亏</th></tr>`+
+   row('方向总纲',st.bias,'总纲偏多/偏空（含仅总纲有方向的状态）')+
+   row('执行信号',st.exec,'顺势跟进 / 盈亏比达标')+
+   `</table></div>`+
+   `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">快照 ${list.length} 条（${esc(S.contract)}，仅本机浏览器localStorage，跨设备不同步为设计行为）· 待结算 ${st.pend} 条（今日盘中快照，收盘出日线后自动对赌）· 观望/无方向 ${st.watch} 条（含否决态 ${st.vetoN} 条）只存不赌 · 数据不足排除 ${st.na} 条（超出本地K线覆盖）。<br>⚠ 快照是「状态序列」非独立交易（同一趋势会连续记录多个同向状态），命中率≠实盘胜率；样本 &lt;20 条无统计意义。方向总纲为量化参考加总，非预测非指令，不构成投资建议。</div>`;
+}
 
 /* =====================================================================
  *  历史案例库
@@ -4805,6 +4928,7 @@ function bindUI(){
   chart.init();
   bindUI();
   renderHistStrategies();   /* n5: 页面加载时恢复历史策略面板（如有存档） */
+  renderSigStats();         /* n32: 页面加载时恢复信号对账统计卡（如有快照） */
   renderHeader();
   await fullCycle();
   restartTimers();
