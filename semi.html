@@ -13,7 +13,7 @@
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
 <!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
-<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） -->
+<!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession -->
 <style>
 :root{
   --bg:#0b0e14; --card:#111621; --card2:#0e131d; --line:#1c2333;
@@ -1713,6 +1713,7 @@ window.__TRAE_PUSH_INLINE__={
 
 <div id="chips"></div>
 <div class="errbox" id="errbox"></div>
+<div class="errbox" id="stalebox" style="display:none;background:rgba(230,162,61,.10);border-color:rgba(230,162,61,.45);color:#f0c896"></div>
 
 <!-- n27: 方向总纲置顶横幅：多/空信号票箱汇总（复用biasSummary口径，renderStrategy同帧更新） -->
 <div class="card" id="biasBanner" style="display:none;margin:10px 12px 0">
@@ -2011,7 +2012,7 @@ function bjStr(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'
 function bjHM(){ const d=bj(); return d.getHours()*100+d.getMinutes(); }
 function isWeekday(){ const w=bj().getDay(); return w>=1&&w<=5; }
 /* 交易时段：周一~周五 09:00-15:00（含午休，蛋无夜盘） */
-function inSession(){ return isWeekday() && bjHM()>=900 && bjHM()<1500; }
+function inSession(){ const h=bjHM(); return isWeekday() && ((h>=900&&h<1015)||(h>=1030&&h<1130)||(h>=1330&&h<1500)); }   /* n29: 鸡蛋实际时段切分，午休/收盘不再误判盘中 */
 
 /* ---------------- 持久化 ---------------- */
 const LS = {
@@ -2117,6 +2118,23 @@ async function tryLoadTraePush(){
     if(!j.klines || !j.klines.d || j.klines.d.length<10) return false;
     /* fix: 合约校验 —— 推送包与当前页面合约不一致时拒绝注入，防止串数据 */
     if(j.contract && S.contract && String(j.contract).toUpperCase()!==String(S.contract).toUpperCase()) return false;
+    /* n29: 陈旧判定 —— 推送包停更时不再霸占数据链路，降级回新浪/东财浏览器取数（P0修复） */
+    let stale=false, staleWhy='';
+    try{
+      if(j.ts){
+        const t=Date.parse(j.ts);
+        if(!isNaN(t)){
+          const now=bj(), today=bjStr(now), tsDate=bjStr(new Date(t));
+          if(inSession()){ stale = tsDate!==today || (now.getTime()-t)>30*60000; staleWhy=stale?'盘中要求今日包且30分钟内':'收盘后包不应早于最近交易日'; }
+          else{
+            const d=new Date(now);   /* 最近一个交易日（跳过周六日；节假日按工作日近似，可能误降级→宁降级不冻结） */
+            do{ d.setDate(d.getDate()-1); }while(d.getDay()===0||d.getDay()===6);
+            stale = tsDate < bjStr(d); staleWhy=stale?'包日期早于最近交易日':'';
+          }
+        }
+      }
+    }catch(e){}
+    if(stale){ console.warn('[Trae推送] 包已陈旧 @'+j.ts+'（'+staleWhy+'）→ 跳过注入，降级浏览器取数'); S.pushStale=j.ts; return false; }
     const stamp = j.ts || '';
     const firstLoad = !S.bars.d.length;   /* 首次加载：即使 ts 未变也要注入 */
     if(!firstLoad && stamp===traePushStamp) return true;   /* 已注入过且无更新：视为命中，跳过浏览器拉取 */
@@ -3525,7 +3543,7 @@ function renderHeader(){
   /* 价格 */
   if(L){
     const el=$('bigprice'), ch=$('bigchg');
-    const chg=L.prevSettle!=null? L.price-L.prevSettle : null;
+    const chg=(L.isToday&&L.prevSettle!=null)? L.price-L.prevSettle : null;   /* n29: 非当日数据不算涨跌幅，防旧昨结×新现价的假跌幅 */
     el.textContent=L.price.toFixed(0);
     if(chg!=null){
       const pct=chg/L.prevSettle*100;
@@ -3537,6 +3555,15 @@ function renderHeader(){
   }
   const d=bj();
   $('clock').textContent=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
+  /* n29: 分析口径新鲜度提示——日线未含今日时明确告知打分为历史口径（P0时间戳） */
+  (function(){ const sb=$('stalebox'); if(!sb) return;
+    const lastD=S.bars.d.length? bjStr(new Date(S.bars.d[S.bars.d.length-1].t)) : null;
+    const stale=lastD&&lastD!==bjStr(d)&&inSession();
+    const pushStale=S.pushStale?('服务端推送包已停更(截至'+S.pushStale.slice(0,10)+')，已降级浏览器实时取数；'):'';
+    if(stale){ sb.style.display='block'; sb.textContent='⚠ '+pushStale+'分析K线截至 '+lastD+'（今日日线未生成）——打分/否决/研判为历史口径非实时，顶部现价为实时'; }
+    else if(pushStale){ sb.style.display='block'; sb.textContent='ℹ '+pushStale; }
+    else sb.style.display='none';
+  })();
   const dot=$('dot');
   if(S.errStreak>=3) dot.className='err';
   else if(Date.now()-S.lastOK>30000) dot.className='stale';
@@ -3544,16 +3571,22 @@ function renderHeader(){
   /* chips */
   const chips=[];
   if(L){
-    chips.push(`<span class="chip">今开<b class="num">${L.dayOpen.toFixed(0)}</b></span>`);
+    /* n29: 残缺行情守卫（P1）——当日K线缺失时开/高/低/量不渲染假值 */
+    const incomplete = !L.isToday || (L.dayVol===0 && L.dayOpen===L.dayH && L.dayH===L.dayL);
+    if(incomplete){
+      chips.push(`<span class="chip" style="color:var(--warn,#e0a050)">当日行情未取全——开/高/低/量暂省略</span>`);
+    }else{
+      chips.push(`<span class="chip">今开<b class="num">${L.dayOpen.toFixed(0)}</b></span>`);
+      chips.push(`<span class="chip">最高<b class="num" style="color:${C.up}">${L.dayH.toFixed(0)}</b></span>`);
+      chips.push(`<span class="chip">最低<b class="num" style="color:${C.dn}">${L.dayL.toFixed(0)}</b></span>`);
+      chips.push(`<span class="chip">成交量<b class="num">${fmtN(L.dayVol)}</b></span>`);
+      if(L.volRatio!=null) chips.push(`<span class="chip">量比<b class="num">${L.volRatio.toFixed(2)}</b></span>`);
+    }
     chips.push(`<span class="chip">昨结<b class="num">${L.prevSettle!=null?L.prevSettle.toFixed(0):'--'}</b></span>`);
-    chips.push(`<span class="chip">最高<b class="num" style="color:${C.up}">${L.dayH.toFixed(0)}</b></span>`);
-    chips.push(`<span class="chip">最低<b class="num" style="color:${C.dn}">${L.dayL.toFixed(0)}</b></span>`);
-    chips.push(`<span class="chip">成交量<b class="num">${fmtN(L.dayVol)}</b></span>`);
     chips.push(`<span class="chip">持仓<b class="num">${L.oi!=null?fmtN(L.oi):'--'}</b></span>`);
-    if(L.oiDelta!=null){
+    if(!incomplete && L.oiDelta!=null){
       chips.push(`<span class="chip">仓差<b class="num" style="color:${L.oiDelta>=0?C.up:C.dn}">${L.oiDelta>0?'+':''}${fmtN(L.oiDelta)}</b></span>`);
     }
-    if(L.volRatio!=null) chips.push(`<span class="chip">量比<b class="num">${L.volRatio.toFixed(2)}</b></span>`);
     if(A){
       chips.push(`<span class="chip">RSI日<b class="num">${A.d.rsi!=null?A.d.rsi.toFixed(1):'--'}</b></span>`);
       chips.push(`<span class="chip">RSI60分<b class="num">${A.h1.rsi!=null?A.h1.rsi.toFixed(1):'--'}</b></span>`);
