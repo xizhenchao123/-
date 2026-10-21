@@ -3123,6 +3123,11 @@ function intradayBP(A){
   const todayBar=S.bars.d.find(b=>bjStr(new Date(b.t))===today);
   const todayOpen=todayBar?todayBar.o:(S.live.dayOpen!=null?S.live.dayOpen:null);
   out.downgrade=out.dir==='多'&&out.prevChg>=1&&todayOpen!=null&&todayOpen<=prev.c;
+  /* n37-1: 跳空感知——|开盘跳空|>1% 视为情绪极端日，防反转插针 */
+  out.gap=todayOpen!=null?(todayOpen-prev.c)/prev.c*100:null;
+  if(out.gap!=null&&isFinite(out.gap)&&Math.abs(out.gap)>1){
+    out.why.push('今日开盘跳空 '+out.gap.toFixed(2)+'%（|跳空|>1% 情绪极端）：跳空穿越常伴日内反转风险，顺势票降置信、防插针，触发位需更谨慎');
+  }
   /* 14:15 停开新仓（仅盘中硬约束；收盘模式整体作为次日预案） */
   const now=bj(); out.cutoff=(now.getHours()*100+now.getMinutes())>=1415&&S.mode==='live';
   return out;
@@ -4108,7 +4113,7 @@ function renderStrategyInner(){
   else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
   else if(BP.on&&BP.past){ side='已突破跟进区 · 不追单'; sideC='var(--warn)'; qualNote=BP.dir+'向已越过跟进区远端（触发位 '+BP.trig.toFixed(0)+'，跟进区 ±'+BP.zoneW.toFixed(0)+' 点）——顺势段已走完，追单盈亏比恶化：等'+(BP.dir==='多'?'回踩':'反抽')+'跟进区再评估，勿按"等待触发"口径误判'; }
   else if(BP.on&&BP.inZone&&BP.cutoff){ side='顺势窗口已关闭'; sideC='var(--warn)'; qualNote='14:15 后停开新仓（日内纪律）：'+BP.dir+'向触发位 '+BP.trig.toFixed(0)+' 仍在跟进区内，仅观察不再跟进'; }
-  else if(BP.on&&BP.inZone){ side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'入场区'); sideC=BP.dir==='多'?C.up:C.dn; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：')+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':''); }   /* n35: "破位跟进"撞词改"入场区"，降权通道不称"顺势日" */
+  else if(BP.on&&BP.inZone){ const _gapW=(BP.gap!=null&&isFinite(BP.gap)&&Math.abs(BP.gap)>1)?' · <span style="color:var(--risk)">⚠ 跳空'+BP.gap.toFixed(1)+'%情绪极端日·防反转插针</span>':''; side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'入场区'); sideC=BP.dir==='多'?C.up:C.dn; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：')+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':'')+(_gapW||''); }   /* n35: "破位跟进"撞词改"入场区"，降权通道不称"顺势日"；n37-1 跳空警示 */
   else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
   else if(R&&!R.pass&&BP.on){ side='等待突破触发'; sideC='var(--warn)'; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日：')+'当前区间内盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 不划算，等 '+BP.dir+'向触到 '+BP.trig.toFixed(0)+'（跟进区 ±'+BP.zoneW.toFixed(0)+' 点）再按顺势口径评估'; }
   else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.2R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
@@ -4366,6 +4371,23 @@ function sigStats(){
   Object.keys(daySeen).forEach(d=>{ const a=ampOf(d); if(a==null) return; (daySeen[d]?ampSig:ampWatch).push(a); });
   st.amp={ sig:ampSig.length?ampSig.reduce((a,b)=>a+b,0)/ampSig.length:null, sigN:ampSig.length,
            watch:ampWatch.length?ampWatch.reduce((a,b)=>a+b,0)/ampWatch.length:null, watchN:ampWatch.length };
+  /* n37-2: 连续同向第N日分桶——方向总纲票按「趋势第N日」分桶结算，检验惯性外推衰减（10-20复盘：连跌末端总纲仍满置信） */
+  st.streak={ buckets:{} };   /* key=N(≥5合并), val={n,w,pts[]} */
+  sigLoad().forEach(r=>{
+    if(r.c!==S.contract||!r.bd||r.day>=bjStr(bj())) return;
+    const cl=closeOf(r.day); if(cl==null) return;
+    const sgn=r.bd==='多'?1:-1; let N=1;
+    for(let i=S.bars.d.length-2;i>=0;i--){ const ds=bjStr(new Date(S.bars.d[i].t));
+      if(ds>=r.day){ continue; }
+      const b=S.bars.d[i],pv=S.bars.d[i-1]; if(!pv||!pv.c) break;
+      const ch=(b.c-pv.c)/pv.c*100; if(!isFinite(ch)) break;
+      if(sgn*ch>0.2) N++;
+      else if(sgn*ch<-0.2) break; else continue;
+    }
+    const p=(cl-r.price)*sgn;
+    const bk=st.streak.buckets[Math.min(N,5)]||(st.streak.buckets[Math.min(N,5)]={n:0,w:0,pts:[]});
+    bk.n++; bk.pts.push(p); if(p>0)bk.w++;
+  });
   return st;
 }
 function renderSigStats(){
@@ -4397,8 +4419,41 @@ function renderSigStats(){
    row('执行信号',st.exec,'顺势跟进 / 盈亏比达标')+
    `</table></div>`+
    (st.amp.sigN||st.amp.watchN?`<div style="margin-top:6px;font-size:11px;color:var(--dim)">日振幅对比（n34，检验弃权代价）：有信号日均值 <b class="num">${st.amp.sig!=null?st.amp.sig.toFixed(2)+'%':'--'}</b>（${st.amp.sigN}天）vs 纯观望日均值 <b class="num">${st.amp.watch!=null?st.amp.watch.toFixed(2)+'%':'--'}</b>（${st.amp.watchN}天）${(st.amp.watch!=null&&st.amp.sig!=null&&st.amp.watch>st.amp.sig*1.5)?' —— <b style="color:var(--risk)">观望日振幅显著更大：弃权阈值可能过宽</b>':''}</div>`:'')+
+  (()=>{   /* n37-2: 连续同向第N日分桶——检验趋势末端惯性外推衰减 */
+    const ks=Object.keys(st.streak.buckets).map(Number).sort((a,b)=>a-b); if(!ks.length) return '';
+    const cells=ks.map(k=>{ const b=st.streak.buckets[k]; const ex=b.pts.reduce((a,c)=>a+c,0)/b.pts.length;
+      const lab=k>=5?'≥5':('第'+k); return `<b style="display:inline-block;margin:2px 8px 2px 0;padding:2px 8px;border:1px solid var(--line);border-radius:6px">${lab}日 <span class="num">${b.n}</b>条 命中<b class="num" style="color:${b.w/b.n>=0.5?'var(--ok)':'var(--risk)'}">${Math.round(b.w/b.n*100)}%</b> 期望<b class="num" style="color:${exC(ex)}">${pc(ex)}</b></b>`; }).join('');
+    return `<div style="margin-top:6px;font-size:11px;color:var(--dim)">连续同向分桶（n37，检验惯性外推衰减）：方向总纲票按「趋势第N日」分桶结算<br>${cells}${ks.some(k=>k>=4)?'':'<br><span style="color:var(--faint)">尚无 ≥4 日样本：连续同向末端的命中率衰减暂无法验证，样本攒够后此处自动亮牌</span>'}</div>`; })()+
+  (()=>{   /* n37-3: 每日三问固定复盘区——收盘后手动勾选，localStorage 持久化，防反思结构随对话丢失 */
+    const today=bjStr(bj());
+    const store=LS.get('dailyThree',{});
+    const rec=store[today]||{a:null,b:null,c:'',};
+    const btn=(k,val,txt,cur)=>`<b data-q="${k}" data-v="${val}" style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;border:1px solid ${cur===val?'var(--acc)':'var(--line)'};border-radius:6px;cursor:pointer;${cur===val?'color:var(--acc);':''}">${txt}</b>`;
+    const opts=(k,cur)=>btn(k,'y','是',cur)+btn(k,'n','否',cur)+btn(k,'na','不适用',cur);
+    return `<div id="dailyThree" style="margin-top:8px;padding:8px;border:1px dashed var(--line);border-radius:8px;font-size:11px;color:var(--dim)">
+      <b style="color:var(--fg)">每日三问</b>（收盘复盘固定清单，今天 ${today}，仅本机保存）<br>
+      ① 今日票方向命中？ ${opts('a',rec.a)}　② 复盘证伪线被触发？ ${opts('b',rec.b)}<br>
+      ③ 权重/阈值假设有无反例：<input id="dThreeC" value="${esc(rec.c||'')}" placeholder="没有则留空，有则记一句（如：连跌第5日票仍空向命中）" style="width:92%;margin-top:4px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--fg);padding:3px 6px;font-size:11px">
+      <div style="margin-top:3px;color:var(--faint)">点选/输入即时保存；②答"是"说明当日结论被行情推翻——这正是校准下一轮口径的原料。</div></div>`;
+  })()+
    `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">快照 ${list.length} 条（${esc(S.contract)}，仅本机浏览器localStorage，跨设备不同步为设计行为）· 待结算 ${st.pend} 条（今日盘中快照，收盘出日线后自动对赌）· 观望/无方向 ${st.watch} 条（含否决态 ${st.vetoN} 条）只存不赌 · 数据不足排除 ${st.na} 条（超出本地K线覆盖）。<br>⚠ 快照是「状态序列」非独立交易（同一趋势会连续记录多个同向状态），命中率≠实盘胜率；样本 &lt;20 条无统计意义。方向总纲为量化参考加总，非预测非指令，不构成投资建议。</div>`;
 }
+/* n37-3: 每日三问事件绑定——document 级委托，innerHTML 周期重建后仍有效 */
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('#dailyThree [data-q]');
+  if(!b) return;
+  const q=b.getAttribute('data-q'), v=b.getAttribute('data-v');
+  const today=bjStr(bj());
+  const s=LS.get('dailyThree',{}); s[today]=s[today]||{a:null,b:null,c:''};
+  s[today][q]=v; LS.set('dailyThree',s);
+  try{ renderSigStats(); }catch(_){}
+});
+document.addEventListener('change',e=>{
+  if(!e.target||e.target.id!=='dThreeC') return;
+  const today=bjStr(bj());
+  const s=LS.get('dailyThree',{}); s[today]=s[today]||{a:null,b:null,c:''};
+  s[today].c=e.target.value.trim(); LS.set('dailyThree',s);
+});
 
 /* =====================================================================
  *  历史案例库
