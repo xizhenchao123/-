@@ -2239,44 +2239,10 @@ function sinaKlineAlive(){
   const m5last=S.bars.m5[S.bars.m5.length-1];
   return !!m5last&&bjStr(new Date(m5last.t))===today;
 }
-/* n40: openctp 数据中心第三路校验源——独立于新浪/东财的交易所侧链路，交叉验证价格+涨跌停板官方值；限频分钟≤15，轮询120秒足够 */
-let _ocTimer=null;
-async function fetchOpenCTP(){
-  try{
-    const prod=S.contract.replace(/[0-9]+$/,'');
-    const r=await fetch('http://dict.openctp.cn/prices?markets=DCE&products='+prod,{cache:'no-store',signal:AbortSignal.timeout(8000)});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
-    const d=(j.data||[]).find(x=>x.InstrumentID&&x.InstrumentID.toLowerCase()===S.contract.toLowerCase());
-    if(!d) throw new Error('no row');
-    S.oc={
-      price:(d.LastPrice!=null&&d.LastPrice>0)?d.LastPrice:null,
-      oi:(d.OpenInterest!=null&&d.OpenInterest>0)?d.OpenInterest:null,
-      upper:d.UpperLimitPrice||null, lower:d.LowerLimitPrice||null,
-      preSettle:d.PreSettlementPrice||null,
-      tradingDay:d.TradingDay||null,
-      t:d.UpdateDate&&d.UpdateTime?(d.UpdateDate+' '+d.UpdateTime):null,
-      ok:Date.now()
-    };
-    /* 偏差异常侦测：与实时价差>0.6% 且 openctp 有当日 TradingDay 时记为偏差样本 */
-    if(S.oc.price&&S.live&&S.live.price&&S.oc.tradingDay===bjStr(bj())){
-      const dev=Math.abs(S.oc.price-S.live.price)/S.live.price*100;
-      if(dev>0.6&&!S.ocDevWarned){ S.ocDevWarned=true;
-        console.warn('[n40] openctp 与实时价偏差 '+dev.toFixed(2)+'% oc='+S.oc.price+' live='+S.live.price);
-      } else if(dev<=0.6){ S.ocDevWarned=false; }
-    }
-  }catch(e){
-    /* n42: 校验源失败不再静默——记录失败原因供徽标明细展示。
-       已知：dict.openctp.cn 无 https，GitHub Pages(https) 下浏览器 mixed-content 拦截必现 ERR_FAILED，
-       node 直连 http 正常(200) → 页面端该源在本托管架构下永久不可达，只保留探测降级逻辑。 */
-    S.ocFail=(e&&e.message)||'ERR'; 
-  }
-}
-function startOpenCTP(){
-  fetchOpenCTP();
-  if(_ocTimer) clearInterval(_ocTimer);
-  _ocTimer=setInterval(fetchOpenCTP,120000);   /* 分钟≤15限频：2分钟1次安全 */
-}
+/* n43: openctp 轮询停用——dict.openctp.cn 无 https，GitHub Pages(https) 下浏览器 mixed-content
+   拦截必现 ERR_FAILED（见第87节定案），轮询=每2分钟发一个必败请求+污染控制台。
+   交叉校验价值由东财停板字段 zt/dt（n42）承接；openctp 代码留档，将来自建 CTP 网关时复用。 */
+function startOpenCTP(){ /* n43: 停用（原 openctp 2分钟轮询） */ }
 let _wd=null;
 function watchdog(){
   const today=bjStr(bj());
@@ -2326,15 +2292,13 @@ function n39SrcBadge(){
   if(!ok)_srcBadge.style.background='rgba(120,20,16,.9)'; else _srcBadge.style.background='rgba(30,30,34,.85)';
   _srcBadge.dataset.ok=ok?'1':'0';
   _srcBadge.firstChild.textContent=head;
-  const ocOK=!!(S.oc&&S.oc.ok);
-  const ocTxt=ocOK
-    ? '<span style="color:'+dot(1)+'">● 已连接</span>'+(S.oc.price?' 价'+S.oc.price:'（无报价）')+(S.oc.upper&&S.oc.lower?' 停板'+S.oc.lower+'~'+S.oc.upper:'')
-    : '<span style="color:#c9a227">△ 浏览器不可达</span>'+((S.emLimit&&S.emLimit.up)?'（mixed-content拦截·停板兜底 '+S.emLimit.dn+'~'+S.emLimit.up+'）':'（mixed-content拦截·https页面禁访http接口）');
+  /* n43: openctp 停用后徽标行改为"官方停板（东财zt/dt字段）"，不再展示永远不可达的校验源 */
+  const limTxt=(S.emLimit&&S.emLimit.up)?'<span style="color:'+dot(1)+'">● 官方停板</span> '+S.emLimit.dn+'~'+S.emLimit.up+'（东财zt/dt）':'<span style="color:'+dot(0)+'">● 待快照</span>';
   _srcBadge._detail.innerHTML=
     `<div>实时价：${emOK?'东财秒级':'新浪分钟级'} <span style="color:${dot(liveOK)}">${liveOK?'●':'● 停更>3分'}</span></div>`+
     `<div>分钟K线：新浪 <span style="color:${dot(sina)}">●</span>${sina?'':'（东财备线接管）'}</div>`+
     `<div>分钟持仓OI：${oiOk?'<span style="color:'+dot(1)+'">● 可用</span>':'<span style="color:'+dot(0)+'">● 缺失</span>'+(oiOk?'':'（备线无OI，资金鹰眼降级）')}</div>`+
-    `<div>openctp校验源：${ocTxt}</div>`+
+    `<div>${limTxt}</div>`+
     `<div>现货/基本面料：生意社（趋势参考）</div>`;
 }
 
@@ -5168,7 +5132,7 @@ function bindUI(){
   renderHeader();
   await fullCycle();
   restartTimers();
-  startOpenCTP();   /* n40: 第三路校验源低频轮询 */
+  startOpenCTP();   /* n43: openctp 轮询已停用（mixed-content 定案），空函数保留调用点 */
   /* 模式可能在运行中切换（开盘/收盘跨越），每分钟检测 */
   setInterval(()=>{ const m=S.mode; detectMode(); if(m!==S.mode) restartTimers(); tagStaleSandbox(); }, 30000);
   /* n41: 看门狗+数据源徽标原来只在 live 模式每秒快循环里调用（L4900），收盘后 mode='close'
