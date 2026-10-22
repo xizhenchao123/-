@@ -5121,7 +5121,12 @@ function bindUI(){
     $('pnlLog').value='';
     ddRender();
   };
-  $('gear').onclick=()=>{ const s=$('settings'); s.style.display = s.style.display==='block'?'none':'block'; };
+  $('gear').onclick=(ev)=>{ ev.stopPropagation(); const s=$('settings'); s.style.display = s.style.display==='block'?'none':'block'; };
+  /* n41: 点击设置面板/齿轮以外区域自动关闭（原版只能靠齿轮切换，手机端面板遮挡时关不掉） */
+  document.addEventListener('click',(ev)=>{
+    const s=$('settings');
+    if(s.style.display==='block'&&!s.contains(ev.target)&&ev.target.id!=='gear') s.style.display='none';
+  });
   $('freqSel').value=String(S.freq);
   $('freqSel').addEventListener('change',e=>{ S.freq=+e.target.value; LS.set('freq',S.freq); restartTimers(); });
   $('maSel').value=String(S.showMA);
