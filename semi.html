@@ -5160,6 +5160,10 @@ function bindUI(){
   startOpenCTP();   /* n40: 第三路校验源低频轮询 */
   /* 模式可能在运行中切换（开盘/收盘跨越），每分钟检测 */
   setInterval(()=>{ const m=S.mode; detectMode(); if(m!==S.mode) restartTimers(); tagStaleSandbox(); }, 30000);
+  /* n41: 看门狗+数据源徽标原来只在 live 模式每秒快循环里调用（L4900），收盘后 mode='close'
+     徽标根本不创建——手机端收盘时段看不到右下角徽标。挂到此处 30 秒慢循环，全时段常驻。 */
+  watchdog();
+  setInterval(watchdog, 30000);
 })();
 </script>
 <!-- n21: 底部Tab分区导航（仅窄屏显示；纯布局层，不动任何数据链路/功能ID） -->
