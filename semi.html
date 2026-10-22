@@ -3130,8 +3130,26 @@ function intradayBP(A){
   }
   /* 14:15 停开新仓（仅盘中硬约束；收盘模式整体作为次日预案） */
   const now=bj(); out.cutoff=(now.getHours()*100+now.getMinutes())>=1415&&S.mode==='live';
+  /* n38-1: 午前末段恐慌降置信（对称于14:15 cutoff）——连续下跌+恐慌加速+临近午休时，"破位加速"大概率是spring而非延续（10-22复盘：11:10-11:30恐慌下杀后竞价前90点抢筹反杀） */
+  out.preNoonSpike=false;
+  if(S.mode==='live'){
+    const hm=now.getHours()*100+now.getMinutes();
+    if(hm>=1100&&hm<1130&&out.dir==='空'&&out.on){
+      const bars=S.bars.m5||[];
+      const recent=bars.filter(b=>bjStr(new Date(b.t))===today&&bjDateHM(new Date(b.t))>=1050).slice(-6);
+      if(recent.length>=4){
+        const hi=Math.max.apply(null,recent.map(b=>b.h)), lo=Math.min.apply(null,recent.map(b=>b.l));
+        const drop=(lo-hi)/hi*100;
+        if(drop<=-0.8){
+          out.preNoonSpike=true;
+          out.why.push('午前末段恐慌下杀 '+drop.toFixed(2)+'%（11:00-11:30 空向顺势态）：连跌末端+临近午休的加速下跌大概率是 spring/插针而非延续——空单降置信、防竞价前抢筹反杀，勿按破位延续口径追空');
+        }
+      }
+    }
+  }
   return out;
 }
+function bjDateHM(d){ return d.getHours()*100+d.getMinutes(); }
 
 /* n25 方向总纲：既有方向性信号的透明票箱汇总（不新增计算指标，只做加总） */
 function biasSummary(A,BP){
@@ -3252,6 +3270,17 @@ function buildRecap(){
   R.chg = R.prevSettle? R.c-R.prevSettle : null;
   R.chgPct = R.prevSettle? (R.c-R.prevSettle)/R.prevSettle*100 : null;
   R.rngPct = (R.h-R.l)/(R.prevSettle||R.c)*100;
+  /* n38-2: 长影线自动标注——深插针+全收复是方向逻辑被证伪的结构性证据（10-22复盘：3122→3247下影125点，空头逻辑被spring证伪） */
+  R.shadow={ lower:null, upper:null, txt:'' };
+  {
+    const body=Math.abs(R.c-R.o), rng=R.h-R.l;
+    if(rng>0){
+      const lowShadow=Math.min(R.o,R.c)-R.l, upShadow=R.h-Math.max(R.o,R.c);
+      const loR=rng>0?lowShadow/rng:0, upR=rng>0?upShadow/rng:0;
+      if(lowShadow>body*2&&loR>=0.4){ R.shadow.lower=Math.round(lowShadow); R.shadow.txt+='日内深下影（'+Math.round(lowShadow)+'点，占振幅'+Math.round(loR*100)+'%）后收复大部分跌幅——空头打压被强力承接，方向逻辑当日被证伪（spring特征），次日勿惯性延续空向偏置；'; }
+      if(upShadow>body*2&&upR>=0.4){ R.shadow.upper=Math.round(upShadow); R.shadow.txt+='日内深上影（'+Math.round(upShadow)+'点，占振幅'+Math.round(upR*100)+'%）后回落——多头冲高被强力压制（uptrend特征），次日勿惯性延续多向偏置；'; }
+    }
+  }
   /* 走势分段描述 */
   const segs=[['早盘',9,1030],['上午',1030,1131],['午后',1330,1501]];
   R.walk=segs.map(([nm,a,b])=>{
@@ -4072,7 +4101,7 @@ function renderRecap(){
   const cls=(rc.chg>=0)?C.up:C.dn;
   const lvlCls={b:'var(--res)',s:'var(--sup)',w:'var(--warn)',n:'var(--faint)'};
   $('recapBody').innerHTML=
-   `<div class="recaph">① 全天行情</div><div class="sec">开 <b class="num">${rc.o.toFixed(0)}</b> / 高 <b class="num" style="color:${C.up}">${rc.h.toFixed(0)}</b> / 低 <b class="num" style="color:${C.dn}">${rc.l.toFixed(0)}</b> / 收 <b class="num" style="color:${cls}">${rc.c.toFixed(0)}</b>${rc.chgPct!=null?`（<b style="color:${cls}">${rc.chg>0?'+':''}${rc.chg.toFixed(0)} / ${rc.chgPct>0?'+':''}${rc.chgPct.toFixed(2)}%</b>）`:''}，振幅 <b class="num">${rc.rngPct.toFixed(1)}%</b>，量 <b class="num">${fmtN(rc.vol)}</b> 手，收盘持仓 <b class="num">${fmtN(rc.oiEnd)}</b> 手${rc.oiDelta!=null?`（仓差 <b class="num" style="color:${rc.oiDelta>=0?C.up:C.dn}">${rc.oiDelta>0?'+':''}${fmtN(rc.oiDelta)}</b> 手，当日）`:''}。<br>${rc.walk.map(w=>`${w.nm}${w.txt}`).join('；')}。</div>`+
+   `<div class="recaph">① 全天行情</div><div class="sec">开 <b class="num">${rc.o.toFixed(0)}</b> / 高 <b class="num" style="color:${C.up}">${rc.h.toFixed(0)}</b> / 低 <b class="num" style="color:${C.dn}">${rc.l.toFixed(0)}</b> / 收 <b class="num" style="color:${cls}">${rc.c.toFixed(0)}</b>${rc.chgPct!=null?`（<b style="color:${cls}">${rc.chg>0?'+':''}${rc.chg.toFixed(0)} / ${rc.chgPct>0?'+':''}${rc.chgPct.toFixed(2)}%</b>）`:''}，振幅 <b class="num">${rc.rngPct.toFixed(1)}%</b>，量 <b class="num">${fmtN(rc.vol)}</b> 手，收盘持仓 <b class="num">${fmtN(rc.oiEnd)}</b> 手${rc.oiDelta!=null?`（仓差 <b class="num" style="color:${rc.oiDelta>=0?C.up:C.dn}">${rc.oiDelta>0?'+':''}${fmtN(rc.oiDelta)}</b> 手，当日）`:''}。<br>${rc.walk.map(w=>`${w.nm}${w.txt}`).join('；')}。${rc.shadow&&rc.shadow.txt?`<br><span style="color:var(--warn)">⚠ ${rc.shadow.txt}</span>`:''}</div>`+
    `<div class="recaph">② 关键价位验证</div><div class="lvlwrap"><table class="lvl"><tr><th>价位</th><th>类型</th><th>结果</th></tr>${rc.levelTest.map(l=>`<tr><td><b class="num">${l.p.toFixed(0)}</b></td><td>${l.tag}</td><td style="color:${lvlCls[l.cls]}">${l.res}</td></tr>`).join('')}</table></div>`+
    `<div class="recaph">③ 资金异动 / 假突破事件</div><div class="sec">${rc.events.length?rc.events.map(e=>`${fmtT(e.t)} 放量${e.dir==='up'?'上攻':'下杀'}（z=${e.z.toFixed(1)}${e.dOI?'，仓差'+(e.dOI>0?'+':'')+fmtN(e.dOI)+'手':''}）`).join('；')+'。':'全天无显著放量异动。'}${rc.falseN?`<br><span style="color:var(--risk)">假突破 ${rc.falseN} 次${rc.falseTxt?`（${rc.falseTxt}）`:''}${(rc.falseL||rc.falseS)?`：诱多假突破×${rc.falseL||0}（向上假信号，警惕冲高派发）+ 诱空假突破×${rc.falseS||0}（向下假信号，警惕杀跌洗盘）`:''}（详见风险提示）</span>`:''}</div>`+
    `<div class="recaph">④ 信号有效性</div><div class="sec">${rc.sigEffect.length?rc.sigEffect.map(s=>`${fmtT(s.t)} 放量${s.dir==='up'?'上攻':'下杀'} → <b>${s.verdict}</b>`).join('；')+'。':'当日无待验证信号事件。'}</div>`+
