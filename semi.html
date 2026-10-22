@@ -2231,6 +2231,12 @@ async function emRescueKlines(){
     console.log('[n15] 东财K线备源接管 m5='+S.bars.m5.length+' h1='+S.bars.h1.length+' d='+S.bars.d.length);
   }catch(e){ console.warn('[n15] 备源失败',e); }
 }
+/* n39: 新浪分钟K线当日是否有bar（true=主源在；false 不代表故障，非交易时段也false） */
+function sinaKlineAlive(){
+  const today=bjStr(bj());
+  const m5last=S.bars.m5[S.bars.m5.length-1];
+  return !!m5last&&bjStr(new Date(m5last.t))===today;
+}
 let _wd=null;
 function watchdog(){
   const today=bjStr(bj());
@@ -2243,6 +2249,48 @@ function watchdog(){
     _wd.textContent='⚠ 新浪K线停更（设备网络拦截新浪域？）——已切东财备线自愈；实时价走东财秒级源不受影响';
     document.body.appendChild(_wd);
   } else if(!stale&&_wd){ _wd.remove(); _wd=null; }
+  n39SrcBadge();
+}
+/* n39: 数据源健康常驻徽标（右下角，点开显示明细；异常时红色高亮，正常时低调半透明） */
+let _srcBadge=null;
+function n39SrcBadge(){
+  if(!_srcBadge){
+    _srcBadge=document.createElement('div');
+    _srcBadge.style.cssText='position:fixed;right:8px;bottom:8px;z-index:9998;font-size:11px;line-height:1.5;border-radius:8px;padding:5px 9px;max-width:240px;cursor:pointer;user-select:none;background:rgba(30,30,34,.85);color:#bbb;border:1px solid rgba(255,255,255,.12);transition:opacity .3s;opacity:.55';
+    _srcBadge.onmouseenter=()=>_srcBadge.style.opacity='1';
+    _srcBadge.onmouseleave=()=>_srcBadge.style.opacity=_srcBadge.dataset.ok==='1'?'.55':'1';
+    _srcBadge.onclick=()=>{
+      const d=_srcBadge._detail; if(!d) return;
+      const vis=d.style.display!=='none';
+      d.style.display=vis?'none':'block';
+    };
+    document.body.appendChild(_srcBadge);
+    const dt=document.createElement('div');
+    dt.style.cssText='display:none;margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15);white-space:nowrap';
+    _srcBadge.appendChild(dt); _srcBadge._detail=dt;
+  }
+  const src=S.src||{};
+  const today=bjStr(bj());
+  const trading=(()=>{ const n=bj(),hm=n.getHours()*100+n.getMinutes(); const wd=n.getDay();
+    return wd>=1&&wd<=5&&((hm>=900&&hm<=1130)||(hm>=1300&&hm<=1500))&&n.getHours()<16; })();
+  const sina=sinaKlineAlive();
+  const emOK=src.price==='em';
+  const oiOk=src.oiIntraday;
+  const dot=(ok)=>ok?'#4caf50':'#e6483d';
+  const liveOK=src.priceFresh!==false;
+  let head,ok=1;
+  if(trading){
+    if(!sina||!oiOk||!liveOK){ ok=0; head='<span style="color:#ff8a80">⚠ 数据源降级</span>'; }
+    else head='<span style="color:#4caf50">● 数据源正常</span>';
+  } else head='<span style="color:#888">○ 数据源待命</span>';
+  if(!ok)_srcBadge.style.background='rgba(120,20,16,.9)'; else _srcBadge.style.background='rgba(30,30,34,.85)';
+  _srcBadge.dataset.ok=ok?'1':'0';
+  _srcBadge.firstChild.textContent=head;
+  _srcBadge._detail.innerHTML=
+    `<div>实时价：${emOK?'东财秒级':'新浪分钟级'} <span style="color:${dot(liveOK)}">${liveOK?'●':'● 停更>3分'}</span></div>`+
+    `<div>分钟K线：新浪 <span style="color:${dot(sina)}">●</span>${sina?'':'（东财备线接管）'}</div>`+
+    `<div>分钟持仓OI：${oiOk?'<span style="color:'+dot(1)+'">● 可用</span>':'<span style="color:'+dot(0)+'">● 缺失</span>'+(oiOk?'':'（备线无OI，资金鹰眼降级）')}</div>`+
+    `<div>现货/基本面料：生意社（趋势参考）</div>`;
 }
 
 /* n16: 静态沙盘防误导 */
@@ -2366,6 +2414,11 @@ function deriveLive(){
     volRatio: vr, t: srcTime || (session.length? session[session.length-1].t : Date.now()),
     isToday: day===today
   };
+  /* n39: 数据源健康状态打点 */
+  S.src=S.src||{};
+  S.src.price=(et&&et.price>0&&(!m1last||et.t>=m1last.t))?'em':'sina';
+  S.src.priceFresh=srcTime?(Date.now()-srcTime<180000):false;   /* 3分钟内有更新视为新鲜 */
+  S.src.oiIntraday=(m1last&&srcDate===day&&m1last.oi>0)||(session.length&&session[session.length-1].oi>0);   /* 分钟级OI可用=新浪在 */
 }
 
 /* =====================================================================
