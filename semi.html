@@ -2206,6 +2206,37 @@ async function fetchEMTick(){
   }catch(e){ /* 静默：deriveLive 自动回退新浪 m1 尾价 */ }
 }
 const EM_F2='f51,f52,f53,f54,f55,f56,f57';   /* 日期,开,收,高,低,量,持仓（开-收-高-低序！） */
+/* n45: 主力对比监控——当前合约 vs 同品种次月合约的量/OI 对比，识别换月信号。
+   教训（PROJECT_MEMORY 80/81节）：换月不能猜日历，必须实测双合约量/仓；2612 曾比预期早两周接管主力。
+   逻辑：futsseapi 支持直接查任意合约快照；次月合约 = 当前合约月份+1（JD 连续月份，跨年自然进位）。 */
+function nextMonthContract(c){
+  const m=c.match(/^([A-Z]+)(\d{3,4})$/); if(!m) return null;
+  let mm=+m[2].slice(-2); let yy=m[2].length===4?+m[2].slice(0,2):null;   /* 2612 或 202612 */
+  mm+=1; if(mm>12){ mm=1; if(yy) yy++; }
+  return m[1]+(yy?yy+String(mm).padStart(2,'0'):String(mm).padStart(2,'0'));
+}
+async function fetchDominance(){
+  try{
+    const nx=nextMonthContract(S.contract); if(!nx) return;
+    const r=await fetch('https://futsseapi.eastmoney.com/static/114_'+nx.toLowerCase()+'_qt',{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    if(j&&j.p!==undefined){
+      S.dom={ next:nx, vol:+(j.vol||0), oi:+(j.ccl||0), t:Date.now() };
+    }
+  }catch(e){ /* 静默：明细行显示待快照 */ }
+}
+function dominanceTxt(){
+  const d=S.dom; if(!d||!d.oi||Date.now()-d.t>10*60*1000) return null;
+  const cur=S.live&&S.live.oi?S.live.oi:(S.emTick&&S.emTick.oi?S.emTick.oi:0);
+  if(!cur) return null;
+  const ratio=d.oi/cur;
+  const volRatio=d.vol&&S.emTick&&S.emTick.vol?d.vol/S.emTick.vol:0;
+  /* 主力切换经验口径（第54节）：次月 OI ≥ 2×当前 → 主力实质切换 */
+  const color=ratio>=2?'#ff8a80':(ratio>=1.2?'#ffc46b':'#4caf50');
+  const note=ratio>=2?' ⚠ 主力实质已切换，建议切合约并走换月四件套':(ratio>=1.2?' · 换月临近，留意':'');
+  return {ratio,volRatio,color,note,next:d.next};
+}
 async function emKline(klt,lmt){
   const url='https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=114.'+S.contract.toLowerCase()
     +'&klt='+klt+'&fqt=0&lmt='+lmt+'&end=20500101&fields1=f1,f2,f3,f4,f5&fields2='+EM_F2;
@@ -2299,6 +2330,10 @@ function n39SrcBadge(){
     `<div>分钟K线：新浪 <span style="color:${dot(sina)}">●</span>${sina?'':'（东财备线接管）'}</div>`+
     `<div>分钟持仓OI：${oiOk?'<span style="color:'+dot(1)+'">● 可用</span>':'<span style="color:'+dot(0)+'">● 缺失</span>'+(oiOk?'':'（备线无OI，资金鹰眼降级）')}</div>`+
     `<div>${limTxt}</div>`+
+    (()=>{ const d=dominanceTxt();   /* n45: 主力对比监控行 */
+      if(!d) return '<div>主力对比：待快照（当前 vs '+((nextMonthContract(S.contract)||'?'))+'）</div>';
+      const vr=d.volRatio?' / 量比'+d.volRatio.toFixed(2):'';
+      return '<div>主力对比：<span style="color:'+d.color+'">OI比 '+d.ratio.toFixed(2)+'</span>'+vr+'（vs '+d.next+'）'+d.note+'</div>'; })()+
     `<div>现货/基本面料：生意社（趋势参考）</div>`;
 }
 
@@ -5156,6 +5191,8 @@ function bindUI(){
      徽标根本不创建——手机端收盘时段看不到右下角徽标。挂到此处 30 秒慢循环，全时段常驻。 */
   watchdog();
   setInterval(watchdog, 30000);
+  fetchDominance();   /* n45: 主力对比监控，30秒慢循环低频轮询（同看门狗节奏） */
+  setInterval(fetchDominance, 30000);
 })();
 </script>
 <!-- n21: 底部Tab分区导航（仅窄屏显示；纯布局层，不动任何数据链路/功能ID） -->
