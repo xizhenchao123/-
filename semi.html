@@ -3209,11 +3209,28 @@ function intradayBP(A){
       }
     }
   }
+  /* n44-1: 开盘首根极值指示器——开盘30分钟后若首根5分钟K仍是至今极值且放量(≥全天均量2倍)，
+     近期观察(10-21高开即顶/10-22低开即底/10-23低开即底)显示首根恐慌宣泄常是当日方向反向指示器 */
+  out.firstBarExt=false;
+  if(S.mode==='live'||S.mode==='closed'){
+    const bars=S.bars.m5||[];
+    const tb=bars.filter(b=>bjStr(new Date(b.t))===today);
+    if(tb.length>=6&&todayOpen!=null){   /* 开盘30分钟后才判 */
+      const first=tb[0], avgV=tb.reduce((s,b)=>s+(b.v||0),0)/tb.length;
+      const hi=Math.max.apply(null,tb.map(b=>b.h)), lo=Math.min.apply(null,tb.map(b=>b.l));
+      const spike=first.v>=avgV*2;
+      if(spike&&first.l<=lo&&first.c<first.o&&out.dir==='多'){
+        out.firstBarExt='底';
+        out.why.push('开盘首根5分钟即全天最低且放量('+Math.round(first.v/1000)+'千手≥均量2倍·急杀'+((first.o-first.c)/first.o*100).toFixed(2)+'%)：恐慌宣泄一次性出清特征，近三日同型均收V反——勿把早盘弱势当全天弱势，多向票反而可留意');
+      } else if(spike&&first.h>=hi&&first.c>first.o&&out.dir==='空'){
+        out.firstBarExt='顶';
+        out.why.push('开盘首根5分钟即全天最高且放量(≥均量2倍·急拉)：抢筹一次性特征，同型首根极值历史上常是当日方向反向指示——空向票留意冲高回落外的反例风险');
+      }
+    }
+  }
   return out;
 }
 function bjDateHM(d){ return d.getHours()*100+d.getMinutes(); }
-
-/* n25 方向总纲：既有方向性信号的透明票箱汇总（不新增计算指标，只做加总） */
 function biasSummary(A,BP){
   const out={long:0,short:0,votes:[],side:'中性'};
   if(!A) return out;
@@ -4204,7 +4221,7 @@ function renderStrategyInner(){
   else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
   else if(BP.on&&BP.past){ side='已突破跟进区 · 不追单'; sideC='var(--warn)'; qualNote=BP.dir+'向已越过跟进区远端（触发位 '+BP.trig.toFixed(0)+'，跟进区 ±'+BP.zoneW.toFixed(0)+' 点）——顺势段已走完，追单盈亏比恶化：等'+(BP.dir==='多'?'回踩':'反抽')+'跟进区再评估，勿按"等待触发"口径误判'; }
   else if(BP.on&&BP.inZone&&BP.cutoff){ side='顺势窗口已关闭'; sideC='var(--warn)'; qualNote='14:15 后停开新仓（日内纪律）：'+BP.dir+'向触发位 '+BP.trig.toFixed(0)+' 仍在跟进区内，仅观察不再跟进'; }
-  else if(BP.on&&BP.inZone){ const _gapW=(BP.gap!=null&&isFinite(BP.gap)&&Math.abs(BP.gap)>1)?' · <span style="color:var(--risk)">⚠ 跳空'+BP.gap.toFixed(1)+'%情绪极端日·防反转插针</span>':''; side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'入场区'); sideC=BP.dir==='多'?C.up:C.dn; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：')+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':'')+(_gapW||''); }   /* n35: "破位跟进"撞词改"入场区"，降权通道不称"顺势日"；n37-1 跳空警示 */
+  else if(BP.on&&BP.inZone){ const _gapW=(BP.gap!=null&&isFinite(BP.gap)&&Math.abs(BP.gap)>1)?' · <span style="color:var(--risk)">⚠ 跳空'+BP.gap.toFixed(1)+'%情绪极端日·防反转插针</span>':''; const _fbx=BP.firstBarExt==='底'?' · <span style="color:var(--warn)">⚠ 首根极值放量宣泄·勿当全天弱势</span>':(BP.firstBarExt==='顶'?' · <span style="color:var(--warn)">⚠ 首根极值放量抢筹·防方向反噬</span>':''); side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'入场区'); sideC=BP.dir==='多'?C.up:C.dn; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：')+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':'')+(_gapW||'')+(_fbx||''); }   /* n35: "破位跟进"撞词改"入场区"，降权通道不称"顺势日"；n37-1 跳空警示；n44-1 首根极值警示 */
   else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
   else if(R&&!R.pass&&BP.on){ side='等待突破触发'; sideC='var(--warn)'; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日：')+'当前区间内盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 不划算，等 '+BP.dir+'向触到 '+BP.trig.toFixed(0)+'（跟进区 ±'+BP.zoneW.toFixed(0)+' 点）再按顺势口径评估'; }
   else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.2R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
