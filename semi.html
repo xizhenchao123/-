@@ -1701,7 +1701,7 @@ window.__TRAE_PUSH_INLINE__={
     <div class="logo">🥚 JD2612 半量化研判系统<small>傅海棠供需 + 势位态 + 威科夫鹰眼</small></div>
     <input id="contract" value="JD2612" maxlength="8" title="k3-6 合约切换：输入代码（如 JD2605 / JD0）后回车，自动重载全部数据；历史日期切换为预留功能">
     <span id="modebadge" class="badge close">收盘复盘模式</span>
-    <span id="pushbadge" class="badge" style="display:none;background:rgba(240,185,11,.12);color:var(--gold);border:1px solid rgba(240,185,11,.35);font-size:10px" title="Trae 自动推送已接入：行情由 Node+AKShare 服务端预取并自动注入，无需手动录入">🤖 Trae推送</span>
+    <span id="pushbadge" class="badge" style="display:none" title="n46: Trae 推送链路已废弃，此徽标永不显示">🤖 Trae推送</span>
     <div class="pricebox">
       <span><span id="dot"></span><span id="bigprice" class="num">--</span></span>
       <span id="bigchg" class="num">--</span>
@@ -2102,10 +2102,7 @@ function toBars(raw, cap){
   return cap ? arr.slice(-cap) : arr;
 }
 async function fetchAllKlines(){
-  /* n-auto: Trae 自动推送链路 —— 页面启动/每轮优先探测同目录 jd_latest.json，
-     存在则整包注入三周期K线（来自 AKShare 服务端预取），完全跳过浏览器新浪 JSONP，
-     彻底告别手动录入；文件不存在（如纯静态托管）自动降级回内置新浪源，零影响。 */
-  if(await tryLoadTraePush()) return;
+  /* n46: Trae 推送链路已废弃（10-14 停更，浏览器新浪/东财双源为唯一主链路）——不再探测 jd_latest.json */
   const sym = S.contract;
   const [m5,h1,d] = await Promise.all([
     jsonp('InnerFuturesNewService.getFewMinLine',{symbol:sym,type:5}).catch(()=>[]),
@@ -2116,58 +2113,8 @@ async function fetchAllKlines(){
   if(h1.length) S.bars.h1 = toBars(h1, 200);
   if(d.length)  S.bars.d  = toBars(d, null);
 }
-/* n-auto: 读取 Trae 推送的 jd_latest.json（Node 服务端 AKShare 预取 + 规则引擎结果） */
-let traePushStamp='';
-async function tryLoadTraePush(){
-  try{
-    const j = window.__TRAE_PUSH_INLINE__ || await fetch('jd_latest.json', {cache:'no-store'}).then(r=>{ if(!r.ok) throw 0; return r.json(); });
-    if(!j) return false;
-    if(!j.klines || !j.klines.d || j.klines.d.length<10) return false;
-    /* fix: 合约校验 —— 推送包与当前页面合约不一致时拒绝注入，防止串数据 */
-    if(j.contract && S.contract && String(j.contract).toUpperCase()!==String(S.contract).toUpperCase()) return false;
-    /* n29: 陈旧判定 —— 推送包停更时不再霸占数据链路，降级回新浪/东财浏览器取数（P0修复） */
-    let stale=false, staleWhy='';
-    try{
-      if(j.ts){
-        const t=Date.parse(j.ts);
-        if(!isNaN(t)){
-          const now=bj(), today=bjStr(now), tsDate=bjStr(new Date(t));
-          if(inSession()){ stale = tsDate!==today || (now.getTime()-t)>30*60000; staleWhy=stale?'盘中要求今日包且30分钟内':'收盘后包不应早于最近交易日'; }
-          else{
-            const d=new Date(now);   /* 最近一个交易日（跳过周六日；节假日按工作日近似，可能误降级→宁降级不冻结） */
-            do{ d.setDate(d.getDate()-1); }while(d.getDay()===0||d.getDay()===6);
-            stale = tsDate < bjStr(d); staleWhy=stale?'包日期早于最近交易日':'';
-          }
-        }
-      }
-    }catch(e){}
-    if(stale){ console.warn('[Trae推送] 包已陈旧 @'+j.ts+'（'+staleWhy+'）→ 跳过注入，降级浏览器取数'); S.pushStale=j.ts; return false; }
-    const stamp = j.ts || '';
-    const firstLoad = !S.bars.d.length;   /* 首次加载：即使 ts 未变也要注入 */
-    if(!firstLoad && stamp===traePushStamp) return true;   /* 已注入过且无更新：视为命中，跳过浏览器拉取 */
-    const kb=(a,cap)=>(a||[]).map(b=>{
-      const ds=String(b.d);
-      const iso=ds.indexOf(' ')>=0 ? ds.replace(' ','T') : ds+'T00:00:00';
-      const t=Date.parse(iso+'+08:00');
-      if(isNaN(t)) return null;
-      const o={t, o:+b.o, h:+b.h, l:+b.l, c:+b.c, v:+b.v||0, oi:+b.p||0};
-      if(b.s>0) o.s=+b.s;   /* fix: 透传结算价字段 → deriveLive.prevSettle → dayUp/量仓打分口径正确（原版丢弃s导致涨跌判定恒为假） */
-      return o;
-    }).filter(Boolean);
-    const m5=kb(j.klines.m5,720), h1=kb(j.klines.h1,200), d=kb(j.klines.d,null);
-    if(d.length>=10){ S.bars.d=d; }
-    if(h1.length) S.bars.h1=h1;
-    if(m5.length) S.bars.m5=m5;
-    traePushStamp=stamp;
-    S.traePush={ts:stamp, grade:j.grade, total:j.total, side:(j.live&&j.live.price)||null, ts_:j.ts};
-    /* n-ifind: 捕获 iFinD 权威指标包（MA/MACD DIF/RSI6/前5名多空持仓），供权威面板与主力资金自动回填 */
-    S.ifind=(j.meta&&j.meta.ifind)?j.meta.ifind:null;
-    S.ifindMeta=j.meta||null;
-    ifindAutoFill();
-    console.log('[Trae推送] 已注入 jd_latest.json @'+stamp+' 日线'+d.length+'根/60分'+h1.length+'根/5分'+m5.length+'根'+(S.ifind?' · iFinD权威指标已捕获':''));
-    return true;
-  }catch(e){ return false; }   /* 本地文件不存在（file:// 或纯静态）→ 静默降级新浪源 */
-}
+/* n46: tryLoadTraePush 已删除——Trae 推送链路 10-14 停更废弃，不再整段保留死代码。
+   注意：ifindAutoFill 曾由推送包携带的 iFinD 指标触发，现无触发来源，函数保留但不会被调用（仅空字段填充逻辑，无副作用）。 */
 /* n-ifind: 主力资金动向自动回填（仅空字段填充，绝不覆盖人工录入） */
 function ifindAutoFill(){
   const a=S.ifind&&S.ifind.auth;
@@ -3736,12 +3683,11 @@ function renderHeader(){
     const m5TodayN=lastM? S.bars.m5.filter(b=>bjStr(new Date(b.t))===tStr).length : 0;
     const m5Txt=lastM? (m5TodayN?('今日 '+fmtT(lastM.t)+'（含今日 '+m5TodayN+' 根）'):(bjStr(new Date(lastM.t))+' '+fmtT(lastM.t)+'（历史）')):'--';
     const stale=lastD&&lastD!==tStr&&inSession();
-    const pushStale=S.pushStale?('服务端推送包已停更(截至'+S.pushStale.slice(0,10)+')，已降级浏览器实时取数；'):'';
+    /* n46: pushStale 提示移除——Trae 推送链路已废弃，浏览器双源为主链路，"降级"文案为历史噪音 */
     if(stale){
       sb.style.display='block';
-      sb.textContent='⚠ '+pushStale+'分析口径为混合时点：日线截至 '+lastD+'（趋势/打分骨架为历史） / 5分钟截至 '+m5Txt+'（量仓/短线部分）——打分/否决/研判非当日完整口径，顶部现价为实时';
+      sb.textContent='⚠ 分析口径为混合时点：日线截至 '+lastD+'（趋势/打分骨架为历史） / 5分钟截至 '+m5Txt+'（量仓/短线部分）——打分/否决/研判非当日完整口径，顶部现价为实时';
     }
-    else if(pushStale){ sb.style.display='block'; sb.textContent='ℹ '+pushStale; }
     else sb.style.display='none';
   })();
   const dot=$('dot');
@@ -4808,12 +4754,7 @@ async function fullCycle(){
     S.lastOK=Date.now();
     deriveLive();
     detectMode();
-    /* n-auto: Trae 推送命中时点亮页头徽标，并标注引擎评级与数据时间 */
-    const pb=$('pushbadge');
-    if(S.traePush && S.traePush.ts && S.traePush.ts===traePushStamp){
-      pb.style.display='inline-block';
-      pb.textContent='🤖 Trae推送 '+(S.traePush.grade||'')+'级 · '+(S.traePush.ts?S.traePush.ts.slice(11,16):'');
-    }
+    /* n46: Trae 推送徽标逻辑移除（链路废弃），pushbadge 元素保留但永不显示 */
     const bt=S.bars.m5.length? S.bars.m5[S.bars.m5.length-1].t:0;
     analyze();
     if(S.mode==='close') S.recap=buildRecap();
