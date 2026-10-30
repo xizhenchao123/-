@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>JD2612 半量化研判系统</title>
+<title>JD2612 半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示 -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
@@ -3238,6 +3238,34 @@ function biasSummary(A,BP){
 }
 
 /* ---- 机会评级 A/B/C/D ---- */
+/* n47: 大周期趋势锚——HH/HL 结构（近3日低点抬升+高点抬升=↑，同降=↓，否则→）+ 5日均线斜率复核。
+   口径：基于日线收盘序列，开盘后全天锁定（不随盘中翻动），为日内四票提供"压舱锚" */
+function trendAnchor(){
+  const bars=S.bars&&S.bars.d?S.bars.d:[];
+  if(bars.length<8) return null;
+  const cl=bars.map(b=>b.c);
+  /* 5日均线斜率：今日MA5 vs 三日前MA3窗口比较（平滑动量） */
+  const ma=n=>cl.slice(-n).reduce((s,x)=>s+x,0)/n;
+  const ma5now=ma(5), ma5prev=(cl.slice(-8,-3).reduce((s,x)=>s+x,0))/5;
+  const maSlope=ma5now-ma5prev;
+  /* HH/HL 结构：最近3个完整交易日的低点/高点序列（不含今日未完成bar） */
+  const n=Math.min(bars.length,4);
+  const seg=bars.slice(bars.length-n, bars.length-1>=bars.length-1?bars.length-1:bars.length-1);
+  const segL=bars.slice(-4,-1);   /* 最近3根已收盘日线 */
+  const lows=segL.map(b=>b.l), highs=segL.map(b=>b.h);
+  const hl=lows[0]<lows[1]&&lows[1]<lows[2];
+  const hh=highs[0]<highs[1]&&highs[1]<highs[2];
+  const ll=lows[0]>lows[1]&&lows[1]>lows[2];
+  const lh=highs[0]>highs[1]&&highs[1]>highs[2];
+  let dir,why=[];
+  if(hl&&hh&&maSlope>0){ dir='up'; why.push('近3日低点抬升('+lows.map(x=>x.toFixed(0)).join('→')+')+高点抬升('+highs.map(x=>x.toFixed(0)).join('→')+')+5日均线向上'); }
+  else if(ll&&lh&&maSlope<0){ dir='down'; why.push('近3日低点下移('+lows.map(x=>x.toFixed(0)).join('→')+')+高点下移('+highs.map(x=>x.toFixed(0)).join('→')+')+5日均线向下'); }
+  else if((hl&&hh)||(ll&&lh)){ dir=(hl&&hh)?'up':'down'; why.push('近3日高低点结构'+(hl&&hh?'抬升但均线未确认':'下移但均线未确认')+'，半强度锚定'); }
+  else { dir='range'; why.push('近3日高低点未形成单调结构('+lows.map(x=>x.toFixed(0)).join(',')+'/'+highs.map(x=>x.toFixed(0)).join(',')+')，区间震荡'); }
+  return {dir,maSlope,why,lows,highs};
+}
+
+/* ---- 机会评级 A/B/C/D ---- */
 function gradeABCD(A){
   const g={ grade:'C', why:[] };
   if(!A){ g.grade='C'; g.why.push('无有效分析数据'); return g; }
@@ -4214,7 +4242,25 @@ function renderStrategyInner(){
   const rows=[];
   /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差≥2偏多/偏空 */
   const BIAS=biasSummary(A,BP);
+  /* n47: 大周期趋势锚（开盘锁定，盘中不翻）+ 与日内方向的一致性判定 */
+  const TA=trendAnchor();
+  const taDir=TA?TA.dir:null;
+  const taTxt=taDir==='up'?'↑ 上行趋势':(taDir==='down'?'↓ 下行趋势':(taDir==='range'?'→ 区间震荡':'--'));
+  const taCls=taDir==='up'?C.up:(taDir==='down'?C.dn:'var(--warn)');
+  const biasDir=BIAS.side.indexOf('偏多')>=0?1:(BIAS.side.indexOf('偏空')>=0?-1:0);
+  const anchorAlign = !TA||!biasDir?'':((taDir==='up'&&biasDir>0)||(taDir==='down'&&biasDir<0))?'align':((taDir==='up'&&biasDir<0)||(taDir==='down'&&biasDir>0))?'oppose':'';
+  let alignHtml='';
+  if(anchorAlign==='align'){
+    alignHtml=`<tr><td colspan="2" style="background:rgba(76,175,80,.10);border:1px solid var(--ok);border-radius:6px;padding:6px 10px"><b style="color:var(--ok)">✅ 顺势日</b>　<span style="color:var(--txt)">大周期${taTxt} 与 今日${BIAS.side} 同向——趋势中的信号，历史上同向日胜率显著更高，可按正常纪律执行。</span></td></tr>`;
+  }else if(anchorAlign==='oppose'){
+    alignHtml=`<tr><td colspan="2" style="background:rgba(240,180,41,.12);border:1px solid var(--warn);border-radius:6px;padding:6px 10px"><b style="color:var(--warn)">⚠️ 逆势日</b>　<span style="color:var(--txt)">今日${BIAS.side}与 大周期${taTxt} 相反——更可能是趋势中的回调/反弹而非转势（参照 10-27：大周期↑+当日偏空，次日即放量收复）。建议降仓或观望，若做则严格短线止损，勿把回调单扛成趋势单。</span></td></tr>`;
+  }
+  if(TA){
+    rows.push(`<tr><td><b>🧭 大周期锚</b></td><td><b style="color:${taCls};font-size:13px">${taTxt}</b>　<span style="color:var(--faint);font-size:11px">${esc(TA.why[0])}；MA5斜率 ${TA.maSlope>0?'+':''}${TA.maSlope.toFixed(1)}。开盘锁定，盘中不翻——为下方日内票提供趋势语境。</span></td></tr>`);
+  }
+  /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差≥2偏多/偏空 */
   const bCls=BIAS.side.indexOf('偏多')>=0?C.up:(BIAS.side.indexOf('偏空')>=0?C.dn:'var(--dim)');
+  if(alignHtml) rows.push(alignHtml);   /* n47: 顺/逆势一致性提示紧跟总纲 */
   rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
   /* n27: 顶部方向总纲横幅——与策略卡共用同一BIAS对象同帧写入（零口径差），全Tab常显 */
   (function(){
@@ -4223,6 +4269,13 @@ function renderStrategyInner(){
     bb.style.opacity=nonLive?'0.55':'';   /* n32: 陈旧态横幅同步降透明度 */
     const _gb=$('gradeBanner'); if(_gb) _gb.style.opacity=nonLive?'0.55':'';   /* n32: 评级横幅同组处理 */
     $('biasSide').textContent='今日'+BIAS.side; $('biasSide').style.color=bCls;
+    /* n47: 横幅加大周期锚前置标签——先给趋势语境再看日内方向 */
+    const _ta=trendAnchor();
+    if(_ta){
+      const _t=_ta.dir==='up'?'🧭 大周期↑':(_ta.dir==='down'?'🧭 大周期↓':'🧭 大周期→');
+      const _c=_ta.dir==='up'?C.up:(_ta.dir==='down'?C.dn:'var(--warn)');
+      $('biasSide').innerHTML=`<span style="color:${_c};font-size:13px">${_t}</span> 　今日`+BIAS.side;
+    }
     const tl=$('biasTagL'), ts=$('biasTagS');
     tl.style.display=BIAS.long>0?'':'none'; tl.textContent='多 '+BIAS.long+' 票';
     ts.style.display=BIAS.short>0?'':'none'; ts.textContent='空 '+BIAS.short+' 票';
