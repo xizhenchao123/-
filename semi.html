@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>JD2612 半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示 -->
+<title>JD2612 半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截 -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
@@ -2051,6 +2051,8 @@ const S = {
 };
 /* n19 换月迁移（一次性）：旧设备存的 JD2611 自动切到 JD2612 */
 if(!LS.get('mig2612','')&&S.contract==='JD2611'){S.contract='JD2612';LS.set('contract','JD2612');LS.set('mig2612','1');}
+/* n48: 启动兜底——localStorage 残留的过期合约（年月早于当前月）自动回退 JD2612 */
+if(expiredContract(S.contract)){ S.contract='JD2612'; LS.set('contract','JD2612'); }
 
 /* =====================================================================
  *  工具函数
@@ -2161,6 +2163,14 @@ function nextMonthContract(c){
   let mm=+m[2].slice(-2); let yy=m[2].length===4?+m[2].slice(0,2):null;   /* 2612 或 202612 */
   mm+=1; if(mm>12){ mm=1; if(yy) yy++; }
   return m[1]+(yy?yy+String(mm).padStart(2,'0'):String(mm).padStart(2,'0'));
+}
+/* n48: 过期合约拦截——JD2611 及更早已交割的旧月份不再允许（JD 年月制：前两位=年,后两位=月）。
+   规则：合约年月 < 当前年月 即过期；等于或晚于当前月均可（2610 起的当月合约交割前仍有效） */
+function expiredContract(v){
+  const m=String(v).match(/^[A-Z]{1,2}(\d{2})(\d{2})$/); if(!m) return false;
+  const yy=+m[1], mm=+m[2]; if(mm<1||mm>12) return false;
+  const now=bj(), cy=now.getFullYear()%100, cm=now.getMonth()+1;
+  return yy<cy || (yy===cy&&mm<cm);
 }
 async function fetchDominance(){
   try{
@@ -4945,6 +4955,8 @@ function bindUI(){
   $('contract').addEventListener('change',async()=>{
     const v=$('contract').value.trim().toUpperCase();
     if(!/^[A-Z]{1,2}\d{4}$/.test(v)){ $('contract').value=S.contract; return; }
+    /* n48: 已交割旧合约（年月早于当前月）拒绝加载 */
+    if(expiredContract(v)){ alert(v+' 已过期交割，请输入 JD'+(String(bj().getFullYear()%100)+'12')+' 或更新的月份合约'); $('contract').value=S.contract; return; }
     S.contract=v; LS.set('contract',v);
     S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null;
     await fullCycle();
