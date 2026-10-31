@@ -3259,8 +3259,6 @@ function trendAnchor(){
   const ma5now=ma(5), ma5prev=(cl.slice(-8,-3).reduce((s,x)=>s+x,0))/5;
   const maSlope=ma5now-ma5prev;
   /* HH/HL 结构：最近3个完整交易日的低点/高点序列（不含今日未完成bar） */
-  const n=Math.min(bars.length,4);
-  const seg=bars.slice(bars.length-n, bars.length-1>=bars.length-1?bars.length-1:bars.length-1);
   const segL=bars.slice(-4,-1);   /* 最近3根已收盘日线 */
   const lows=segL.map(b=>b.l), highs=segL.map(b=>b.h);
   const hl=lows[0]<lows[1]&&lows[1]<lows[2];
@@ -3815,7 +3813,7 @@ function renderPanels(){
     const hen=parseFloat($('fHenRatio').value), prof=parseFloat($('fProfit').value), cull=parseFloat($('fCull').value), feed=parseFloat($('fFeed').value);
     const hasExt=!(isNaN(hen)&&isNaN(prof)&&isNaN(cull)&&isNaN(feed));
     const tips=[];
-    tips.push('⏳ <b>JD2612 为当前主力合约</b>，现货基差是核心锚，补栏/淘汰周期决定中期方向。');
+    tips.push(`⏳ <b>${S.contract} 为当前交易合约</b>，现货基差是核心锚，补栏/淘汰周期决定中期方向。`);
     if(A.spotMissing) tips.push('⚠ <b>现货价格未录入</b>：基本面得分可信度低（当前按保底 12/25 计），<b>总分仅作技术面参考</b>，请补录现货均价后再参考基本面结论。');
     else if(!hasExt) tips.push('提示：已录入现货价，可继续补充存栏/利润/淘汰鸡/饲料成本，获得更完整的基本面解读（不影响打分公式）。');
     if(!isNaN(hen)){ if(hen>=3) tips.push(`🐤 在产蛋鸡存栏同比 <b>+${hen}%</b>：供给偏宽松，中期压制蛋价上方空间（偏空）；若连续走低则利多远月。`); else if(hen<=-3) tips.push(`🐤 在产蛋鸡存栏同比 <b>${hen}%</b>：供给偏紧，支撑远月估值（偏多）。`); else tips.push(`🐤 在产蛋鸡存栏同比 <b>${hen}%</b>：供给中性，对盘面指引有限。`); }
