@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>JD2612 半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截 -->
+<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截 -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
@@ -1698,7 +1698,7 @@ window.__TRAE_PUSH_INLINE__={
 
 <header>
   <div class="hrow">
-    <div class="logo">🥚 JD2612 半量化研判系统<small>傅海棠供需 + 势位态 + 威科夫鹰眼</small></div>
+    <div class="logo">🥚 鸡蛋半量化研判系统<small>傅海棠供需 + 势位态 + 威科夫鹰眼</small></div>
     <input id="contract" value="JD2612" maxlength="8" title="k3-6 合约切换：输入代码（如 JD2605 / JD0）后回车，自动重载全部数据；历史日期切换为预留功能">
     <span id="modebadge" class="badge close">收盘复盘模式</span>
     <span id="pushbadge" class="badge" style="display:none" title="n46: Trae 推送链路已废弃，此徽标永不显示">🤖 Trae推送</span>
@@ -1989,7 +1989,7 @@ window.__TRAE_PUSH_INLINE__={
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 /* =====================================================================
- *  JD2612 鸡蛋期货 AI 半量化研判系统
+ *  鸡蛋期货 AI 半量化研判系统
  *  框架：势（趋势）/ 位（关键位）/ 态（结构·真假突破）
  *       + 威科夫量仓（资金鹰眼）+ 四项打分 + 一票否决
  *  数据：新浪财经期货JSONP公开接口（K线自带每根持仓量）
