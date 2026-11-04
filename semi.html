@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- n52: CSP meta（GitHub Pages 无法配 HTTP 头）——script 仅本域+新浪JSONP+jsDelivr；connect 限自建源与行情域；img/style/data: 默认放行需覆盖 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://stock2.finance.sina.com.cn; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
-<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态） -->
+<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导） -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
@@ -1930,6 +1930,7 @@ window.__TRAE_PUSH_INLINE__={
         <button class="fbtn" id="histClear" style="float:right;margin-top:-1px;margin-right:6px">🗑 清空</button></h3>
       <div id="histBody"></div>
       <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">每个交易日收盘复盘时自动存档当日研判与策略（同日刷新覆盖，最多保留 90 条），保存在本机浏览器中，不上传任何服务器。</div>
+      <div class="sec" style="margin-top:8px;padding:8px 10px;border:1px dashed var(--gold);border-radius:8px;background:rgba(255,196,107,.06);font-size:11px;line-height:1.7">💾 <b>数据备份（n54）</b>：交易日志、历史策略、信号快照、适宜度跟踪、持仓记录等全部保存在本机浏览器 localStorage 中——<b>清缓存/换设备会全部丢失</b>。建议每周点一次下方按钮导出 JSON 存档：<br><button class="fbtn" id="bkExportBtn" style="margin-top:6px">⤓ 备份全部数据</button></div>
     </div>
 
     <div class="card tg">
@@ -2325,7 +2326,7 @@ function n39SrcBadge(){
     `<div>分钟持仓OI：${oiOk?'<span style="color:'+dot(1)+'">● 可用</span>':'<span style="color:'+dot(0)+'">● 缺失</span>'+(oiOk?'':'（备线无OI，资金鹰眼降级）')}</div>`+
     `<div>${limTxt}</div>`+
     (()=>{ const d=dominanceTxt();   /* n45: 主力对比监控行 */
-      if(!d) return '<div>主力对比：待快照（当前 vs '+((nextMonthContract(S.contract)||'?'))+'）</div>';
+      if(!d) return '<div>主力对比：<span style="color:var(--warn)">⏳ 待快照</span>（当前 vs '+((nextMonthContract(S.contract)||'?'))+'）——首次加载/东财接口偶尔失败，稍后自动重试；持续显示请刷新页面</div>';
       const vr=d.volRatio?' / 量比'+d.volRatio.toFixed(2):'';
       /* n51b: OI比≥1.2 → 该行追加可点按钮"一键换月"（预览态在详情行内，触发 confirm 二次确认） */
       const btn=d.ratio>=1.2?' <button id="rollBtn" style="background:none;border:1px solid var(--gold);color:var(--gold);font-weight:700;border-radius:6px;padding:1px 6px;font-size:11px;cursor:pointer">⚡一键换月→'+d.next+'</button>':'';   /* n52: a href=javascript:void(0) 改 button */
@@ -4781,7 +4782,7 @@ function renderCaseStats(){
     nx:has.length?+(has.reduce((a,b)=>a+b.nx,0)/has.length).toFixed(1):null,
     up:has.length?Math.round(100*has.filter(r=>r.nx>0).length/has.length):null }; };
   let html='<div class="simrow" style="margin-bottom:8px"><b>案例库统计总览</b>（机械阈值筛选的极端日样本，非随机样本；n过小的行无统计意义，仅供复盘对照）'+
-    (_jd0Map?'':'<br><span style="color:var(--faint)">次日数据联网获取后自动补充。</span>')+
+    (_jd0Map?'':'<br><span style="color:var(--warn)">⏳ 次日%列暂缺：JD0主连日线接口未返回数据（n54起不再静默），刷新页面可重试；不影响当日涨跌与统计。</span>')+
     '<table class="lvl" style="margin-top:6px"><tr><th>日线行为(主连)</th><th>笔数</th><th>当日均涨跌%</th><th>次日均%</th><th>次日上涨占比</th></tr>';
   for(const b of ['吸筹','拉升','派发','砸盘','空头回补','多头离场']){
     const g=grp(CASE_LIB.D.filter(c=>c[5]===b).map(c=>({x:c[1],nx:nxOf(c[0])})));
@@ -5224,6 +5225,19 @@ function bindUI(){
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download='jd_strategies_'+bjStr(bj())+'.json'; a.click(); URL.revokeObjectURL(a.href);
   };
+  /* n54a: 全量数据一键备份导出——journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全部 LS 键打包下载，防清缓存丢数据 */
+  const _BK_KEYS=['journal','strategies','sigSnaps','fitnessTrack','cases','dailyThree','rollLog','positions','lossStreak','drawdown','contract','apiMode','apiUrl','spot','factors','biasSel'];
+  const _bkExport=()=>{
+    const out={_ver:'n54',_date:bjStr(bj()),data:{}};
+    let n=0;
+    for(const k of _BK_KEYS){ const v=LS.get(k,''); if(v!==''){ out.data[k]=v; n++; } }
+    if(!n){ alert('暂无可备份的数据'); return; }
+    const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='jd_backup_'+bjStr(bj())+'.json'; a.click(); URL.revokeObjectURL(a.href);
+    const b=$('bkExportBtn'); if(b){ b.textContent='✔ 已导出'+n+'类'; setTimeout(()=>b.textContent='⤓ 备份全部数据',1500); }
+  };
+  $('bkExportBtn').onclick=_bkExport;
   $('histClear').onclick=()=>{
     let n=0; try{ n=JSON.parse(LS.get('strategies')||'[]').length; }catch(e){}
     if(!n){ alert('暂无存档可清空'); return; }
