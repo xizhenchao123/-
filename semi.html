@@ -3259,6 +3259,9 @@ function intradayBP(A){
   /* n44-1: 开盘首根极值指示器——开盘30分钟后若首根5分钟K仍是至今极值且放量(≥全天均量2倍)，
      近期观察(10-21高开即顶/10-22低开即底/10-23低开即底)显示首根恐慌宣泄常是当日方向反向指示器 */
   out.firstBarExt=false;
+  /* n58: 条件收紧——仅"高开+首根顶极值"与"低开+首根底极值"才警示（跳空情绪极端组合）。
+     依据 n44 挂账对照：10-26 高开+首根巨量→反噬；11-02 低开+首根5.7万手放量→顺势无反噬。
+     低开+急杀/高开+急拉属顺势宣泄，不构成反向指示（2026-11-04 定案） */
   if(S.mode==='live'||S.mode==='closed'){
     const bars=S.bars.m5||[];
     const tb=bars.filter(b=>bjStr(new Date(b.t))===today);
@@ -3266,12 +3269,12 @@ function intradayBP(A){
       const first=tb[0], avgV=tb.reduce((s,b)=>s+(b.v||0),0)/tb.length;
       const hi=Math.max.apply(null,tb.map(b=>b.h)), lo=Math.min.apply(null,tb.map(b=>b.l));
       const spike=first.v>=avgV*2;
-      if(spike&&first.l<=lo&&first.c<first.o&&out.dir==='多'){
+      if(spike&&first.l<=lo&&first.c<first.o&&out.dir==='多'&&out.gap!=null&&out.gap<=-0.3){
         out.firstBarExt='底';
-        out.why.push('开盘首根5分钟即全天最低且放量('+Math.round(first.v/1000)+'千手≥均量2倍·急杀'+((first.o-first.c)/first.o*100).toFixed(2)+'%)：恐慌宣泄一次性出清特征，近三日同型均收V反——勿把早盘弱势当全天弱势，多向票反而可留意');
-      } else if(spike&&first.h>=hi&&first.c>first.o&&out.dir==='空'){
+        out.why.push('低开+开盘首根5分钟即全天最低且放量('+Math.round(first.v/1000)+'千手≥均量2倍·急杀'+((first.o-first.c)/first.o*100).toFixed(2)+'%)：跳空情绪极端+恐慌宣泄一次性出清特征——勿把早盘弱势当全天弱势，多向票反而可留意（注：低开放量顺势宣泄不警示，11-02案例定案）');
+      } else if(spike&&first.h>=hi&&first.c>first.o&&out.dir==='空'&&out.gap!=null&&out.gap>=0.3){
         out.firstBarExt='顶';
-        out.why.push('开盘首根5分钟即全天最高且放量(≥均量2倍·急拉)：抢筹一次性特征，同型首根极值历史上常是当日方向反向指示——空向票留意冲高回落外的反例风险');
+        out.why.push('高开+开盘首根5分钟即全天最高且放量(≥均量2倍·急拉)：跳空抢筹一次性特征，同型首根极值历史上常是当日方向反向指示——空向票留意冲高回落外的反例风险（10-26案例口径）');
       }
     }
   }
