@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- n52: CSP meta（GitHub Pages 无法配 HTTP 头）——script 仅本域+新浪JSONP+jsDelivr；connect 限自建源与行情域；img/style/data: 默认放行需覆盖 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://stock2.finance.sina.com.cn; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
-<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效） -->
+<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态） -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
@@ -4299,6 +4299,29 @@ function renderStrategyInner(){
   const taCls=taDir==='up'?C.up:(taDir==='down'?C.dn:'var(--warn)');
   const biasDir=BIAS.side.indexOf('偏多')>=0?1:(BIAS.side.indexOf('偏空')>=0?-1:0);
   const anchorAlign = !TA||!biasDir?'':((taDir==='up'&&biasDir>0)||(taDir==='down'&&biasDir<0))?'align':((taDir==='up'&&biasDir<0)||(taDir==='down'&&biasDir>0))?'oppose':'';
+  /* n50: 日内倾向角——大周期锚×日内方向过滤×适宜度三合一罗盘（决策入口视角，不新增指标）。
+     顺=锚与日内同向且适宜→可按纪律执行；钝=锚有向但日内观望→等日内方向或轻仓试探锚向；逆=锚与日内反向→回调/反弹思路防反转；横=锚无向→区间思路。 */
+  (function(){
+    const pc=BP?BP.prevChg:null, c3=BP?BP.cum3:null;
+    let angle,ac,advice;
+    const fit=pc!=null&&isFinite(pc)&&Math.abs(pc)>=0.5;
+    const momo=c3!=null&&isFinite(c3)&&Math.abs(c3)>=1.5;
+    if(!TA||taDir==='range'){
+      angle='横·区间思路'; ac='var(--warn)';
+      advice='大周期锚无方向（'+(TA?TA.dir:'数据不足')+'）→ 不用趋势跟进打法，按区间上下沿高抛低吸+严格止损，或观望';
+    }else if(biasDir!==0&&((taDir==='up'&&biasDir>0)||(taDir==='down'&&biasDir<0))){
+      if(fit){ angle=(taDir==='up'?'顺↗':'顺↘')+'·积极'; ac='var(--ok)'; advice='锚与日内同向且前日动能达标（'+(pc>0?'+':'')+pc.toFixed(2)+'%）→ 全天最有利组合，可按日内顺势口径正常纪律执行'; }
+      else if(momo){ angle=(taDir==='up'?'顺↗':'顺↘')+'·轻仓'; ac='var(--ok)'; advice='同向但单日动能弱（3日累计'+c3.toFixed(2)+'%撑着）→ 轻仓试单或等3日方向确认'; }
+      else { angle=(taDir==='up'?'顺↗':'顺↘')+'·观望'; ac='var(--warn)'; advice='同向但前日小阴小阳（'+pc.toFixed(2)+'%）无edge → 日内轻仓或不做，方向虽对但择时不配合'; }
+    }else if(biasDir!==0&&((taDir==='up'&&biasDir<0)||(taDir==='down'&&biasDir>0))){
+      angle=(taDir==='up'?'逆↙':'逆↗')+'·警惕'; ac='var(--risk)';
+      advice='日内'+(biasDir>0?'偏多':'偏空')+'与锚'+(taDir==='up'?'↑':'↓')+'相反 → 更可能是回调/反弹而非转势：降仓、严格短线止损、勿扛单，若放量收复锚向则日内方向失效';
+    }else{
+      angle=(taDir==='up'?'锚↗等日内':'锚↘等日内'); ac='var(--warn)';
+      advice='大周期锚明确'+(taDir==='up'?'↑':'↓')+'但日内方向中性（多'+(BP?BIAS.long:0)+'/空'+(BP?BIAS.short:0)+'对冲）→ 等日内方向票出来再动，可预先按锚向备好预案';
+    }
+    rows.push(`<tr><td><b>📐 日内倾向角</b></td><td><b style="color:${ac};font-size:13px">${angle}</b>　<span style="color:var(--faint);font-size:11px">${advice}</span></td></tr>`);
+  })();
   let alignHtml='';
   if(anchorAlign==='align'){
     alignHtml=`<tr><td colspan="2" style="background:rgba(76,175,80,.10);border:1px solid var(--ok);border-radius:6px;padding:6px 10px"><b style="color:var(--ok)">✅ 顺势日</b>　<span style="color:var(--txt)">大周期${taTxt} 与 今日${BIAS.side} 同向——趋势中的信号，历史上同向日胜率显著更高，可按正常纪律执行。</span></td></tr>`;
