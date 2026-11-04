@@ -3234,19 +3234,23 @@ function intradayBP(A){
   }
   /* 14:15 停开新仓（仅盘中硬约束；收盘模式整体作为次日预案） */
   const now=bj(); out.cutoff=(now.getHours()*100+now.getMinutes())>=1415&&S.mode==='live';
-  /* n38-1: 午前末段恐慌降置信（对称于14:15 cutoff）——连续下跌+恐慌加速+临近午休时，"破位加速"大概率是spring而非延续（10-22复盘：11:10-11:30恐慌下杀后竞价前90点抢筹反杀） */
+  /* n38-1: 恐慌下杀降置信（对称于14:15 cutoff）——连续下跌+恐慌加速+临近午休/午后流动性低谷时，"破位加速"大概率是spring而非延续
+     n38b校准(2026-11-04, 192交易日13合约5m回扫)：0.8%阈值午前段触发23次正确率78%、午后段(13:35-14:00)触发44次正确率86%——0.5%过频(76%/87%)、1.2%样本碎且正确率反降(57%/78%)，0.8%保留；午后对称扩展上线 */
   out.preNoonSpike=false;
   if(S.mode==='live'){
     const hm=now.getHours()*100+now.getMinutes();
-    if(hm>=1100&&hm<1130&&out.dir==='空'&&out.on){
+    const inSeg=(hm>=1100&&hm<1130)||(hm>=1335&&hm<1400);
+    if(inSeg&&out.dir==='空'&&out.on){
       const bars=S.bars.m5||[];
-      const recent=bars.filter(b=>bjStr(new Date(b.t))===today&&bjDateHM(new Date(b.t))>=1050).slice(-6);
+      const segStart=(hm>=1100&&hm<1130)?1050:1335;
+      const recent=bars.filter(b=>bjStr(new Date(b.t))===today&&bjDateHM(new Date(b.t))>=segStart).slice(-6);
       if(recent.length>=4){
         const hi=Math.max.apply(null,recent.map(b=>b.h)), lo=Math.min.apply(null,recent.map(b=>b.l));
         const drop=(lo-hi)/hi*100;
         if(drop<=-0.8){
           out.preNoonSpike=true;
-          out.why.push('午前末段恐慌下杀 '+drop.toFixed(2)+'%（11:00-11:30 空向顺势态）：连跌末端+临近午休的加速下跌大概率是 spring/插针而非延续——空单降置信、防竞价前抢筹反杀，勿按破位延续口径追空');
+          const segName=(hm<1130)?'午前末段':'午后初段(13:35-14:00)';
+          out.why.push(segName+'恐慌下杀 '+drop.toFixed(2)+'%（空向顺势态）：连跌末端+临近午休/午后流动性低谷的加速下跌大概率是 spring/插针而非延续（n38b校准：同型历史收盘回升率78%/86%）——空单降置信、防竞价前/尾盘抢筹反杀，勿按破位延续口径追空');
         }
       }
     }
