@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- n52: CSP meta（GitHub Pages 无法配 HTTP 头）——script 仅本域+新浪JSONP+jsDelivr；connect 限自建源与行情域；img/style/data: 默认放行需覆盖 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://stock2.finance.sina.com.cn; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
-<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导） -->
+<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分） -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
@@ -1947,6 +1947,12 @@ window.__TRAE_PUSH_INLINE__={
         </div>
       </div>
       <div class="sec" id="spotHint" style="display:none;margin-top:6px;color:var(--faint);line-height:1.7"></div>
+      <div class="basisbox" id="basisSnap" style="border-color:var(--gold);background:rgba(255,196,107,.06);margin-top:8px">
+        📊 <b>基差助手（n55，通达信F9数据，我每日收盘后更新）</b><br>
+        <span id="basisSnapTxt">快照未载入</span><br>
+        <button class="fbtn" id="basisFillBtn" style="margin-top:6px">⚡ 一键填入今日/昨日现货价</button>
+        <span id="basisFillTip" style="font-size:10px;color:var(--faint);margin-left:6px"></span>
+      </div>
       <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2612 为当前主力合约，基差结构以 2612 口径解读。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。</div>
     </div>
 
@@ -3734,6 +3740,7 @@ const chart = {
  * ===================================================================== */
 function renderHeader(){
   const L=S.live, A=S.A;
+  if(typeof renderBasisSnap==='function') renderBasisSnap();   /* n55: 实时价变化时刷新基差助手 */
   /* 模式 */
   const b=$('modebadge');
   const live = S.mode==='live';
@@ -5062,6 +5069,28 @@ function bindUI(){
   $('spotToday').addEventListener('input',spotChange);
   $('spotYest').addEventListener('input',spotChange);
   $('biasSel').addEventListener('change',e=>{ S.spot.bias=+e.target.value; LS.set('bias',S.spot.bias); spotChange(); });
+  /* n55 基差助手：通达信F9现货均价每日快照（硬编码，由助手每日收盘后更新）
+     数据核对：2026-11-04 均价4.60（11-03 同为4.60，环比0）、F9基差619（11-03为669） */
+  const BASISSNAP={date:'2026-11-04',spot:4.60,prev:4.60,unit:'元/斤',src:'通达信F9 主产区均价',f9basis:619,f9prev:669};
+  function renderBasisSnap(){
+    const el=$('basisSnapTxt'); if(!el) return;
+    const px=(S.live&&S.live.price!=null)?S.live.price:(S.bars.d.length?S.bars.d[S.bars.d.length-1].c:null);
+    const diff=px!=null?(BASISSNAP.spot*1000-px).toFixed(0):null;   // 基差（元/500千克），与打分口径一致
+    const pct=diff!=null&&px?((BASISSNAP.spot*1000-px)/px*100).toFixed(1):null;
+    const chg=(BASISSNAP.spot-BASISSNAP.prev);
+    el.innerHTML='快照日期 <b>'+BASISSNAP.date+'</b>（'+BASISSNAP.src+'）：今日现货 <b>'+BASISSNAP.spot.toFixed(2)+'</b> '+BASISSNAP.unit+'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'
+      +(pct!=null?('　期货现价 '+px.toFixed(0)+' → 期现基差 <b>'+diff+'</b>（'+pct+'%，'+(diff>0?'期货贴水':'期货升水')+'）'):'　（等待行情载入后显示基差）')
+      +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，收窄 '+(BASISSNAP.f9prev-BASISSNAP.f9basis)+'）';
+  }
+  renderBasisSnap();
+  $('basisFillBtn').onclick=()=>{
+    $('spotToday').value=BASISSNAP.spot.toFixed(2);
+    $('spotYest').value=BASISSNAP.prev.toFixed(2);
+    spotChange();
+    const tip=$('basisFillTip');
+    tip.textContent='已填入 '+BASISSNAP.date+' 快照并重算';
+    setTimeout(()=>{tip.textContent='';},5000);
+  };
   /* ---- 持仓录入（第五步：录入后自动监测；方向=none 即平仓清空） ---- */
   const posChange=()=>{
     const v=$('posDir').value;
