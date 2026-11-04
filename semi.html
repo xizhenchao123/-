@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截 -->
+<title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核） -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
 <!-- n20: K线画布 touch-action none→pan-y：手机端手指落在K线图上=竖滑滚页面/横滑查K线，不再整页卡死 -->
@@ -1724,6 +1724,8 @@ window.__TRAE_PUSH_INLINE__={
     <span id="biasTagS" class="tag" style="display:none">空 0 票</span>
   </div>
   <div id="biasWhy" style="margin-top:6px;font-size:11px;color:var(--faint);line-height:1.6"></div>
+  <!-- n51a: 今日适宜度一行提示（扩样回测：前日|涨跌|≥0.5% → 当日顺势积极日；小阴小阳/十字星 → 日内轻仓或不做，期望差5-10点/笔） -->
+  <div id="fitnessRow" style="display:none;margin-top:8px;padding:7px 10px;border-radius:6px;font-size:12px;line-height:1.6;border:1px solid var(--line);background:rgba(127,127,127,.06)"></div>
 </div>
 
 <!-- 评级横幅卡片（k1-3）：综合得分 / 机会评级 / 一票否决状态 -->
@@ -2195,6 +2197,36 @@ function dominanceTxt(){
   const note=ratio>=2?' ⚠ 主力实质已切换，建议切合约并走换月四件套':(ratio>=1.2?' · 换月临近，留意':'');
   return {ratio,volRatio,color,note,next:d.next};
 }
+/* n51b: 一键换月四件套——OI比≥1.2 预警升级为可点按钮。
+   四件套：①切次月合约 ②重载全部K线/分析 ③旧合约台账封存（rollLog 追加迁出记录，台账数据本身按日期天然保留不删） ④趋势锚一致性检查：
+   换月前后各算一次 trendAnchor，方向一致 → 延续不重置（用户定案：大周期走向没有问题就延续）；相反/消失 → 提示人工复核。 */
+async function rolloverToNext(){
+  const nx=nextMonthContract(S.contract);
+  if(!nx){ alert('无法计算次月合约（当前 '+S.contract+' 格式异常）'); return; }
+  if(expiredContract(nx)){ alert('次月合约 '+nx+' 已过期，请手动输入更新的月份合约'); return; }
+  const oldC=S.contract;
+  if(!confirm('确认一键换月？\n\n'+oldC+' → '+nx+'\n\n将执行：\n① 切换合约并重载全部K线与分析\n② 旧合约 '+oldC+' 记入台账封存日志\n③ 趋势锚一致性检查（方向一致自动延续）')) return;
+  const oldAnchor=trendAnchor();
+  const oldDir=oldAnchor?oldAnchor.dir:null;
+  S.contract=nx; LS.set('contract',nx);
+  S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null; S.dom=null;
+  try{
+    const log=JSON.parse(LS.get('rollLog','[]'))||[];
+    log.push({from:oldC,to:nx,ts:Date.now(),date:bjStr(bj()),oldDir:oldDir||''});
+    LS.set('rollLog',JSON.stringify(log.slice(-20)));
+  }catch(e){}
+  $('contract').value=nx;
+  await fullCycle();
+  /* ④ 趋势锚一致性检查：新合约日线就位后重算 */
+  try{
+    const na=trendAnchor(); const nd=na?na.dir:null;
+    if(oldDir&&nd&&oldDir!=='range'&&nd!=='range'&&oldDir!==nd){
+      alert('⚠ 换月完成 '+oldC+'→'+nx+'，但趋势锚方向翻转：旧锚'+(oldDir==='up'?'↑':'↓')+' → 新锚'+(nd==='up'?'↑':'↓')+'。\n大周期方向与旧锚不一致，请人工复核后再沿用旧趋势结论（可能是换月基差/移仓价差导致，也可能是真实转势）。');
+    } else if(oldDir&&oldDir!=='range'){
+      console.log('[n51b] 换月完成 '+oldC+'→'+nx+'，趋势锚方向一致（'+(oldDir==='up'?'↑':'↓')+'），延续不重置');
+    }
+  }catch(e){}
+}
 async function emKline(klt,lmt){
   const url='https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=114.'+S.contract.toLowerCase()
     +'&klt='+klt+'&fqt=0&lmt='+lmt+'&end=20500101&fields1=f1,f2,f3,f4,f5&fields2='+EM_F2;
@@ -2291,8 +2323,13 @@ function n39SrcBadge(){
     (()=>{ const d=dominanceTxt();   /* n45: 主力对比监控行 */
       if(!d) return '<div>主力对比：待快照（当前 vs '+((nextMonthContract(S.contract)||'?'))+'）</div>';
       const vr=d.volRatio?' / 量比'+d.volRatio.toFixed(2):'';
-      return '<div>主力对比：<span style="color:'+d.color+'">OI比 '+d.ratio.toFixed(2)+'</span>'+vr+'（vs '+d.next+'）'+d.note+'</div>'; })()+
+      /* n51b: OI比≥1.2 → 该行追加可点按钮"一键换月"（预览态在详情行内，触发 confirm 二次确认） */
+      const btn=d.ratio>=1.2?' <a href="javascript:void(0)" id="rollBtn" style="color:var(--gold);font-weight:700;text-decoration:underline">⚡一键换月→'+d.next+'</a>':'';
+      return '<div>主力对比：<span style="color:'+d.color+'">OI比 '+d.ratio.toFixed(2)+'</span>'+vr+'（vs '+d.next+'）'+d.note+btn+'</div>'; })()+
     `<div>现货/基本面料：生意社（趋势参考）</div>`;
+  /* n51b: 绑定一键换月按钮（每次重写明细DOM后重新挂） */
+  const _rb=document.getElementById('rollBtn');
+  if(_rb) _rb.onclick=()=>rolloverToNext();
 }
 
 /* n16: 静态沙盘防误导 */
@@ -4294,6 +4331,27 @@ function renderStrategyInner(){
     }
     $('biasWhy').innerHTML=BIAS.votes.length?BIAS.votes.map(v=>'『'+esc(v[0])+'』'+esc(v[1])).join('；')+'。<br>':'';
     $('biasWhy').innerHTML+='方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓以"策略"Tab行情定性＋一票否决为准。';
+    /* n51a: 今日适宜度——前日涨跌幅口径（扩样回测核心：适宜日 vs 观望日 期望差 5-10 点/笔）。
+       口径与 intradayBP 一致：|前日涨跌|≥0.5% 顺势积极日；否则若 3日累计|≥1.5% 单边动量降权日；两者皆无 → 观望日。 */
+    (function(){
+      const fr=$('fitnessRow'); if(!fr) return;
+      if(!BP||BP.prevChg==null||!isFinite(BP.prevChg)){ fr.style.display='none'; return; }
+      const pc=BP.prevChg, c3=BP.cum3;
+      let lvl,txt,bg,bd;
+      if(Math.abs(pc)>=0.5){
+        lvl='适宜'; txt='前日'+(pc>0?'+':'')+pc.toFixed(2)+'%（|涨跌|≥0.5%）→ 顺势积极日：可按日内顺势口径正常纪律执行';
+        bg='rgba(63,185,132,.10)'; bd='var(--ok)';
+      } else if(c3!=null&&isFinite(c3)&&Math.abs(c3)>=1.5){
+        lvl='降权'; txt='前日'+pc.toFixed(2)+'%（单日无edge），但3日累计'+c3.toFixed(2)+'% 单边动量显著 → 降权日：轻仓试单或等3日方向确认';
+        bg='rgba(240,180,41,.10)'; bd='var(--warn)';
+      } else {
+        lvl='观望'; txt='前日'+pc.toFixed(2)+'% 小阴小阳'+(c3!=null&&isFinite(c3)?'，3日累计'+c3.toFixed(2)+'% 未达1.5%':'')+' → 观望日：扩样回测该状态日内无稳定edge（期望差5-10点/笔），日内轻仓或不做';
+        bg='rgba(230,72,61,.08)'; bd='rgba(230,72,61,.45)';
+      }
+      const lc=lvl==='适宜'?'var(--ok)':(lvl==='降权'?'var(--warn)':'var(--risk)');
+      fr.style.display=''; fr.style.background=bg; fr.style.borderColor=bd;
+      fr.innerHTML='<b style="color:'+lc+'">📋 今日适宜度：'+lvl+'</b>　<span style="color:var(--txt)">'+txt+'</span>';
+    })();
   })();
   rows.push(`<tr><td><b>行情定性</b></td><td><b style="color:${sideC}">${side}</b>　<span style="color:var(--faint)">${qualNote}</span></td></tr>`);
   /* n10 醒目警告条：盈亏比低于 1.2R 阈值 → 顶部大字提示不建议开仓（展示层，不改评级） */
