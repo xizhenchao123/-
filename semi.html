@@ -2051,8 +2051,9 @@ const S = {
 };
 /* n19 换月迁移（一次性）：旧设备存的 JD2611 自动切到 JD2612 */
 if(!LS.get('mig2612','')&&S.contract==='JD2611'){S.contract='JD2612';LS.set('contract','JD2612');LS.set('mig2612','1');}
-/* n48: 启动兜底——localStorage 残留的过期合约（年月早于当前月）自动回退 JD2612 */
-if(expiredContract(S.contract)){ S.contract='JD2612'; LS.set('contract','JD2612'); }
+/* n48: 启动兜底——localStorage 残留的过期合约（年月早于当前月）自动回退
+   n49b: 回退目标改为动态次月合约 nextMonthContract()（写死 JD2612 会在其交割后死循环回退过期合约） */
+if(expiredContract(S.contract)){ const _nx=nextMonthContract(S.contract)||'JD2612'; S.contract=_nx; LS.set('contract',_nx); }
 
 /* =====================================================================
  *  工具函数
@@ -4953,8 +4954,9 @@ function bindUI(){
   $('contract').addEventListener('change',async()=>{
     const v=$('contract').value.trim().toUpperCase();
     if(!/^[A-Z]{1,2}\d{4}$/.test(v)){ $('contract').value=S.contract; return; }
-    /* n48: 已交割旧合约（年月早于当前月）拒绝加载 */
-    if(expiredContract(v)){ alert(v+' 已过期交割，请输入 JD'+(String(bj().getFullYear()%100)+'12')+' 或更新的月份合约'); $('contract').value=S.contract; return; }
+    /* n48: 已交割旧合约（年月早于当前月）拒绝加载
+       n49b: alert 提示改为动态次月合约（原来写死当前年12月，交割后提示会指向另一个过期合约） */
+    if(expiredContract(v)){ const _nx=nextMonthContract(v)||''; alert(v+' 已过期交割，请切换到 '+(_nx||'更新的月份')+' 或之后的月份合约'); $('contract').value=S.contract; return; }
     S.contract=v; LS.set('contract',v);
     S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null;
     await fullCycle();
