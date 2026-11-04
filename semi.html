@@ -1948,9 +1948,10 @@ window.__TRAE_PUSH_INLINE__={
       </div>
       <div class="sec" id="spotHint" style="display:none;margin-top:6px;color:var(--faint);line-height:1.7"></div>
       <div class="basisbox" id="basisSnap" style="border-color:var(--gold);background:rgba(255,196,107,.06);margin-top:8px">
-        📊 <b>基差·仓单助手（n55/n56，通达信F9数据，我每日收盘后更新）</b><br>
+        📊 <b>基差·仓单·排名助手（n55/n56/n57，通达信F9数据，我每日收盘后更新）</b><br>
         <span id="basisSnapTxt">快照未载入</span><br>
         <span id="wrSnapTxt" style="font-size:11px">仓单快照未载入</span><br>
+        <span id="rankSnapTxt" style="font-size:11px">持仓排名快照未载入</span><br>
         <button class="fbtn" id="basisFillBtn" style="margin-top:6px">⚡ 一键填入今日/昨日现货价</button>
         <span id="basisFillTip" style="font-size:10px;color:var(--faint);margin-left:6px"></span>
       </div>
@@ -5082,6 +5083,12 @@ function bindUI(){
      解读要点：鸡蛋仓单=厂库标准仓单、当月强制注销天然偏低；临近交割月仓单快速注册=现货供给压力实证 */
   const WRSNAP={date:'2026-11-04',total:0,note:'09-30 月末强制注销 -204 后无新增，当前零仓单',
     warn:'当前主力临近交割月，仓单若快速注册=供给压力预警（反之零仓单无交割压制）'};
+  /* n57 持仓排名快照：交易所官方持仓排行前20（F9 f9_commodity_future_position_rankings，JD2612）
+     数据核对：2026-11-04 前20多115547 / 前20空119344 / 净空+3797 / 成交量前20合计668423；
+     Top：国泰君安多13884/空13133双第一、银河空头11036次之；方正中期净空-1872居首
+     解读要点：净空温和偏空但幅度小(<OI的2%)=主力分歧不大；净空若快速放大(>+2万)=空头施压实证 */
+  const RANKSNAP={date:'2026-11-04',contract:'JD2612',long20:115547,short20:119344,netShort:3797,vol20:668423,
+    top:'国泰君安多13884/空13133双第一',note:'净空温和（<OI 2%），主力分歧不大'};
   function renderBasisSnap(){
     const el=$('basisSnapTxt'); if(!el) return;
     const wr=$('wrSnapTxt');
@@ -5093,6 +5100,14 @@ function bindUI(){
       +(pct!=null?('　期货现价 '+px.toFixed(0)+' → 期现基差 <b>'+diff+'</b>（'+pct+'%，'+(diff>0?'期货贴水':'期货升水')+'）'):'　（等待行情载入后显示基差）')
       +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，收窄 '+(BASISSNAP.f9prev-BASISSNAP.f9basis)+'）';
     if(wr) wr.innerHTML='🏷 注册仓单 <b>'+WRSNAP.total+'</b> 张（'+WRSNAP.note+'）· '+WRSNAP.warn+'　<span style="color:var(--faint)">快照 '+WRSNAP.date+'，DCE厂库标准仓单</span>';
+    const rk=$('rankSnapTxt');
+    if(rk){
+      const oi=(S.live&&S.live.oi!=null)?S.live.oi:null;
+      const netPct=oi?((RANKSNAP.netShort/oi)*100).toFixed(1):null;
+      rk.innerHTML='🏦 官方持仓排名前20（'+RANKSNAP.contract+'）：多 <b>'+RANKSNAP.long20+'</b> / 空 <b>'+RANKSNAP.short20+'</b> / 净空 <b>+'+RANKSNAP.netShort+'</b>'
+        +(netPct?('（占OI '+netPct+'%）'):'')+'，成交量前20 '+RANKSNAP.vol20+'　'+RANKSNAP.top+'　· '+RANKSNAP.note
+        +'　<span style="color:var(--faint)">快照 '+RANKSNAP.date+'，交易所排行（F9）</span>';
+    }
   }
   renderBasisSnap();
   $('basisFillBtn').onclick=()=>{
