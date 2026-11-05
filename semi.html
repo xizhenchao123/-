@@ -3278,6 +3278,13 @@ function intradayBP(A){
       }
     }
   }
+  /* n60: 实时破位降置信——盘中现价逆着顺势方向击穿昨低/昨高，昨日前提的"资格"当场失效（防"显示顺、实际逆"，2026-11-05 JD2612 案例：锚↑票多+盘中破昨低）。
+     仅 live 模式生效；close 模式无实时价不判。不做方向翻转，只降置信+警示，入场裁决仍归行情定性 */
+  out.rtBreak=null;
+  if(S.mode==='live'&&price!=null&&isFinite(price)){
+    if(out.dir==='多'&&price<prev.l){ out.rtBreak='昨低'+prev.l.toFixed(0); out.why.push('⚠ 实时破位：现价 '+price.toFixed(0)+' 已跌破昨日低点 '+prev.l.toFixed(0)+'——日内顺势多向资格暂失效（昨日前提与实时走势冲突），观望或改看日内空侧，勿按"顺·积极"接飞刀'); }
+    else if(out.dir==='空'&&price>prev.h){ out.rtBreak='昨高'+prev.h.toFixed(0); out.why.push('⚠ 实时破位：现价 '+price.toFixed(0)+' 已升破昨日高点 '+prev.h.toFixed(0)+'——日内顺势空向资格暂失效（昨日前提与实时走势冲突），观望或改看日内多侧，勿按"顺·积极"追高空'); }
+  }
   return out;
 }
 function bjDateHM(d){ return d.getHours()*100+d.getMinutes(); }
@@ -4337,6 +4344,11 @@ function renderStrategyInner(){
       angle=(taDir==='up'?'锚↗等日内':'锚↘等日内'); ac='var(--warn)';
       advice='大周期锚明确'+(taDir==='up'?'↑':'↓')+'但日内方向中性（多'+(BP?BIAS.long:0)+'/空'+(BP?BIAS.short:0)+'对冲）→ 等日内方向票出来再动，可预先按锚向备好预案';
     }
+    /* n60: 实时破位覆盖——顺·积极/轻仓但现价已逆势破昨低/昨高时，当场降级警示（资格与现实冲突，先观望） */
+    if(BP&&BP.rtBreak&&angle.indexOf('顺')===0){
+      angle=(taDir==='up'?'顺↗':'顺↘')+'·破位失效'; ac='var(--risk)';
+      advice='⚠ 实时已破'+BP.rtBreak+'——昨日前提的顺势资格暂失效，先观望等企稳；若放量收复破位点则资格恢复';
+    }
     rows.push(`<tr><td><b>📐 日内倾向角</b></td><td><b style="color:${ac};font-size:13px">${angle}</b>　<span style="color:var(--faint);font-size:11px">${advice}</span></td></tr>`);
   })();
   let alignHtml='';
@@ -4355,6 +4367,7 @@ function renderStrategyInner(){
   rows.push(`<tr><td colspan="2" style="background:rgba(120,120,140,.07);border:1px dashed var(--line);border-radius:6px;padding:6px 10px"><b style="font-size:12px">📋 决策口诀速查</b>　<span style="color:var(--faint);font-size:11px">页面结论永远以本卡上方各行实时计算为准，本表只帮快速定位</span><table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px">
 <tr style="color:var(--faint)"><td style="padding:2px 4px">页面组合</td><td style="padding:2px 4px">动作</td></tr>
 <tr><td style="padding:2px 4px;color:var(--ok)">锚与票箱同向 + 日内也同向（顺·积极）</td><td style="padding:2px 4px">可按日内顺势口径找触发位，正常纪律执行</td></tr>
+<tr><td style="padding:2px 4px;color:var(--risk)">⚠ 顺·积极但盘中实时已破昨低/昨高（顺·破位失效）</td><td style="padding:2px 4px"><b>资格作废</b>——昨日前提与实时走势冲突，先观望等企稳，不接飞刀（n60）</td></tr>
 <tr><td style="padding:2px 4px;color:var(--warn)">锚与票箱同向 + 日内反向（顺·观望）</td><td style="padding:2px 4px"><b>等</b>——趋势中的回调，等企稳反抽站回锚向再评估，不接飞刀</td></tr>
 <tr><td style="padding:2px 4px;color:var(--risk)">锚与票箱反向（逆·警惕）</td><td style="padding:2px 4px">不碰，或大幅降仓+严格短线止损，勿扛单</td></tr>
 <tr><td style="padding:2px 4px;color:var(--dim)">都中性 / 混乱（横·区间）</td><td style="padding:2px 4px">空仓也是仓位，按区间上下沿高抛低吸或观望</td></tr>
