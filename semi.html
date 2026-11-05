@@ -3202,9 +3202,9 @@ function intradayBP(A){
       out.dir=out.cum3>0?'多':'空'; out.on=true; out.momSrc='3日累计'+out.cum3.toFixed(2)+'%（单日擦边，×1权重降级）';
       out.why.push('前日涨跌 '+out.prevChg.toFixed(2)+'%（|涨跌|<0.5% 单日无edge），但3日累计 '+out.cum3.toFixed(2)+'% 单边动量显著：降权顺势跟进（×1权重）');
     } else {
-      /* n34-2: 破位跟进态——昨日放量跌破近5日低点+今日现价反抽未收复破位点 → 结构性单边，降权跟进（×1权重，扩样假设） */
-      const lb=Math.min(...past.slice(-5).map(b=>b.l));
-      const brokeDown=prev.c<=lb&&prev.l<=lb&&price!=null&&price<lb;   /* 昨收=近5日新低 且 现价仍压在破位下方 */
+      /* n34-2: 破位跟进态——昨日收盘跌破近5日低点（n64修正：低点取prev之前5日，排除prev自身，否则收=最低才可能触发）+今日现价反抽未收复破位点 → 结构性单边，降权跟进（×1权重，扩样假设） */
+      const lb=past.length>=6?Math.min(...past.slice(-6,-1).map(b=>b.l)):null;
+      const brokeDown=lb!=null&&prev.c<lb&&price!=null&&price<lb;   /* 昨收<前5日低点=破位 且 现价仍压在破位下方 */
       if(brokeDown&&Math.abs(out.cum3||0)>=1){
         out.dir='空'; out.on=true; out.momSrc='破位跟进（跌破近5日低点 '+lb.toFixed(0)+' 未收复，×1权重降级）';
         out.why.push('前日涨跌 '+out.prevChg.toFixed(2)+'% 单日无edge，但昨日收于近5日低点 '+lb.toFixed(0)+' 下方且现价反抽未收复：结构性破位，降权顺势跟进（×1权重）');
@@ -3263,7 +3263,7 @@ function intradayBP(A){
   /* n58: 条件收紧——仅"高开+首根顶极值"与"低开+首根底极值"才警示（跳空情绪极端组合）。
      依据 n44 挂账对照：10-26 高开+首根巨量→反噬；11-02 低开+首根5.7万手放量→顺势无反噬。
      低开+急杀/高开+急拉属顺势宣泄，不构成反向指示（2026-11-04 定案） */
-  if(S.mode==='live'||S.mode==='closed'){
+  if(S.mode==='live'||S.mode==='close'){
     const bars=S.bars.m5||[];
     const tb=bars.filter(b=>bjStr(new Date(b.t))===today);
     if(tb.length>=6&&todayOpen!=null){   /* 开盘30分钟后才判 */
@@ -4307,6 +4307,7 @@ function renderStrategyInner(){
   else if(S.losses&&S.losses.n>=3){ side='观望 · 禁止开仓'; sideC='var(--risk)'; qualNote='当日连亏'+S.losses.n+'笔，纪律锁仓，只复盘不开新单'; }
   else if(BP.on&&BP.past){ side='已突破跟进区 · 不追单'; sideC='var(--warn)'; qualNote=BP.dir+'向已越过跟进区远端（触发位 '+BP.trig.toFixed(0)+'，跟进区 ±'+BP.zoneW.toFixed(0)+' 点）——顺势段已走完，追单盈亏比恶化：等'+(BP.dir==='多'?'回踩':'反抽')+'跟进区再评估，勿按"等待触发"口径误判'; }
   else if(BP.on&&BP.inZone&&BP.cutoff){ side='顺势窗口已关闭'; sideC='var(--warn)'; qualNote='14:15 后停开新仓（日内纪律）：'+BP.dir+'向触发位 '+BP.trig.toFixed(0)+' 仍在跟进区内，仅观察不再跟进'; }
+  else if(BP.on&&BP.rtBreak){ side='实时已破'+BP.rtBreak+' · 跟进资格失效'; sideC='var(--risk)'; qualNote='现价已逆'+BP.dir+'向击穿'+BP.rtBreak+'（n60）：昨日前提与实时走势冲突，日内顺势'+BP.dir+'向资格当场失效——观望或改看对面方向，勿按入场区参数接飞刀/追高空；放量收复'+BP.rtBreak.replace(/[^0-9]/g,'')+'则资格恢复再评估'; }   /* n64: 破位后定性卡同步接管，不再输出入场参数 */
   else if(BP.on&&BP.inZone){ const _gapW=(BP.gap!=null&&isFinite(BP.gap)&&Math.abs(BP.gap)>1)?' · <span style="color:var(--risk)">⚠ 跳空'+BP.gap.toFixed(1)+'%情绪极端日·防反转插针</span>':''; const _fbx=BP.firstBarExt==='底'?' · <span style="color:var(--warn)">⚠ 首根极值放量宣泄·勿当全天弱势</span>':(BP.firstBarExt==='顶'?' · <span style="color:var(--warn)">⚠ 首根极值放量抢筹·防方向反噬</span>':''); side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'入场区'); sideC=BP.dir==='多'?C.up:C.dn; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：')+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':'')+(_gapW||'')+(_fbx||''); }   /* n35: "破位跟进"撞词改"入场区"，降权通道不称"顺势日"；n37-1 跳空警示；n44-1 首根极值警示 */
   else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
   else if(R&&!R.pass&&BP.on){ side='等待突破触发'; sideC='var(--warn)'; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日：')+'当前区间内盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 不划算，等 '+BP.dir+'向触到 '+BP.trig.toFixed(0)+'（跟进区 ±'+BP.zoneW.toFixed(0)+' 点）再按顺势口径评估'; }
@@ -4454,7 +4455,7 @@ function renderStrategyInner(){
   }
   /* n23 日内顺势口径明细（回测S1打法，不参与打分/评级） */
   if(BP.on){
-    rows.push(`<tr><td><b>日内顺势口径</b><br><span style="font-weight:400;color:var(--faint)">回测S1 · 破位跟进</span></td><td>前日涨跌 <b class="num">${BP.prevChg.toFixed(2)}%</b>（|涨跌|≥0.5%=顺势积极日）· ${BP.dir}向触发位 <b class="num">${BP.trig.toFixed(0)}</b>（前日${BP.dir==='多'?'高点':'低点'}与区间${BP.dir==='多'?'压力':'支撑'}取${BP.dir==='多'?'高':'低'}）· 跟进区 ±${BP.zoneW.toFixed(0)} 点${BP.inZone?'<b style="color:var(--gold)">（当前已入跟进区）</b>':''}<br>触发后纪律：止损 1.5×ATR日 · 止盈 1.2×ATR日达标即走 · 45分钟未走出0.3×ATR时间止损 · 14:15停新仓 · 不隔夜<br><span style="color:var(--faint)">n63 回测标注：73笔（13合约近10月）中72笔为45分钟时间止损离场、TP/SL零触发——止盈/止损价是纪律参考位而非预期成交位，多数交易的实际离场是时间止损，请勿按"能等到止盈价"设定预期</span>${BP.breakTxt?'<br>突破状态：'+esc(BP.breakTxt):''}${BP.downgrade?'<br><b style="color:var(--warn)">⚠ 降级规则：前日大阳(≥1%)+今日未高开 → 轻仓或等回踩</b>':''}${S.mode==='close'?'<br><span style="color:var(--faint)">当前为收盘复盘模式：以上作为次日预案参考</span>':''}</td></tr>`);
+    rows.push(`<tr><td><b>日内顺势口径</b><br><span style="font-weight:400;color:var(--faint)">回测S1 · 破位跟进</span></td><td>前日涨跌 <b class="num">${BP.prevChg.toFixed(2)}%</b>（|涨跌|≥0.5%=顺势积极日）· ${BP.dir}向触发位 <b class="num">${BP.trig.toFixed(0)}</b>（前日${BP.dir==='多'?'高点':'低点'}与区间${BP.dir==='多'?'压力':'支撑'}取${BP.dir==='多'?'高':'低'}）· 跟进区 ±${BP.zoneW.toFixed(0)} 点${BP.rtBreak?'<b style="color:var(--risk)">（n60：实时已破'+BP.rtBreak+'，跟进资格失效）</b>':(BP.inZone?'<b style="color:var(--gold)">（当前已入跟进区）</b>':'')}<br>触发后纪律：止损 1.5×ATR日 · 止盈 1.2×ATR日达标即走 · 45分钟未走出0.3×ATR时间止损 · 14:15停新仓 · 不隔夜<br><span style="color:var(--faint)">n63 回测标注：73笔（13合约近10月）中72笔为45分钟时间止损离场、TP/SL零触发——止盈/止损价是纪律参考位而非预期成交位，多数交易的实际离场是时间止损，请勿按"能等到止盈价"设定预期</span>${BP.breakTxt?'<br>突破状态：'+esc(BP.breakTxt):''}${BP.downgrade?'<br><b style="color:var(--warn)">⚠ 降级规则：前日大阳(≥1%)+今日未高开 → 轻仓或等回踩</b>':''}${S.mode==='close'?'<br><span style="color:var(--faint)">当前为收盘复盘模式：以上作为次日预案参考</span>':''}</td></tr>`);
   }else if(BP.why.length){
     rows.push(`<tr><td><b>日内顺势口径</b><br><span style="font-weight:400;color:var(--faint)">回测S1 · 方向过滤</span></td><td><span style="color:var(--dim)">${esc(BP.why[0])}</span></td></tr>`);
   }
@@ -5133,7 +5134,7 @@ function bindUI(){
     const chg=(BASISSNAP.spot-BASISSNAP.prev);
     el.innerHTML='快照日期 <b>'+BASISSNAP.date+'</b>（'+BASISSNAP.src+'）：今日现货 <b>'+BASISSNAP.spot.toFixed(2)+'</b> '+BASISSNAP.unit+'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'
       +(pct!=null?('　期货现价 '+px.toFixed(0)+' → 期现基差 <b>'+diff+'</b>（'+pct+'%，'+(diff>0?'期货贴水':'期货升水')+'）'):'　（等待行情载入后显示基差）')
-      +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，收窄 '+(BASISSNAP.f9prev-BASISSNAP.f9basis)+'）';
+      +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d<0?'走阔 ':'收窄+')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+'）　<span style="color:var(--faint)">F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较</span>';
     if(wr) wr.innerHTML='🏷 注册仓单 <b>'+WRSNAP.total+'</b> 张（'+WRSNAP.note+'）· '+WRSNAP.warn+'　<span style="color:var(--faint)">快照 '+WRSNAP.date+'，DCE厂库标准仓单</span>';
     const rk=$('rankSnapTxt');
     if(rk){
