@@ -4351,6 +4351,14 @@ function renderStrategyInner(){
   /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差≥2偏多/偏空 */
   const bCls=BIAS.side.indexOf('偏多')>=0?C.up:(BIAS.side.indexOf('偏空')>=0?C.dn:'var(--dim)');
   if(alignHtml) rows.push(alignHtml);   /* n47: 顺/逆势一致性提示紧跟总纲 */
+  /* n59: 决策口诀图例——锚×票箱×日内四象限速查（纯展示，不参与计算） */
+  rows.push(`<tr><td colspan="2" style="background:rgba(120,120,140,.07);border:1px dashed var(--line);border-radius:6px;padding:6px 10px"><b style="font-size:12px">📋 决策口诀速查</b>　<span style="color:var(--faint);font-size:11px">页面结论永远以本卡上方各行实时计算为准，本表只帮快速定位</span><table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px">
+<tr style="color:var(--faint)"><td style="padding:2px 4px">页面组合</td><td style="padding:2px 4px">动作</td></tr>
+<tr><td style="padding:2px 4px;color:var(--ok)">锚与票箱同向 + 日内也同向（顺·积极）</td><td style="padding:2px 4px">可按日内顺势口径找触发位，正常纪律执行</td></tr>
+<tr><td style="padding:2px 4px;color:var(--warn)">锚与票箱同向 + 日内反向（顺·观望）</td><td style="padding:2px 4px"><b>等</b>——趋势中的回调，等企稳反抽站回锚向再评估，不接飞刀</td></tr>
+<tr><td style="padding:2px 4px;color:var(--risk)">锚与票箱反向（逆·警惕）</td><td style="padding:2px 4px">不碰，或大幅降仓+严格短线止损，勿扛单</td></tr>
+<tr><td style="padding:2px 4px;color:var(--dim)">都中性 / 混乱（横·区间）</td><td style="padding:2px 4px">空仓也是仓位，按区间上下沿高抛低吸或观望</td></tr>
+</table></td></tr>`);
   rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
   /* n27: 顶部方向总纲横幅——与策略卡共用同一BIAS对象同帧写入（零口径差），全Tab常显 */
   (function(){
