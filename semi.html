@@ -5110,8 +5110,9 @@ function bindUI(){
   $('spotYest').addEventListener('input',spotChange);
   $('biasSel').addEventListener('change',e=>{ S.spot.bias=+e.target.value; LS.set('bias',S.spot.bias); spotChange(); });
   /* n55 基差助手：通达信F9现货均价每日快照（硬编码，由助手每日收盘后更新）
-     数据核对：2026-11-04 均价4.60（11-03 同为4.60，环比0）、F9基差619（11-03为669） */
-  const BASISSNAP={date:'2026-11-04',spot:4.60,prev:4.60,unit:'元/斤',src:'通达信F9 主产区均价',f9basis:619,f9prev:669};
+     口径修正（11-05）：F9基差=现货价×1000−主力合约结算价，故现货=F9隐含值=(结算+基差)/2000
+     数据核对：11-05 F9基差688（11-04为619），隐含现货≈(3542+688)/2000=4.21（11-04≈(3591+619)/2000=4.21，环比持平） */
+  const BASISSNAP={date:'2026-11-05',spot:4.21,prev:4.21,unit:'元/斤',src:'通达信F9基差反推（结算+基差）/2000',f9basis:688,f9prev:619};
   /* n56 仓单快照：DCE厂库标准仓单日更（F9 f9_commodity_future_warehouse_receipt_daily）
      数据核对：序列最新 2026-09-30 总量0（月末强制注销-204后无新增注册，10-11月无记录=零仓单）
      解读要点：鸡蛋仓单=厂库标准仓单、当月强制注销天然偏低；临近交割月仓单快速注册=现货供给压力实证 */
@@ -5122,7 +5123,7 @@ function bindUI(){
      Top：国泰君安多13884/空13133双第一、银河空头11036次之；方正中期净空-1872居首
      解读要点：净空温和偏空但幅度小(<OI的2%)=主力分歧不大；净空若快速放大(>+2万)=空头施压实证 */
   const RANKSNAP={date:'2026-11-04',contract:'JD2612',long20:115547,short20:119344,netShort:3797,vol20:668423,
-    top:'国泰君安多13884/空13133双第一',note:'净空温和（<OI 2%），主力分歧不大'};
+    top:'国泰君安多13884/空13133双第一',note:'净空温和（<OI 2%），主力分歧不大；11-05 排名交易所未出，沿用11-04'};
   function renderBasisSnap(){
     const el=$('basisSnapTxt'); if(!el) return;
     const wr=$('wrSnapTxt');
