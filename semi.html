@@ -2283,12 +2283,18 @@ function watchdog(){
   const m5last=S.bars.m5[S.bars.m5.length-1];
   const tickToday=S.emTick&&S.emTick.t&&bjStr(new Date(S.emTick.t))===today;
   const stale=(!m5last||bjStr(new Date(m5last.t))<today)&&tickToday;
-  if(stale&&!_wd){
+  /* n63b 修复#1: 三路全挂补漏——原 stale 条件要求 tickToday，东财tick也失败时顶栏红条不亮，
+     只剩右下角小徽标，用户以为在盯今天的盘实际看的是10-14内置种子。补:tick也失败时红条必亮。 */
+  const allDead=(!m5last||bjStr(new Date(m5last.t))<today)&&!tickToday;
+  const wdShow=stale||allDead;
+  if(wdShow&&!_wd){
     _wd=document.createElement('div');
     _wd.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9999;background:#b3261e;color:#fff;font-size:12px;padding:6px 10px;text-align:center';
-    _wd.textContent='⚠ 新浪K线停更（设备网络拦截新浪域？）——已切东财备线自愈；实时价走东财秒级源不受影响';
+    _wd.textContent=allDead
+      ?'⚠⚠ 行情数据全部失效（K线+实时价都拉不到）——当前页面正在使用 2026-10-14 内置种子数据，非今日行情，请勿据此交易！检查网络后刷新'
+      :'⚠ 新浪K线停更（设备网络拦截新浪域？）——已切东财备线自愈；实时价走东财秒级源不受影响';
     document.body.appendChild(_wd);
-  } else if(!stale&&_wd){ _wd.remove(); _wd=null; }
+  } else if(!wdShow&&_wd){ _wd.remove(); _wd=null; }
   n39SrcBadge();
 }
 /* n39: 数据源健康常驻徽标（右下角，点开显示明细；异常时红色高亮，正常时低调半透明） */
@@ -4383,6 +4389,17 @@ function renderStrategyInner(){
     bb.style.display='';   /* n28: 修复横幅忘记显示——内容已写入但display仍为none */
     bb.style.opacity=nonLive?'0.55':'';   /* n32: 陈旧态横幅同步降透明度 */
     const _gb=$('gradeBanner'); if(_gb) _gb.style.opacity=nonLive?'0.55':'';   /* n32: 评级横幅同组处理 */
+    /* n63b 修复#3: 一票否决时横幅接管——手机首屏最显眼的位置必须与最终结论一致，"今日偏多"+下滑才能看到"禁开仓"=上下矛盾 */
+    const _veto=window._A&&window._A.veto&&window._A.veto.length;
+    const _vetoTxt=_veto?String(window._A.veto[0]):(S.losses&&S.losses.n>=3?'当日连亏'+S.losses.n+'次暂停开仓':null);
+    if(_vetoTxt){
+      $('biasSide').innerHTML='<span style="color:var(--risk)">⛔ 一票否决·禁止开仓</span>';
+      $('biasSide').style.color='var(--risk)';
+      if($('biasTagL')) $('biasTagL').style.display='none';
+      if($('biasTagS')) $('biasTagS').style.display='none';
+      if(_gb){ _gb.style.opacity='1'; }
+      $('biasWhy').innerHTML='<span style="color:var(--risk)"><b>'+esc(_vetoTxt)+'</b>——方向票箱仍显示于下方仅供参考，最终结论以一票否决为准（n63b）。</span><br>'+$('biasWhy').innerHTML;
+    } else {
     $('biasSide').textContent='今日'+BIAS.side; $('biasSide').style.color=bCls;
     /* n47: 横幅加大周期锚前置标签——先给趋势语境再看日内方向 */
     const _ta=trendAnchor();
@@ -4400,6 +4417,7 @@ function renderStrategyInner(){
     }
     $('biasWhy').innerHTML=BIAS.votes.length?BIAS.votes.map(v=>'『'+esc(v[0])+'』'+esc(v[1])).join('；')+'。<br>':'';
     $('biasWhy').innerHTML+='方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓以"策略"Tab行情定性＋一票否决为准。';
+    } /* n63b 修复#3: else 分支闭合——否决接管时跳过常规横幅写入 */
     /* n51a: 今日适宜度——前日涨跌幅口径（扩样回测核心：适宜日 vs 观望日 期望差 5-10 点/笔）。
        口径与 intradayBP 一致：|前日涨跌|≥0.5% 顺势积极日；否则若 3日累计|≥1.5% 单边动量降权日；两者皆无 → 观望日。 */
     (function(){
@@ -5061,8 +5079,16 @@ function restartTimers(){
        n12: try/catch 包裹——任何一步抛错不再让后续步骤（含表头刷新）中断，错误计数可见。 */
     timerFast=setInterval(async()=>{
       if(S.busy.m1) return;   /* 上一拍 fetchM1 仍在途 → 本拍整链跳过（防重叠；busy 标志由 fetchM1 自管） */
+      let _lastM1Fetch=0;   /* n63b 修复#7: 1m线30秒节流计数器 */
       try{
-        await Promise.all([fetchM1(), fetchEMTick()]);   /* n15: 新浪1m + 东财秒级快照并行 */
+        /* n63b 修复#7: 降频——新浪1m线本身1分钟才出一根，每秒拉=60倍无效请求且长时间挂机易被限流；
+           改为30秒拉一次1m线，实时价(东财秒级tick)与全链重算保持每秒。 */
+        const _now=Date.now();
+        if(!_lastM1Fetch||_now-_lastM1Fetch>=30000){
+          _lastM1Fetch=_now;
+          await fetchM1();
+        }
+        await fetchEMTick();
         deriveLive();
         analyze();
         renderPanels();
@@ -5132,15 +5158,19 @@ function bindUI(){
     const diff=px!=null?(BASISSNAP.spot*1000-px).toFixed(0):null;   // 基差（元/500千克），与打分口径一致
     const pct=diff!=null&&px?((BASISSNAP.spot*1000-px)/px*100).toFixed(1):null;
     const chg=(BASISSNAP.spot-BASISSNAP.prev);
-    el.innerHTML='快照日期 <b>'+BASISSNAP.date+'</b>（'+BASISSNAP.src+'）：今日现货 <b>'+BASISSNAP.spot.toFixed(2)+'</b> '+BASISSNAP.unit+'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'
+    /* n63b 修复#5: 快照时效警示——快照日期距今≥2天自动橙色标注，防止一周不更新时现货价看起来永远"最新" */
+    const _staleDays=Math.floor((bj() - new Date(BASISSNAP.date+'T15:00:00+08:00'))/86400000);
+    const _staleTag=_staleDays>=2?'<b style="color:var(--warn)">⚠ 快照已'+_staleDays+'天未更新</b>　':'';
+    el.innerHTML=_staleTag+'快照日期 <b>'+BASISSNAP.date+'</b>（'+BASISSNAP.src+'）：今日现货 <b>'+BASISSNAP.spot.toFixed(2)+'</b> '+BASISSNAP.unit+'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'
       +(pct!=null?('　期货现价 '+px.toFixed(0)+' → 期现基差 <b>'+diff+'</b>（'+pct+'%，'+(diff>0?'期货贴水':'期货升水')+'）'):'　（等待行情载入后显示基差）')
       +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d<0?'走阔 ':'收窄+')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+'）　<span style="color:var(--faint)">F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较</span>';
-    if(wr) wr.innerHTML='🏷 注册仓单 <b>'+WRSNAP.total+'</b> 张（'+WRSNAP.note+'）· '+WRSNAP.warn+'　<span style="color:var(--faint)">快照 '+WRSNAP.date+'，DCE厂库标准仓单</span>';
+    if(wr){ const _wd2=Math.floor((bj() - new Date(WRSNAP.date+'T15:00:00+08:00'))/86400000); wr.innerHTML=(_wd2>=2?'<b style="color:var(--warn)">⚠ 仓单快照已'+_wd2+'天未更新</b>　':'')+'🏷 注册仓单 <b>'+WRSNAP.total+'</b> 张（'+WRSNAP.note+'）· '+WRSNAP.warn+'　<span style="color:var(--faint)">快照 '+WRSNAP.date+'，DCE厂库标准仓单</span>'; }
     const rk=$('rankSnapTxt');
     if(rk){
       const oi=(S.live&&S.live.oi!=null)?S.live.oi:null;
       const netPct=oi?((RANKSNAP.netShort/oi)*100).toFixed(1):null;
-      rk.innerHTML='🏦 官方持仓排名前20（'+RANKSNAP.contract+'）：多 <b>'+RANKSNAP.long20+'</b> / 空 <b>'+RANKSNAP.short20+'</b> / 净空 <b>+'+RANKSNAP.netShort+'</b>'
+      const _rd2=Math.floor((bj() - new Date(RANKSNAP.date+'T15:00:00+08:00'))/86400000);
+      rk.innerHTML=(_rd2>=2?'<b style="color:var(--warn)">⚠ 排名快照已'+_rd2+'天未更新</b>　':'')+'🏦 官方持仓排名前20（'+RANKSNAP.contract+'）：多 <b>'+RANKSNAP.long20+'</b> / 空 <b>'+RANKSNAP.short20+'</b> / 净空 <b>+'+RANKSNAP.netShort+'</b>'
         +(netPct?('（占OI '+netPct+'%）'):'')+'，成交量前20 '+RANKSNAP.vol20+'　'+RANKSNAP.top+'　· '+RANKSNAP.note
         +'　<span style="color:var(--faint)">快照 '+RANKSNAP.date+'，交易所排行（F9）</span>';
     }
