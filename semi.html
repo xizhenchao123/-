@@ -5077,9 +5077,9 @@ function restartTimers(){
        使势位态/威科夫/资金鹰眼/策略输出等分析面板与最新价逐秒联动（原仅60秒 fullCycle 才重算）；
        renderCases 内有 key 去重不会闪烁；主图 draw 不重置缩放状态。
        n12: try/catch 包裹——任何一步抛错不再让后续步骤（含表头刷新）中断，错误计数可见。 */
+    let _lastM1Fetch=0;   /* n63b修复#7复核: 节流计数器必须放回调外——放回调内每秒重置为0导致节流失效 */
     timerFast=setInterval(async()=>{
       if(S.busy.m1) return;   /* 上一拍 fetchM1 仍在途 → 本拍整链跳过（防重叠；busy 标志由 fetchM1 自管） */
-      let _lastM1Fetch=0;   /* n63b 修复#7: 1m线30秒节流计数器 */
       try{
         /* n63b 修复#7: 降频——新浪1m线本身1分钟才出一根，每秒拉=60倍无效请求且长时间挂机易被限流；
            改为30秒拉一次1m线，实时价(东财秒级tick)与全链重算保持每秒。 */
