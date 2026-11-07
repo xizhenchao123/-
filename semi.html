@@ -2287,16 +2287,28 @@ function watchdog(){
      只剩右下角小徽标，用户以为在盯今天的盘实际看的是10-14内置种子。补:tick也失败时红条必亮。 */
   const allDead=(!m5last||bjStr(new Date(m5last.t))<today)&&!tickToday;
   /* n64c: 休市日豁免——周六/周日（及交易日08:30前）拉不到今日行情属正常，红条恐吓为误报；
-     改为灰色温和提示。法定假日（如国庆）仍会误报，挂账月底大考一并考虑（日历硬编码不优雅）。 */
+     改为灰色温和提示。n64d: 法定假日修复——期货市场周末必休（调休补班日也不开市），
+     工作日假日靠日历表 HOLIDAYS 判定；国务院通常于前一年11-12月公布次年安排，
+     届时核对更新此表即可（2027 年安排以官方公告为准）。 */
+  const HOLIDAYS=new Set([
+    '2027-01-01','2027-01-04',                /* 元旦（1-1周六，顺延补休1-4周五→1-4为周五补休） */
+    '2027-02-08','2027-02-09','2027-02-10','2027-02-11','2027-02-12', /* 春节（初一2-6周六，假期2-7~2-13，工作日部分） */
+    '2027-04-05',                              /* 清明 */
+    '2027-05-03','2027-05-04','2027-05-05',   /* 劳动节 */
+    '2027-06-09','2027-06-10','2027-06-11',   /* 端午 */
+    '2027-09-14','2027-09-15','2027-09-16',   /* 中秋 */
+    '2027-10-01','2027-10-04','2027-10-05','2027-10-06','2027-10-07','2027-10-08' /* 国庆+中秋连休 */
+  ]);
   const _dow=bj().getDay();
   const _bjNow=bj();
+  const _todayStr=bjStr(_bjNow);
   const _preOpen=_dow>=1&&_dow<=5&&(_bjNow.getHours()<9||(_bjNow.getHours()===9&&_bjNow.getMinutes()<0));
-  const _closedDay=_dow===0||_dow===6;
+  const _closedDay=_dow===0||_dow===6||HOLIDAYS.has(_todayStr);
   if(_closedDay||_preOpen){
     if(!_wd){
       _wd=document.createElement('div');
       _wd.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9999;background:#3a3f4b;color:#cfd4dc;font-size:12px;padding:6px 10px;text-align:center';
-      _wd.textContent='休市中（周末非交易日）——页面显示为最近交易日收盘数据，属正常，非数据故障';
+      _wd.textContent=_closedDay?'休市中（非交易日）——页面显示为最近交易日收盘数据，属正常，非数据故障':'休市中（开盘前）——页面显示为最近交易日收盘数据，属正常，非数据故障';
       document.body.appendChild(_wd);
     }
     n39SrcBadge(); return;
