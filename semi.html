@@ -2345,8 +2345,7 @@ function n39SrcBadge(){
   }
   const src=S.src||{};
   const today=bjStr(bj());
-  const trading=(()=>{ const n=bj(),hm=n.getHours()*100+n.getMinutes(); const wd=n.getDay();
-    return wd>=1&&wd<=5&&((hm>=900&&hm<=1130)||(hm>=1300&&hm<=1500))&&n.getHours()<16; })();
+  const trading=inSession();   /* n64h修复: 徽标复用主链 inSession()（原 hm 口径含午休10:15-10:30，与主链"休市待命"瞬时打架） */
   const sina=sinaKlineAlive();
   const emOK=src.price==='em';
   const oiOk=src.oiIntraday;
