@@ -2223,10 +2223,11 @@ async function rolloverToNext(){
   const oldDir=oldAnchor?oldAnchor.dir:null;
   S.contract=nx; LS.set('contract',nx);
   S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null; S.dom=null;
+  S.emTick=null; S.emLimit=null;   /* n64f修复#9: 清旧合约残留tick与停板价 */
   try{
     const log=JSON.parse(LS.get('rollLog','[]'))||[];
     log.push({from:oldC,to:nx,ts:Date.now(),date:bjStr(bj()),oldDir:oldDir||''});
-    LS.set('rollLog',JSON.stringify(log.slice(-20)));
+    LS.set('rollLog',log.slice(-20));   /* n64f修复#6: 去掉外层 stringify（LS.set 内部已序列化，双重序列化导致读出字符串） */
   }catch(e){}
   $('contract').value=nx;
   await fullCycle();
@@ -2302,7 +2303,7 @@ function watchdog(){
   const _dow=bj().getDay();
   const _bjNow=bj();
   const _todayStr=bjStr(_bjNow);
-  const _preOpen=_dow>=1&&_dow<=5&&(_bjNow.getHours()<9||(_bjNow.getHours()===9&&_bjNow.getMinutes()<0));
+  const _preOpen=_dow>=1&&_dow<=5&&(_bjNow.getHours()<9||(_bjNow.getHours()===9&&_bjNow.getMinutes()<15));   /* n64f修复#5: 原 getMinutes()<0 恒false，09:00-09:15集合竞价前误判为盘中 */
   const _closedDay=_dow===0||_dow===6||HOLIDAYS.has(_todayStr);
   if(_closedDay||_preOpen){
     if(!_wd){
@@ -2478,7 +2479,7 @@ function deriveLive(){
   }
   /* n15: 东财秒级tick优先供价——m1每分钟才生成一根，tick是秒级，恒比m1新鲜 */
   const et=S.emTick;
-  if(et&&et.price>0&&(!m1last||et.t>=m1last.t)){
+  if(et&&et.price>0&&Date.now()-et.t<10*60*1000&&(!m1last||et.t>=m1last.t)){   /* n64f修复#7: tick 加10分钟时效门限，防跨日残留价压过真实价 */
     price=et.price;
     if(et.oi>0) oi=et.oi;
     srcTime=et.t;
@@ -5121,7 +5122,7 @@ function restartTimers(){
         renderPanels();
         renderStrategy();   /* n11: 策略输出卡片逐秒联动（live 模式 renderRecap 提前返回不会带它） */
         watchdog();         /* n15: K线停更看门狗 */
-        tagStaleSandbox();   /* n16: 静态沙盘防误导标注 */
+        /* n64f修复#8: tagStaleSandbox 移除——每秒全DOM扫描浪费，30秒慢循环 L5450 已有 */
         /* n13: 主图重绘已移至 timerClock（每秒必跳，与网络解耦），此处不再重复调用 onTick */
         const hb=$('hb'); if(hb){ hb.style.color='var(--ok)'; hb.title='每秒心跳正常 · 数据同步正常'; }
       }catch(e){
@@ -5179,7 +5180,8 @@ function bindUI(){
      2701目前前20净空1万手属中性偏弱；若净空放大至>+2万=空头再度进场，净空收敛转净多=空头获利兑现 */
   const RANKSNAP={date:'2026-11-09',contract:'JD2701',long20:91015,short20:80751,netShort:10264,vol20:220910,
     top:'国泰君安多14005/空10757双第一、东证期货多8335次之',note:'主力换月至JD2701口径（与11-06的2612净多+7409不可直接比）；中信期货量第一42689但多单仅4847=轻仓快进快出'};
-  function renderBasisSnap(){
+  function renderBasisSnap(){   /* n64f修复#1: 提升为全局函数，renderHeader L3793 的 typeof 检查才能命中（原在 bindUI 内作用域隔离，实时基差从不刷新） */
+    window.renderBasisSnap=renderBasisSnap;
     const el=$('basisSnapTxt'); if(!el) return;
     const wr=$('wrSnapTxt');
     const px=(S.live&&S.live.price!=null)?S.live.price:(S.bars.d.length?S.bars.d[S.bars.d.length-1].c:null);
@@ -5196,7 +5198,8 @@ function bindUI(){
     const rk=$('rankSnapTxt');
     if(rk){
       const oi=(S.live&&S.live.oi!=null)?S.live.oi:null;
-      const netPct=oi?((RANKSNAP.netShort/oi)*100).toFixed(1):null;
+      const sameC=S.contract===RANKSNAP.contract;   /* n64f修复#3: 占比只在页面合约=快照合约时计算，换月错配时分母失真 */
+      const netPct=(oi&&sameC)?((RANKSNAP.netShort/oi)*100).toFixed(1):null;
       const _rd2=Math.floor((bj() - new Date(RANKSNAP.date+'T15:00:00+08:00'))/86400000);
       rk.innerHTML=(_rd2>=2?'<b style="color:var(--warn)">⚠ 排名快照已'+_rd2+'天未更新</b>　':'')+'🏦 官方持仓排名前20（'+RANKSNAP.contract+'）：多 <b>'+RANKSNAP.long20+'</b> / 空 <b>'+RANKSNAP.short20+'</b> / 净空 <b>+'+RANKSNAP.netShort+'</b>'
         +(netPct?('（占OI '+netPct+'%）'):'')+'，成交量前20 '+RANKSNAP.vol20+'　'+RANKSNAP.top+'　· '+RANKSNAP.note
@@ -5331,14 +5334,14 @@ function bindUI(){
   $('recapCopy').onclick=()=>{
     const strat=$('stratBody').innerText.trim();
     const stratTxt=strat?'\n\n—— AI 策略输出 ——\n'+strat:'';
-    const txt='【JD2612 半量化研判 · 收盘复盘 '+$('recapdate').textContent+'】\n'+$('recapBody').innerText+stratTxt;
+    const txt='【'+S.contract+' 半量化研判 · 收盘复盘 '+$('recapdate').textContent+'】\n'+$('recapBody').innerText+stratTxt;
     const done=()=>{ const b=$('recapCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复盘+策略',1500); };
     const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ alert('复制失败，请手动全选复制'); } document.body.removeChild(ta); };
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
   };
   /* n2: 策略区块一键复制（clipboard API + 降级方案） */
   $('stratCopy').onclick=()=>{
-    const txt='【JD2612 半量化研判 · AI 交易策略 '+$('stratTag').textContent+'】\n'+$('stratBody').innerText;
+    const txt='【'+S.contract+' 半量化研判 · AI 交易策略 '+$('stratTag').textContent+'】\n'+$('stratBody').innerText;
     const done=()=>{ const b=$('stratCopy'); b.textContent='✔ 已复制'; setTimeout(()=>b.textContent='📋 复制策略',1500); };
     const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ alert('复制失败，请手动全选复制'); } document.body.removeChild(ta); };
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(fallback); } else fallback();
@@ -5376,7 +5379,7 @@ function bindUI(){
     a.download='jd_strategies_'+bjStr(bj())+'.json'; a.click(); URL.revokeObjectURL(a.href);
   };
   /* n54a: 全量数据一键备份导出——journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全部 LS 键打包下载，防清缓存丢数据 */
-  const _BK_KEYS=['journal','strategies','sigSnaps','fitnessTrack','cases','dailyThree','rollLog','positions','lossStreak','drawdown','contract','apiMode','apiUrl','spot','factors','biasSel'];
+  const _BK_KEYS=['journal','strategies','sigSnaps','fitnessTrack','cases','dailyThree','rollLog','contract','apiMode','apiUrl','spotToday','spotYest','bias','posOn','posDir','posEntry','posSL','posTP','posTime','posLots','posNote','lossDate','lossN','maxLossN','ddPeak','ddLast','ddMax'];   /* n64f修复#2: 对照 LS.set 实际键名校正（原 positions/lossStreak/drawdown/spot/factors/biasSel 均为不存在键，持仓/连亏/回撤/现货从未备份） */
   const _bkExport=()=>{
     const out={_ver:'n54',_date:bjStr(bj()),data:{}};
     let n=0;
