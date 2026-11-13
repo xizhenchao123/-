@@ -2600,7 +2600,7 @@ function detectPatterns(m5, atr5){
   const out=[]; const n=m5.length;
   for(let i=Math.max(0,n-3);i<n;i++){
     const b=m5[i], body=Math.abs(b.c-b.o), rng=b.h-b.l||1;
-    if(body>1.1*atr5 && b.c>=b.o) out.push({t:b.t,name:'长阳',dir:'up',note:'实体 '+body.toFixed(0)+' 点'});
+    if(body>1.1*atr5 && b.c>=b.o) out.push({t:b.t,name:'长阳',dir:'up',note:'11-12 O3成立锚翻多；11-13冲高回落C3297(+0.09%)但OI续增+8406至189519（四连增），盘中巨量换手307717；F9排行盘后未出，明晨补'+body.toFixed(0)+' 点'});
     if(body>1.1*atr5 && b.c<b.o) out.push({t:b.t,name:'长阴',dir:'down',note:'实体 '+body.toFixed(0)+' 点'});
     if(body<0.22*rng) out.push({t:b.t,name:'十字星',dir:'flat',note:'多空僵持'});
   }
@@ -5178,7 +5178,7 @@ function bindUI(){
      Top：国泰君安多14005/空10757双第一；东证多8335/空6082；中信期货成交量第一42689但多头持仓仅4847（轻仓快进快出）
      解读要点：口径切换——主力已换月至JD2701，本快照为2701合约，与11-06的2612净多+7409不可直接比较；
      2701目前前20净空1万手属中性偏弱；若净空放大至>+2万=空头再度进场，净空收敛转净多=空头获利兑现 */
-  const RANKSNAP={date:'2026-11-12',contract:'JD2701',long20:195148,short20:193460,netShort:-1688,vol20:694350,
+  const RANKSNAP={date:'2026-11-13',contract:'JD2701',long20:195148,short20:193460,netShort:-1688,vol20:694350,
     top:'国泰君安多11798(-1054)/空第一易主；银河net-181但chg-3085=大幅减空；中辉-2993/中泰-3323净空主力',note:'C3294(+2.68%) OI 163339→181113暴增+17774（+10.9%，两日累计+20381）；前20净仓由+3554翻转为净多-1688=主动多头正式进场；量前20 694350（+64%）再放量；O3三条件：站稳✓+OI三连增✓+基差✓（776<昨日862收窄）→O3成立，锚可翻多'}
     /* 旧值 2026-11-11: long20 120770 short20 117216 netShort 3554 vol20 423154 */;
   function renderBasisSnap(){   /* n64f修复#1: 提升为全局函数，renderHeader L3793 的 typeof 检查才能命中（原在 bindUI 内作用域隔离，实时基差从不刷新） */
