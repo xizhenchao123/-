@@ -3360,8 +3360,8 @@ function trendAnchor(){
   const ma=n=>cl.slice(-n).reduce((s,x)=>s+x,0)/n;
   const ma5now=ma(5), ma5prev=(cl.slice(-8,-3).reduce((s,x)=>s+x,0))/5;
   const maSlope=ma5now-ma5prev;
-  /* HH/HL 结构：最近3个完整交易日的低点/高点序列（不含今日未完成bar） */
-  const segL=bars.slice(-4,-1);   /* 最近3根已收盘日线 */
+  /* HH/HL 结构：与cl同口径的最近3根已收盘日线（inComp时排除今日，否则含最后3根） */
+  const segL=inComp?bars.slice(-4,-1):bars.slice(-3);
   const lows=segL.map(b=>b.l), highs=segL.map(b=>b.h);
   const hl=lows[0]<lows[1]&&lows[1]<lows[2];
   const hh=highs[0]<highs[1]&&highs[1]<highs[2];
@@ -5193,8 +5193,9 @@ function bindUI(){
     const pct=diff!=null&&px?((BASISSNAP.spot*1000-px)/px*100).toFixed(1):null;
     const chg=(BASISSNAP.spot-BASISSNAP.prev);
     /* n63b 修复#5: 快照时效警示——快照日期距今≥2天自动橙色标注，防止一周不更新时现货价看起来永远"最新" */
-    const _staleDays=Math.floor((bj() - new Date(BASISSNAP.date+'T15:00:00+08:00'))/86400000);
-    const _staleTag=_staleDays>=2?'<b style="color:var(--warn)">⚠ 快照已'+_staleDays+'天未更新</b>　':'';
+    const _rawStale=Math.floor((bj() - new Date(BASISSNAP.date+'T15:00:00+08:00'))/86400000);
+    const _staleDays=Math.max(0,_rawStale);
+    const _staleTag=_rawStale<0?'<b style="color:var(--warn)">⚠ 快照日期异常（未来）</b>　':(_staleDays>=2?'<b style="color:var(--warn)">⚠ 快照已'+_staleDays+'天未更新</b>　':'');
     el.innerHTML=_staleTag+'快照日期 <b>'+BASISSNAP.date+'</b>（'+BASISSNAP.src+'）：今日现货 <b>'+BASISSNAP.spot.toFixed(2)+'</b> '+BASISSNAP.unit+'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'
       +(pct!=null?('　期货现价 '+px.toFixed(0)+' → 期现基差 <b>'+diff+'</b>（'+pct+'%，'+(diff>0?'期货贴水':'期货升水')+'）'):'　（等待行情载入后显示基差）')
       +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d<0?'走阔 ':'收窄+')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+'）　<span style="color:var(--faint)">F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较</span>';
@@ -5384,7 +5385,7 @@ function bindUI(){
     a.download='jd_strategies_'+bjStr(bj())+'.json'; a.click(); URL.revokeObjectURL(a.href);
   };
   /* n54a: 全量数据一键备份导出——journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全部 LS 键打包下载，防清缓存丢数据 */
-  const _BK_KEYS=['journal','strategies','sigSnaps','fitnessTrack','cases','dailyThree','rollLog','contract','apiMode','apiUrl','spotToday','spotYest','bias','posOn','posDir','posEntry','posSL','posTP','posTime','posLots','posNote','lossDate','lossN','maxLossN','ddPeak','ddLast','ddMax'];   /* n64f修复#2: 对照 LS.set 实际键名校正（原 positions/lossStreak/drawdown/spot/factors/biasSel 均为不存在键，持仓/连亏/回撤/现货从未备份） */
+  const _BK_KEYS=['journal','strategies','sigSnaps','fitnessTrack','cases','dailyThree','rollLog','contract','apiMode','apiUrl','spotToday','spotYest','bias','posOn','posDir','posEntry','posSL','posTP','posTime','posLots','posNote','lossDate','lossN','maxLossN','ddPeak','ddLast','ddMax','mfLong','mfShort','mfNet','mfNetDelta','mfHedgeL','mfHedgeS','freq','showMA'];   /* n64f修复#2 + n64n补充: 主力资金6键/freq/showMA 原漏备份 */
   const _bkExport=()=>{
     const out={_ver:'n54',_date:bjStr(bj()),data:{}};
     let n=0;
