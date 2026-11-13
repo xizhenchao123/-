@@ -2600,7 +2600,7 @@ function detectPatterns(m5, atr5){
   const out=[]; const n=m5.length;
   for(let i=Math.max(0,n-3);i<n;i++){
     const b=m5[i], body=Math.abs(b.c-b.o), rng=b.h-b.l||1;
-    if(body>1.1*atr5 && b.c>=b.o) out.push({t:b.t,name:'长阳',dir:'up',note:'11-12 O3成立锚翻多；11-13冲高回落C3297(+0.09%)但OI续增+8406至189519（四连增），盘中巨量换手307717；F9排行盘后未出，明晨补'+body.toFixed(0)+' 点'});
+    if(body>1.1*atr5 && b.c>=b.o) out.push({t:b.t,name:'长阳',dir:'up',note:'11-12 O3成立锚翻多；11-13冲高回落C3297(+0.09%)但OI续增+8406至189519（四连增），盘中巨量换手307717；F9排行11-13/11-14晨均未出（F9延迟），晨间补查待盘后再试'+body.toFixed(0)+' 点'});
     if(body>1.1*atr5 && b.c<b.o) out.push({t:b.t,name:'长阴',dir:'down',note:'实体 '+body.toFixed(0)+' 点'});
     if(body<0.22*rng) out.push({t:b.t,name:'十字星',dir:'flat',note:'多空僵持'});
   }
