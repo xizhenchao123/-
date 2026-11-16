@@ -5192,12 +5192,12 @@ function bindUI(){
   /* n64q 锚信号应对预案（纯展示，硬编码由助手维护，不参与打分）
      背景：O3样本#2（信号日11-12 C3294）于11-16裁决失败（收3206<3294），锚翻多首次证伪。
      三档预案按收盘价执行判定，每日开盘复检对照；触发条件确认锚翻空需 F9净空放大+现货续跌双确认 */
-  const PLAN={asof:'2026-11-16',state:'anchorLongFailed',line3294:3294,line3200:3200,line3100:3100,
+  const PLAN={asof:'2026-11-16',state:'anchorLongFailed',line3294:3294,line3100:3100,
     tiers:[
-      {cond:'收盘 ≥ 3294',act:'失败判定作废，O3样本#2 重新计观察期，锚翻多候选恢复',cls:'ok'},
-      {cond:'3092-3294 区间',act:'观望建多（当前所处档位）；重点盯 3092-3100 支撑受试与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险',cls:'warn'},
-      {cond:'收盘 < 3092-3100',act:'锚翻空候选——需双确认才成立：① F9 前20净空显著放大（>+1万）② 现货18区均价续跌 ≥2日；双确认前只减仓观察不追空',cls:'risk'}
-    ]};
+      {cond:'收盘 ≥ 3294',range:[3294,Infinity],act:'失败判定作废，O3样本#2 重新计观察期，锚翻多候选恢复',cls:'ok'},
+      {cond:'3092-3294 区间',range:[3100,3294),act:'观望建多（当前所处档位）；重点盯 3092-3100 支撑受试与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险',cls:'warn'},
+      {cond:'收盘 < 3092-3100',range:[-Infinity,3100),act:'锚翻空候选——需双确认才成立：① F9 前20净空显著放大（>+1万）② 现货18区均价续跌 ≥2日；双确认前只减仓观察不追空',cls:'risk'}
+    ]};   /* n64r修复: 档位判定改显式range区间（[lo,hi)），不再依赖cond文案前缀匹配；line3200死配置已删 */
   function renderPlan(){
     window.renderPlan=renderPlan;
     const el=$('planTxt'); if(!el) return;
@@ -5206,9 +5206,9 @@ function bindUI(){
     const inComp=bars&&bjStr(bars[bars.length-1].t)===bjStr(bj());
     const lastC=inComp?bars[bars.length-2].c:bars?bars[bars.length-1].c:null;   /* 用最近已收盘价判档位，与锚锁定口径一致 */
     if(st) st.innerHTML='<span style="color:var(--faint)">预案基准日 '+PLAN.asof+' · 锚状态：'+(PLAN.state==='anchorLongFailed'?'<b style="color:var(--warn)">锚翻多已证伪（O3#2失败 11-16）</b>':PLAN.state)+'</span>';
-    const mark=t=>lastC==null?'':(t==='≥ 3294'?lastC>=PLAN.line3294:(t.indexOf('3092-3294')===0?(lastC>=PLAN.line3100&&lastC<PLAN.line3294):lastC<PLAN.line3100));
-    el.innerHTML=PLAN.tiers.map(t=>{
-      const hit=lastC!=null&&mark(t.cond);
+    el.innerHTML=(lastC==null?'<b style="color:var(--warn)">⏳ 等待行情载入后判定档位</b><br>':'')
+      +PLAN.tiers.map(t=>{
+      const hit=lastC!=null&&lastC>=t.range[0]&&lastC<t.range[1];
       const c=t.cls==='ok'?'var(--ok)':(t.cls==='warn'?'var(--warn)':'var(--risk)');
       return '<b style="color:'+c+'">'+(hit?'▶ ':'　')+t.cond+'</b> → '+t.act+(hit?'　<b style="color:'+c+'">◀ 当前档位（按最近收盘 '+lastC+'）</b>':'');
     }).join('<br>');
