@@ -1955,6 +1955,10 @@ window.__TRAE_PUSH_INLINE__={
         <button class="fbtn" id="basisFillBtn" style="margin-top:6px">⚡ 一键填入今日/昨日现货价</button>
         <span id="basisFillTip" style="font-size:10px;color:var(--faint);margin-left:6px"></span>
       </div>
+      <div class="basisbox" id="planBox" style="border-color:var(--warn);background:rgba(230,162,60,.05);margin-top:8px">
+        🎯 <b>锚信号应对预案（n64q，纯展示，每日开盘复检对照执行）</b>　<span id="planStateTxt" style="font-size:11px"></span><br>
+        <span id="planTxt" style="font-size:12px;line-height:1.8">快照未载入</span>
+      </div>
       <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2612 为当前主力合约，基差结构以 2612 口径解读。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。</div>
     </div>
 
@@ -5185,6 +5189,30 @@ function bindUI(){
   const RANKSNAP={date:'2026-11-16',contract:'JD2701',long20:100904,short20:101277,netShort:373,vol20:367210,
     top:'国泰君安多13585/空11628双第一但双向减；东证多10442/空8644；海通net+3006(chg+1598)=唯一显著加多；方正/东吴/银河净空收敛',note:'11-16收盘：C3206(-2.46%) OI-3091=减仓下跌；前20多空比100904:101277≈平衡，净空仅+373（vs 11-12净多-1688）=空头未主动加码，更像多头止损/换手；11-13排行F9仍0行（跳档），本快照直接跨至11-16'}
     /* 旧值 2026-11-12: long20 195148 short20 193460 netShort -1688 vol20 694350 */;
+  /* n64q 锚信号应对预案（纯展示，硬编码由助手维护，不参与打分）
+     背景：O3样本#2（信号日11-12 C3294）于11-16裁决失败（收3206<3294），锚翻多首次证伪。
+     三档预案按收盘价执行判定，每日开盘复检对照；触发条件确认锚翻空需 F9净空放大+现货续跌双确认 */
+  const PLAN={asof:'2026-11-16',state:'anchorLongFailed',line3294:3294,line3200:3200,line3100:3100,
+    tiers:[
+      {cond:'收盘 ≥ 3294',act:'失败判定作废，O3样本#2 重新计观察期，锚翻多候选恢复',cls:'ok'},
+      {cond:'3092-3294 区间',act:'观望建多（当前所处档位）；重点盯 3092-3100 支撑受试与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险',cls:'warn'},
+      {cond:'收盘 < 3092-3100',act:'锚翻空候选——需双确认才成立：① F9 前20净空显著放大（>+1万）② 现货18区均价续跌 ≥2日；双确认前只减仓观察不追空',cls:'risk'}
+    ]};
+  function renderPlan(){
+    window.renderPlan=renderPlan;
+    const el=$('planTxt'); if(!el) return;
+    const st=$('planStateTxt');
+    const bars=S.bars&&S.bars.d.length?S.bars.d:null;
+    const inComp=bars&&bjStr(bars[bars.length-1].t)===bjStr(bj());
+    const lastC=inComp?bars[bars.length-2].c:bars?bars[bars.length-1].c:null;   /* 用最近已收盘价判档位，与锚锁定口径一致 */
+    if(st) st.innerHTML='<span style="color:var(--faint)">预案基准日 '+PLAN.asof+' · 锚状态：'+(PLAN.state==='anchorLongFailed'?'<b style="color:var(--warn)">锚翻多已证伪（O3#2失败 11-16）</b>':PLAN.state)+'</span>';
+    const mark=t=>lastC==null?'':(t==='≥ 3294'?lastC>=PLAN.line3294:(t.indexOf('3092-3294')===0?(lastC>=PLAN.line3100&&lastC<PLAN.line3294):lastC<PLAN.line3100));
+    el.innerHTML=PLAN.tiers.map(t=>{
+      const hit=lastC!=null&&mark(t.cond);
+      const c=t.cls==='ok'?'var(--ok)':(t.cls==='warn'?'var(--warn)':'var(--risk)');
+      return '<b style="color:'+c+'">'+(hit?'▶ ':'　')+t.cond+'</b> → '+t.act+(hit?'　<b style="color:'+c+'">◀ 当前档位（按最近收盘 '+lastC+'）</b>':'');
+    }).join('<br>');
+  }
   function renderBasisSnap(){   /* n64f修复#1: 提升为全局函数，renderHeader L3793 的 typeof 检查才能命中（原在 bindUI 内作用域隔离，实时基差从不刷新） */
     window.renderBasisSnap=renderBasisSnap;
     const el=$('basisSnapTxt'); if(!el) return;
@@ -5214,6 +5242,7 @@ function bindUI(){
     }
   }
   renderBasisSnap();
+  renderPlan();   /* n64q: 预案档位随快照渲染 */
   $('basisFillBtn').onclick=()=>{
     $('spotToday').value=BASISSNAP.spot.toFixed(2);
     $('spotYest').value=BASISSNAP.prev.toFixed(2);
