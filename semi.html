@@ -1773,6 +1773,14 @@ window.__TRAE_PUSH_INLINE__={
 
   <!-- 右：分析面板 -->
   <aside style="display:flex;flex-direction:column;gap:10px;min-width:0">
+    <!-- n65: 预案卡片独立成卡（class tm tj → 盘面/研判两个Tab都可见；原嵌在"设置"Tab的现货基本面卡里，用户实际看不到） -->
+    <div class="card tm tj" id="planCard">
+      <h3>锚信号应对预案 <span class="tag">每日开盘复检对照</span></h3>
+      <div class="basisbox" id="planBox" style="border-color:var(--warn);background:rgba(230,162,60,.05)">
+        🎯 <b>锚信号应对预案（纯展示，每日开盘复检对照执行）</b>　<span id="planStateTxt" style="font-size:11px"></span><br>
+        <span id="planTxt" style="font-size:12px;line-height:1.8">快照未载入</span>
+      </div>
+    </div>
 
     <div class="card tj">
       <h3>四项打分 <span class="tag">规则引擎 · 每项0~25</span></h3>
@@ -1954,10 +1962,6 @@ window.__TRAE_PUSH_INLINE__={
         <span id="rankSnapTxt" style="font-size:11px">持仓排名快照未载入</span><br>
         <button class="fbtn" id="basisFillBtn" style="margin-top:6px">⚡ 一键填入今日/昨日现货价</button>
         <span id="basisFillTip" style="font-size:10px;color:var(--faint);margin-left:6px"></span>
-      </div>
-      <div class="basisbox" id="planBox" style="border-color:var(--warn);background:rgba(230,162,60,.05);margin-top:8px">
-        🎯 <b>锚信号应对预案（n64q，纯展示，每日开盘复检对照执行）</b>　<span id="planStateTxt" style="font-size:11px"></span><br>
-        <span id="planTxt" style="font-size:12px;line-height:1.8">快照未载入</span>
       </div>
       <div class="basisbox" id="basisbox">输入现货价后自动计算基差并纳入打分。数据源：主产区均价（卓创/钢联口径，请自行从资讯渠道获取后填入）。<br>补充因子（存栏/养殖利润/淘汰鸡/饲料成本）用于解读提示，不改变打分公式；JD2612 为当前主力合约，基差结构以 2612 口径解读。<br><b>合约切换：</b>左上角输入新合约代码（如 JD2605 / JD0）回车即自动重载全部数据与案例库（输入框悬停有说明）；历史日期切换为预留框架，后续版本开放。</div>
     </div>
@@ -3799,6 +3803,9 @@ const chart = {
 function renderHeader(){
   const L=S.live, A=S.A;
   if(typeof renderBasisSnap==='function') renderBasisSnap();   /* n55: 实时价变化时刷新基差助手 */
+  /* n65: 预案档位需随"合约切换/日线载入"刷新——原 renderPlan 仅在 bindUI 启动时调用一次，
+     切合约后 sameC/lastC 永不更新（浏览器实测JD2702仍显示旧文案）。挂到 renderHeader 秒级刷新。 */
+  if(typeof renderPlan==='function') renderPlan();
   /* 模式 */
   const b=$('modebadge');
   const live = S.mode==='live';
@@ -5193,31 +5200,49 @@ function bindUI(){
   /* n64q 锚信号应对预案（纯展示，硬编码由助手维护，不参与打分）
      背景：O3样本#2（信号日11-12 C3294）于11-16裁决失败（收3206<3294），锚翻多首次证伪。
      三档预案按收盘价执行判定，每日开盘复检对照；触发条件确认锚翻空需 F9净空放大+现货续跌双确认 */
-  const PLAN={asof:'2026-11-16',contract:'JD2701',planContracts:['JD2701','JD2702'],state:'anchorLongFailed',line3294:3294,line3100:3100,
+  const PLAN={asof:'2026-11-17',contract:'JD2701',planContracts:['JD2701','JD2702','JD2612'],state:'anchorLongFailed',
+    /* n65: 档位线基准=JD2701 原生线（HI 3294 = O3#2信号日11-12收盘；LO 3100 = 生死支撑线）
+       其他合约按【比例折算】映射，折算系数取信号日11-12同日比价：
+         ratio = 该合约11-12收盘 ÷ JD2701的11-12收盘(3294)
+       理由：比例折算后 HI 正好落在该合约自己的信号日收盘，LO/支撑带宽度按价位等比缩放，
+       档位语义（"回到自己信号日收盘之上=锚翻多恢复；跌破等价支撑=翻空候选"）在各合约成立。
+       系数：JD2702 2947/3294=0.8947；JD2612 3639/3294=1.1047。
+       n65修复: 原实现直接拿2701绝对价线判2702/2612，而2702低约300点、2612高约350点
+       → 2702恒被判"锚翻空候选"、2612恒被判"锚翻多恢复"，均为误判。
+       注：系数基于11-12信号日比价，价差结构漂移需复检时更新（页面已标注折算口径）。 */
+    ratios:{JD2701:1,JD2702:2947/3294,JD2612:3639/3294},
+    baseHi:3294, baseLo:3100, band:8,
     tiers:[
-      {cond:'收盘 ≥ 3294',range:[3294,Infinity],act:'失败判定作废，O3样本#2 重新计观察期，锚翻多候选恢复',cls:'ok'},
-      {cond:'3092-3294 区间',range:[3100,3294],act:'观望建多；重点盯 3092-3100 支撑受试与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险',cls:'warn'},
-      {cond:'收盘 < 3092-3100',range:[-Infinity,3100],act:'锚翻空候选——需双确认才成立：① F9 前20净空显著放大（>+1万）② 现货18区均价续跌 ≥2日；双确认前只减仓观察不追空',cls:'risk'}
-    ]};   /* n64s修复: range写法[3100,3294)是非法JS（数学区间记法），致整页脚本SyntaxError全瘫；改回数组并改用闭区间，判定条件 lastC>=lo && lastC<hi 语义不变 */
+      {k:'hi',cls:'ok',cond:'收盘 ≥ {HI}',act:'失败判定作废，O3样本#2 重新计观察期，锚翻多候选恢复'},
+      {k:'mid',cls:'warn',cond:'{LO}-{HI} 区间',act:'观望建多；重点盯 {BAND_LO}-{LO} 支撑带受试与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险'},
+      {k:'lo',cls:'risk',cond:'收盘 < {LO}',act:'锚翻空候选——需双确认才成立：① F9 前20净空显著放大（>+1万）② 现货18区均价续跌 ≥2日；双确认前只减仓观察不追空'}
+    ]};
   function renderPlan(){
     window.renderPlan=renderPlan;
     const el=$('planTxt'); if(!el) return;
     const st=$('planStateTxt');
     const bars=S.bars&&S.bars.d.length?S.bars.d:null;
-    const sameC=PLAN.planContracts.indexOf(S.contract)>=0;   /* n64u: 方案A——用户在2612/2701/2702三合约间切换，档位判定放行2701/2702（两合约价差小档位语义可用），2612停用 */
-    /* n64v修复: bar只有t无d——原 bjStr(bars[last].d) 抛TypeError致renderPlan整段崩溃，2701/2702下预案区完全不渲染（2612因提前return才没暴露） */
-    const inComp=bars?bjStr(new Date(bars[bars.length-1].t))===bjStr(bj()):false;
+    const sameC=PLAN.planContracts.indexOf(S.contract)>=0;   /* n65: 放行 2701(原生)/2702/2612，三者均按比例折算档位线 */
+    /* n64v修复: bar只有t无d——原 bjStr(bars[last].d) 抛TypeError致renderPlan整段崩溃 */
+    /* n65: 判"今日bar是否仍在形成"——今日bar且未收盘（<15:00）→用上一根已收盘bar；今日已收盘(≥15:00)→用今日bar */
+    const _hm=bjHM(), _today=bjStr(bj());
+    const closedToday=isWeekday()&&_hm>=1500;
+    const inComp=bars?(bjStr(new Date(bars[bars.length-1].t))===_today&&!closedToday):false;
     const lastBar=bars?(inComp?(bars.length>1?bars[bars.length-2]:null):bars[bars.length-1]):null;
     const lastC=sameC&&lastBar?lastBar.c:null;   /* 用最近已收盘价判档位，与锚锁定口径一致 */
-    if(st) st.innerHTML='<span style="color:var(--faint)">预案基准日 '+PLAN.asof+' · 档位口径 '+(S.contract===PLAN.contract?'<b>'+PLAN.contract+'</b>':'<b style="color:var(--warn)">'+S.contract+'</b>（非'+PLAN.contract+'原生线，价差内近似）')+(sameC?'':'（<b style="color:var(--warn)">页面当前 '+S.contract+'，档位判定停用</b>）')+' · 锚状态：'+(PLAN.state==='anchorLongFailed'?'<b style="color:var(--warn)">锚翻多已证伪（O3#2失败 11-16）</b>':PLAN.state)+'</span>';
+    const rt=PLAN.ratios[S.contract]||1, HI=Math.round(PLAN.baseHi*rt), LO=Math.round(PLAN.baseLo*rt), BLO=Math.round((PLAN.baseLo-PLAN.band)*rt);
+    if(st) st.innerHTML='<span style="color:var(--faint)">预案基准日 '+PLAN.asof+' · 档位口径 '+(S.contract===PLAN.contract?'<b>'+PLAN.contract+'（原生线）</b>':'<b style="color:var(--warn)">'+S.contract+'</b>（按信号日11-12比价×'+rt.toFixed(4)+'比例折算）')+(sameC?'':'（<b style="color:var(--warn)">页面当前 '+S.contract+'，档位判定停用</b>）')+' · 档位线 '+LO+' / '+HI+' · 锚状态：'+(PLAN.state==='anchorLongFailed'?'<b style="color:var(--warn)">锚翻多已证伪（O3#2失败 11-16；11-17收盘仍低于3294）</b>':PLAN.state)+'</span>';
     if(!sameC){ el.innerHTML='<b style="color:var(--warn)">⚠ 当前合约 '+S.contract+' 不适用本预案（预案档位线为 '+PLAN.contract+' 口径，仅对 '+PLAN.planContracts.join(' / ')+' 放行），档位判定已停用。切回 '+PLAN.planContracts.join(' 或 ')+' 即可查看档位。</b>'; return; }
+    const txt=t=>t.cond.replace('{HI}',HI).replace('{LO}',LO).replace('{BAND_LO}',BLO);
     el.innerHTML=(lastC==null?'<b style="color:var(--warn)">⏳ 等待行情载入后判定档位</b><br>':'')
       +PLAN.tiers.map(t=>{
-      const hit=lastC!=null&&lastC>=t.range[0]&&lastC<t.range[1];
+      let hit=false;
+      if(lastC!=null){ if(t.k==='hi') hit=lastC>=HI; else if(t.k==='mid') hit=lastC>=LO&&lastC<HI; else hit=lastC<LO; }
       const c=t.cls==='ok'?'var(--ok)':(t.cls==='warn'?'var(--warn)':'var(--risk)');
-      return '<b style="color:'+c+'">'+(hit?'▶ ':'　')+t.cond+'</b> → '+t.act+(hit?'　<b style="color:'+c+'">◀ 当前档位（'+S.contract+' 最近收盘 '+lastC+'）</b>':'');
+      return '<b style="color:'+c+'">'+(hit?'▶ ':'　')+txt(t)+'</b> → '+t.act.replace('{BAND_LO}',BLO)+(hit?'　<b style="color:'+c+'">◀ 当前档位（'+S.contract+' 最近收盘 '+lastC+'）</b>':'');
     }).join('<br>');
   }
+  window.renderPlan=renderPlan;   /* n65: 立即挂全局，保证 renderHeader 的 typeof 检查能命中（不等首次调用） */
   function renderBasisSnap(){   /* n64f修复#1: 提升为全局函数，renderHeader L3793 的 typeof 检查才能命中（原在 bindUI 内作用域隔离，实时基差从不刷新） */
     window.renderBasisSnap=renderBasisSnap;
     const el=$('basisSnapTxt'); if(!el) return;
