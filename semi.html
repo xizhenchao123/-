@@ -3358,7 +3358,8 @@ function trendAnchor(){
   if(bars.length<8) return null;
   const clRaw=bars.map(b=>b.c);
   /* n64m锚锁定：盘中用已收盘bar计算（排除今日未完成bar），开盘后天然全天不变，MA5不再漂移 */
-  const inComp=bars.length&&bars[bars.length-1].d===bjStr(bj());
+  /* n64v修复: toBars产出的bar只有t(ms时间戳)没有d字段，原 b.d===bjStr(bj()) 恒为false→锚锁定从未生效；改按t转日期比较 */
+  const inComp=bars.length&&bjStr(new Date(bars[bars.length-1].t))===bjStr(bj());
   const cl=inComp?clRaw.slice(0,-1):clRaw;
   if(cl.length<8) return null;
   const ma=n=>cl.slice(-n).reduce((s,x)=>s+x,0)/n;
@@ -5204,8 +5205,10 @@ function bindUI(){
     const st=$('planStateTxt');
     const bars=S.bars&&S.bars.d.length?S.bars.d:null;
     const sameC=PLAN.planContracts.indexOf(S.contract)>=0;   /* n64u: 方案A——用户在2612/2701/2702三合约间切换，档位判定放行2701/2702（两合约价差小档位语义可用），2612停用 */
-    const inComp=bars&&bjStr(bars[bars.length-1].d)===bjStr(bj());
-    const lastC=sameC&&bars?(inComp?bars[bars.length-2].c:bars[bars.length-1].c):null;   /* 用最近已收盘价判档位，与锚锁定口径一致 */
+    /* n64v修复: bar只有t无d——原 bjStr(bars[last].d) 抛TypeError致renderPlan整段崩溃，2701/2702下预案区完全不渲染（2612因提前return才没暴露） */
+    const inComp=bars?bjStr(new Date(bars[bars.length-1].t))===bjStr(bj()):false;
+    const lastBar=bars?(inComp?(bars.length>1?bars[bars.length-2]:null):bars[bars.length-1]):null;
+    const lastC=sameC&&lastBar?lastBar.c:null;   /* 用最近已收盘价判档位，与锚锁定口径一致 */
     if(st) st.innerHTML='<span style="color:var(--faint)">预案基准日 '+PLAN.asof+' · 档位口径 '+(S.contract===PLAN.contract?'<b>'+PLAN.contract+'</b>':'<b style="color:var(--warn)">'+S.contract+'</b>（非'+PLAN.contract+'原生线，价差内近似）')+(sameC?'':'（<b style="color:var(--warn)">页面当前 '+S.contract+'，档位判定停用</b>）')+' · 锚状态：'+(PLAN.state==='anchorLongFailed'?'<b style="color:var(--warn)">锚翻多已证伪（O3#2失败 11-16）</b>':PLAN.state)+'</span>';
     if(!sameC){ el.innerHTML='<b style="color:var(--warn)">⚠ 当前合约 '+S.contract+' 不适用本预案（预案档位线为 '+PLAN.contract+' 口径，仅对 '+PLAN.planContracts.join(' / ')+' 放行），档位判定已停用。切回 '+PLAN.planContracts.join(' 或 ')+' 即可查看档位。</b>'; return; }
     el.innerHTML=(lastC==null?'<b style="color:var(--warn)">⏳ 等待行情载入后判定档位</b><br>':'')
