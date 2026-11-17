@@ -5192,7 +5192,7 @@ function bindUI(){
   /* n64q 锚信号应对预案（纯展示，硬编码由助手维护，不参与打分）
      背景：O3样本#2（信号日11-12 C3294）于11-16裁决失败（收3206<3294），锚翻多首次证伪。
      三档预案按收盘价执行判定，每日开盘复检对照；触发条件确认锚翻空需 F9净空放大+现货续跌双确认 */
-  const PLAN={asof:'2026-11-16',state:'anchorLongFailed',line3294:3294,line3100:3100,
+  const PLAN={asof:'2026-11-16',contract:'JD2701',state:'anchorLongFailed',line3294:3294,line3100:3100,
     tiers:[
       {cond:'收盘 ≥ 3294',range:[3294,Infinity],act:'失败判定作废，O3样本#2 重新计观察期，锚翻多候选恢复',cls:'ok'},
       {cond:'3092-3294 区间',range:[3100,3294],act:'观望建多（当前所处档位）；重点盯 3092-3100 支撑受试与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险',cls:'warn'},
@@ -5203,9 +5203,11 @@ function bindUI(){
     const el=$('planTxt'); if(!el) return;
     const st=$('planStateTxt');
     const bars=S.bars&&S.bars.d.length?S.bars.d:null;
-    const inComp=bars&&bjStr(bars[bars.length-1].t)===bjStr(bj());
-    const lastC=inComp?bars[bars.length-2].c:bars?bars[bars.length-1].c:null;   /* 用最近已收盘价判档位，与锚锁定口径一致 */
-    if(st) st.innerHTML='<span style="color:var(--faint)">预案基准日 '+PLAN.asof+' · 锚状态：'+(PLAN.state==='anchorLongFailed'?'<b style="color:var(--warn)">锚翻多已证伪（O3#2失败 11-16）</b>':PLAN.state)+'</span>';
+    const sameC=S.contract===PLAN.contract;   /* n64t: 合约守卫——预案价位线是JD2701口径，页面切到其他合约时禁止用其价格判档位（参照RANKSNAP sameC守卫） */
+    const inComp=bars&&bjStr(bars[bars.length-1].d)===bjStr(bj());
+    const lastC=sameC&&bars?(inComp?bars[bars.length-2].c:bars[bars.length-1].c):null;   /* 用最近已收盘价判档位，与锚锁定口径一致 */
+    if(st) st.innerHTML='<span style="color:var(--faint)">预案基准日 '+PLAN.asof+' · 预案合约 <b>'+PLAN.contract+'</b>'+(sameC?'':'（<b style="color:var(--warn)">页面当前 '+S.contract+'，档位判定停用</b>）')+' · 锚状态：'+(PLAN.state==='anchorLongFailed'?'<b style="color:var(--warn)">锚翻多已证伪（O3#2失败 11-16）</b>':PLAN.state)+'</span>';
+    if(!sameC){ el.innerHTML='<b style="color:var(--warn)">⚠ 页面合约 '+S.contract+' ≠ 预案合约 '+PLAN.contract+'，档位判定已停用（防止跨合约价位误判）。如已换月至 '+PLAN.contract+' 请切回后再看档位。</b>'; return; }
     el.innerHTML=(lastC==null?'<b style="color:var(--warn)">⏳ 等待行情载入后判定档位</b><br>':'')
       +PLAN.tiers.map(t=>{
       const hit=lastC!=null&&lastC>=t.range[0]&&lastC<t.range[1];
