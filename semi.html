@@ -5195,9 +5195,9 @@ function bindUI(){
   const PLAN={asof:'2026-11-16',state:'anchorLongFailed',line3294:3294,line3100:3100,
     tiers:[
       {cond:'收盘 ≥ 3294',range:[3294,Infinity],act:'失败判定作废，O3样本#2 重新计观察期，锚翻多候选恢复',cls:'ok'},
-      {cond:'3092-3294 区间',range:[3100,3294),act:'观望建多（当前所处档位）；重点盯 3092-3100 支撑受试与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险',cls:'warn'},
-      {cond:'收盘 < 3092-3100',range:[-Infinity,3100),act:'锚翻空候选——需双确认才成立：① F9 前20净空显著放大（>+1万）② 现货18区均价续跌 ≥2日；双确认前只减仓观察不追空',cls:'risk'}
-    ]};   /* n64r修复: 档位判定改显式range区间（[lo,hi)），不再依赖cond文案前缀匹配；line3200死配置已删 */
+      {cond:'3092-3294 区间',range:[3100,3294],act:'观望建多（当前所处档位）；重点盯 3092-3100 支撑受试与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险',cls:'warn'},
+      {cond:'收盘 < 3092-3100',range:[-Infinity,3100],act:'锚翻空候选——需双确认才成立：① F9 前20净空显著放大（>+1万）② 现货18区均价续跌 ≥2日；双确认前只减仓观察不追空',cls:'risk'}
+    ]};   /* n64s修复: range写法[3100,3294)是非法JS（数学区间记法），致整页脚本SyntaxError全瘫；改回数组并改用闭区间，判定条件 lastC>=lo && lastC<hi 语义不变 */
   function renderPlan(){
     window.renderPlan=renderPlan;
     const el=$('planTxt'); if(!el) return;
