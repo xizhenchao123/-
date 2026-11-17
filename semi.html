@@ -5251,13 +5251,14 @@ function bindUI(){
     const lv=S.live||{};
     let oiTxt='';
     /* n67b修复: prevOI 守卫——实测浏览器出现"昨结 1339028384"（13亿量级，取到成交额/坏字段），
-       致 oiDelta 恒为巨大负数、增减方向全错。鸡蛋持仓正常区间 1万~50万手，超界即拒显示增量判定。 */
+       致 oiDelta 恒为巨大负数、增减方向全错。鸡蛋持仓正常区间 1万~50万手，超界即拒显示增量判定。
+       n69合并: 原守卫触发时同屏显示"（昨日持仓异常缺…）"+"前值缺，无法判增减"两句冗余，合并为一句。 */
     const _oiOK=(v)=>v!=null&&v>1000&&v<5000000;
     if(sameC&&_oiOK(lv.oi)&&lv.isToday){
-      const d_oi=(_oiOK(lv.prevOI)&&lv.prevOI!=null)?lv.oi-lv.prevOI:null;
-      const prevTxt=_oiOK(lv.prevOI)?('（昨结 '+lv.prevOI+'）'):'<span style="color:var(--warn)">（昨日持仓异常缺，增减方向不可判）</span>';
-      const oic=d_oi==null?'<span style="color:var(--faint)">前值缺，无法判增减</span>':(d_oi>0?'<b style="color:var(--warn)">增仓 +'+d_oi+'</b>':(d_oi<0?'<b style="color:var(--ok)">减仓 '+d_oi+'</b>':'<b>持平</b>'));
-      oiTxt='<span style="font-size:12px;color:var(--faint)">👁 盘中 OI 观察：'+S.contract+' 当前持仓 <b>'+lv.oi+'</b>'+prevTxt+' '+oic+'　<span style="font-size:11px">对照预案：OI 企稳/减 + 价涨 = 超跌修复候选；OI 续增 + 价跌 = 下破风险。收盘 F9 排行仍为准。</span></span><br>';
+      const prevOK=_oiOK(lv.prevOI);
+      const d_oi=prevOK?lv.oi-lv.prevOI:null;
+      const oic=!prevOK?'<span style="color:var(--warn)">昨日持仓异常缺，增减方向不可判（收盘 F9 为准）</span>':(d_oi>0?'<b style="color:var(--warn)">增仓 +'+d_oi+'</b>':(d_oi<0?'<b style="color:var(--ok)">减仓 '+d_oi+'</b>':'<b>持平</b>'));
+      oiTxt='<span style="font-size:12px;color:var(--faint)">👁 盘中 OI 观察：'+S.contract+' 当前持仓 <b>'+lv.oi+'</b>'+(prevOK?('（昨结 '+lv.prevOI+'） '):' ')+oic+'　<span style="font-size:11px">对照预案：OI 企稳/减 + 价涨 = 超跌修复候选；OI 续增 + 价跌 = 下破风险。收盘 F9 排行仍为准。</span></span><br>';
     } else if(sameC){ oiTxt='<span style="font-size:12px;color:var(--faint)">👁 盘中 OI 观察：等待分钟级行情载入（收盘后以 F9 排行为准）</span><br>'; }
     el.innerHTML=(lastC==null?'<b style="color:var(--warn)">⏳ 等待行情载入后判定档位</b><br>':'')
       +oiTxt
@@ -5294,8 +5295,13 @@ function bindUI(){
       const netPct=(oi&&sameC)?((RANKSNAP.netShort/oi)*100).toFixed(1):null;
       const _rd2=Math.floor((bj() - new Date(RANKSNAP.date+'T15:00:00+08:00'))/86400000);
       const netAbs=Math.abs(RANKSNAP.netShort), netTxt=RANKSNAP.netShort===0?'净仓持平':((RANKSNAP.netShort>0?'净空 +':'净多 -')+netAbs), netCls=RANKSNAP.netShort>0?'var(--dn)':(RANKSNAP.netShort<0?'var(--up)':'var(--faint)');   /* n64p修复: 涨=红/跌=绿主题下净空标绿(--dn)、净多标红(--up)；原--down未定义致净空无色 */
-      rk.innerHTML=(_rd2>=2?'<b style="color:var(--warn)">⚠ 排名快照已'+_rd2+'天未更新</b>　':'')+'🏦 官方持仓排名前20（'+RANKSNAP.contract+'，'+RANKSNAP.date+'）：多 <b>'+RANKSNAP.long20+'</b> / 空 <b>'+RANKSNAP.short20+'</b> / <b style="color:'+netCls+'">'+netTxt+'</b>'
-        +(netPct?('（占OI '+netPct+'%）'):'')+'，成交量前20 '+RANKSNAP.vol20+'　'+RANKSNAP.top+'　· '+RANKSNAP.note
+      /* n69: F9排行待补占位守卫——long20/short20/vol20 全为0时是占位值，显示"多0/空0/净仓持平"属误导 */
+      const rankPending=(RANKSNAP.long20===0&&RANKSNAP.short20===0&&RANKSNAP.vol20===0);
+      const rankHead=rankPending
+        ?'🏦 官方持仓排名前20（'+RANKSNAP.contract+'，'+RANKSNAP.date+'）：<b style="color:var(--warn)">⏳ F9 排行待补（交易所排行需人工录入）</b>'
+        :'🏦 官方持仓排名前20（'+RANKSNAP.contract+'，'+RANKSNAP.date+'）：多 <b>'+RANKSNAP.long20+'</b> / 空 <b>'+RANKSNAP.short20+'</b> / <b style="color:'+netCls+'">'+netTxt+'</b>'
+        +(netPct?('（占OI '+netPct+'%）'):'')+'，成交量前20 '+RANKSNAP.vol20;
+      rk.innerHTML=(_rd2>=2?'<b style="color:var(--warn)">⚠ 排名快照已'+_rd2+'天未更新</b>　':'')+rankHead+'　'+RANKSNAP.top+'　· '+RANKSNAP.note
         +'　<span style="color:var(--faint)">快照 '+RANKSNAP.date+'，交易所排行（F9）</span>';
     }
   }
