@@ -5247,9 +5247,14 @@ function bindUI(){
        S.live.oi/oiDelta/prevOI 已由 updateLive 维护（分钟级 OI，新浪源），直接展示增减方向。 */
     const lv=S.live||{};
     let oiTxt='';
-    if(sameC&&lv.oi!=null&&lv.oi>0&&lv.isToday){
-      const d_oi=lv.oiDelta, oic=d_oi==null?'<span style="color:var(--faint)">前值缺，无法判增减</span>':(d_oi>0?'<b style="color:var(--warn)">增仓 +'+d_oi+'</b>':(d_oi<0?'<b style="color:var(--ok)">减仓 '+d_oi+'</b>':'<b>持平</b>'));
-      oiTxt='<span style="font-size:12px;color:var(--faint)">👁 盘中 OI 观察：'+S.contract+' 当前持仓 <b>'+lv.oi+'</b>（昨结 '+lv.prevOI+'）'+oic+'　<span style="font-size:11px">对照预案：OI 企稳/减 + 价涨 = 超跌修复候选；OI 续增 + 价跌 = 下破风险。收盘 F9 排行仍为准。</span></span><br>';
+    /* n67b修复: prevOI 守卫——实测浏览器出现"昨结 1339028384"（13亿量级，取到成交额/坏字段），
+       致 oiDelta 恒为巨大负数、增减方向全错。鸡蛋持仓正常区间 1万~50万手，超界即拒显示增量判定。 */
+    const _oiOK=(v)=>v!=null&&v>1000&&v<5000000;
+    if(sameC&&_oiOK(lv.oi)&&lv.isToday){
+      const d_oi=(_oiOK(lv.prevOI)&&lv.prevOI!=null)?lv.oi-lv.prevOI:null;
+      const prevTxt=_oiOK(lv.prevOI)?('（昨结 '+lv.prevOI+'）'):'<span style="color:var(--warn)">（昨日持仓异常缺，增减方向不可判）</span>';
+      const oic=d_oi==null?'<span style="color:var(--faint)">前值缺，无法判增减</span>':(d_oi>0?'<b style="color:var(--warn)">增仓 +'+d_oi+'</b>':(d_oi<0?'<b style="color:var(--ok)">减仓 '+d_oi+'</b>':'<b>持平</b>'));
+      oiTxt='<span style="font-size:12px;color:var(--faint)">👁 盘中 OI 观察：'+S.contract+' 当前持仓 <b>'+lv.oi+'</b>'+prevTxt+' '+oic+'　<span style="font-size:11px">对照预案：OI 企稳/减 + 价涨 = 超跌修复候选；OI 续增 + 价跌 = 下破风险。收盘 F9 排行仍为准。</span></span><br>';
     } else if(sameC){ oiTxt='<span style="font-size:12px;color:var(--faint)">👁 盘中 OI 观察：等待分钟级行情载入（收盘后以 F9 排行为准）</span><br>'; }
     el.innerHTML=(lastC==null?'<b style="color:var(--warn)">⏳ 等待行情载入后判定档位</b><br>':'')
       +oiTxt
