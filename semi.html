@@ -5287,7 +5287,7 @@ function bindUI(){
     const _staleTag=_rawStale<0?'<b style="color:var(--warn)">⚠ 快照日期异常（未来）</b>　':(_staleDays>=2?'<b style="color:var(--warn)">⚠ 快照已'+_staleDays+'天未更新</b>　':'');
     el.innerHTML=_staleTag+'快照日期 <b>'+BASISSNAP.date+'</b>（'+BASISSNAP.src+'）：今日现货 <b>'+BASISSNAP.spot.toFixed(2)+'</b> '+BASISSNAP.unit+'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'
       +(pct!=null?('　期货现价 '+px.toFixed(0)+' → 期现基差 <b>'+diff+'</b>（'+pct+'%，'+(diff>0?'期货贴水':'期货升水')+'）'):'　（等待行情载入后显示基差）')
-      +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d>0?'走阔':'收窄')+Math.abs(d>0?'+':'-')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+'）　<span style="color:var(--faint)">F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较</span>';
+      +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d>0?'走阔 +':'收窄 ')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+'）　<span style="color:var(--faint)">F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较</span>';
     if(wr){ const _wd2=Math.floor((bj() - new Date(WRSNAP.date+'T15:00:00+08:00'))/86400000); wr.innerHTML=(_wd2>=2?'<b style="color:var(--warn)">⚠ 仓单快照已'+_wd2+'天未更新</b>　':'')+'🏷 注册仓单 <b>'+WRSNAP.total+'</b> 张（'+WRSNAP.note+'）· '+WRSNAP.warn+'　<span style="color:var(--faint)">快照 '+WRSNAP.date+'，DCE厂库标准仓单</span>'; }
     const rk=$('rankSnapTxt');
     if(rk){
