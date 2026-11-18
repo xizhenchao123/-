@@ -5152,25 +5152,22 @@ function bindUI(){
       jEls.dir.value=(S.pos.dir==='long')?'多':'空'; filled.push('jDir');
     }
     jAutoPts();
+    /* n78b: biasSel 改只提示不写入——"自动（不修正）"是合法默认值，自动改写会动打分；且 select 写 value 不触发 change 会状态不同步 */
+    let biasTip='';
+    if(PL&&px!=null&&!(+S.spot.bias)){
+      const sug=px>=PL.HI?'偏多（+4）':(px<PL.LO?'偏空（−4）':null);
+      if(sug) biasTip='；biasSel 建议 '+sug+'（现价已越档位线，请人工确认后选择）';
+    }
     const t=$('jTplTxt');
-    if(t) t.textContent=filled.length?('已预填 '+filled.length+' 项（可修改）'):'各字段均已有值，未覆盖';
-    setTimeout(()=>{ if(t) t.textContent=''; },6000);
+    if(t) t.textContent=(filled.length?('已预填 '+filled.length+' 项（可修改）'):'各字段均已有值，未覆盖')+biasTip;
+    setTimeout(()=>{ if(t) t.textContent=''; },8000);
     /* 顺带预填其它个人模块的空字段 */
-    tplPos(); tplEntry();
+    tplPos(px);
   };
   /* 持仓跟踪：开仓价空值预填实时价 */
-  const tplPos=()=>{
-    const {px}=tplCtx();
+  const tplPos=(px)=>{
     const el=$('posEntry');
     if(el&&!el.value&&px!=null&&S.pos&&S.pos.dir&&S.pos.dir!=='none'){ el.value=px; el.dispatchEvent(new Event('input')); }
-  };
-  /* 入场计划：epSuggest 已覆盖数值建议；此处只做 biasSel 空值提示 */
-  const tplEntry=()=>{
-    const {PL,px}=tplCtx();
-    if(PL&&px!=null&&S.spot&&!S.spot.bias){
-      const sug=px>=PL.HI?4:(px<PL.LO?-4:0);
-      if(sug!==0){ const el=$('biasSel'); if(el&&!el.value) el.value=String(sug); }
-    }
   };
   $('jTpl').addEventListener('click',jTpl);
   /* n78: 页面打开即自动预填当日日期（仅空字段，其余背景仍一键「⚡ 今日模板」生成） */
