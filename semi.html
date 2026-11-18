@@ -5397,8 +5397,8 @@ function bindUI(){
     const el=$('basisSnapTxt'); if(!el) return;
     const wr=$('wrSnapTxt');
     const px=(S.live&&S.live.price!=null)?S.live.price:(S.bars.d.length?S.bars.d[S.bars.d.length-1].c:null);
-    const AS=_autoSnap&&_autoSnap.spot?_autoSnap.spot:null;   /* n71: 商务部批发价自动源优先 */
-    const F9=_autoSnap&&_autoSnap.f9?_autoSnap.f9:null;   /* n76: F9现货18区均价自动源（spot18.json，TDX表同源）次优先，人工BASISSNAP兜底 */
+    const F9=_autoSnap&&_autoSnap.f9?_autoSnap.f9:null;   /* n76: F9现货18区均价自动源（spot18.json，TDX表同源），人工BASISSNAP兜底 */
+    const AS=(_autoSnap&&_autoSnap.spot&&(!_autoSnap.spot.date||!F9||_autoSnap.spot.date>=F9.date))?_autoSnap.spot:null;   /* n76b: 双自动源按数据日期取新者——n76a实测商务部批发价停在11-13压住F9的11-18，固定AS优先失真；date同格式YYYY-MM-DD可直比，date缺失时维持原AS优先 */
     const spotShow=AS?AS.val:(F9?F9.spot:BASISSNAP.spot), spotDateShow=AS?AS.date:(F9?F9.date:BASISSNAP.date);
     const diff=px!=null?(spotShow*1000-px).toFixed(0):null;   // 基差（元/500千克），与打分口径一致
     const pct=diff!=null&&px?((spotShow*1000-px)/px*100).toFixed(1):null;
@@ -5558,8 +5558,8 @@ function bindUI(){
   });
   $('basisFillBtn').onclick=()=>{
     /* n73: 自动源优先——_autoSnap.spot（商务部批发价）有值时填自动价，否则回退硬编码快照 */
-    const AS=_autoSnap&&_autoSnap.spot?_autoSnap.spot:null;
-    const F9=_autoSnap&&_autoSnap.f9?_autoSnap.f9:null;   /* n76: F9自动源次优先 */
+    const F9=_autoSnap&&_autoSnap.f9?_autoSnap.f9:null;
+    const AS=(_autoSnap&&_autoSnap.spot&&(!_autoSnap.spot.date||!F9||_autoSnap.spot.date>=F9.date))?_autoSnap.spot:null;   /* n76b: 双自动源按数据日期取新者（同 renderBasisSnap） */
     const f=AS?AS.val:(F9?F9.spot:BASISSNAP.spot), fDate=AS?AS.date:(F9?F9.date:BASISSNAP.date);
     $('spotToday').value=f.toFixed(2);
     $('spotYest').value=(AS?AS.val:(F9&&F9.prev!=null?F9.prev:BASISSNAP.prev)).toFixed(2);
