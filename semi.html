@@ -1477,6 +1477,8 @@ window.__TRAE_PUSH_INLINE__={
       <div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px;flex-wrap:wrap">
         <button class="fbtn" id="jAdd" style="background:rgba(38,166,154,.15);border-color:var(--sup)">＋ 记一笔</button>
         <button class="fbtn" id="jSnap">📋 从当前策略带快照</button>
+        <button class="fbtn" id="jTpl" style="background:rgba(240,185,70,.15);border-color:var(--gold)">⚡ 今日模板</button>
+        <span id="jTplTxt" style="font-size:10px;color:var(--faint)"></span>
         <span style="font-size:10px;color:var(--faint)">快照自动记录当时评级/盈亏比/一票否决，供复盘对照</span>
       </div>
       <div class="sec" id="jStats"></div>
@@ -5122,6 +5124,57 @@ function bindUI(){
     const btn=$('jSnap'); btn.textContent='✓ 快照已随下一笔记录';
     setTimeout(()=>btn.textContent='📋 从当前策略带快照',2000);
   });
+  /* ---- n78: 半自动模板化——一键预填当日个人录入模板（只填空字段，绝不覆盖已录入值） ----
+     交易日志：日期+方向按持仓、笔记预填当日背景（实时价/档位线/资金面一句话）
+     持仓跟踪：posEntry 空值预填实时价；biasSel 未修正时提示当日档位建议 */
+  const tplCtx=()=>{
+    const L=S.live||{}, px=(L.isToday&&L.price!=null)?L.price:null;
+    const PL=planLines();
+    const MF=mfAnalyze();
+    const mfs=(MF&&MF.ready&&MF.behavior)?MF.behavior:'资金面数据未就绪';
+    return {px,PL,MF,mfs};
+  };
+  const jTpl=()=>{
+    const {px,PL,mfs}=tplCtx();
+    let filled=[];
+    const fill=(el,v)=>{ if(el&&!el.value&&v!=null){ el.value=v; filled.push(el.id); } };
+    fill(jEls.day,bjStr(bj()).slice(5).replace('-',''));
+    /* 笔记预填当日背景：实时价 + 档位线 + 资金面（仅空字段） */
+    if(jEls.note&&!jEls.note.value){
+      const bg=['⚡模板预填 '+S.contract+' '+bjStr(bj())];
+      if(px!=null) bg.push('实时 '+px);
+      if(PL) bg.push('档位 '+PL.LO+'/'+PL.HI+'（锚线BLO '+PL.BLO+'）');
+      bg.push('资金面：'+mfs);
+      jEls.note.value=bg.join(' · ');
+    }
+    /* 方向跟随当前持仓（无持仓不动，避免误导） */
+    if(jEls.dir&&S.pos&&S.pos.dir&&S.pos.dir!=='none'&&jEls.dir.value!==(S.pos.dir==='long'?'多':'空')){
+      jEls.dir.value=(S.pos.dir==='long')?'多':'空'; filled.push('jDir');
+    }
+    jAutoPts();
+    const t=$('jTplTxt');
+    if(t) t.textContent=filled.length?('已预填 '+filled.length+' 项（可修改）'):'各字段均已有值，未覆盖';
+    setTimeout(()=>{ if(t) t.textContent=''; },6000);
+    /* 顺带预填其它个人模块的空字段 */
+    tplPos(); tplEntry();
+  };
+  /* 持仓跟踪：开仓价空值预填实时价 */
+  const tplPos=()=>{
+    const {px}=tplCtx();
+    const el=$('posEntry');
+    if(el&&!el.value&&px!=null&&S.pos&&S.pos.dir&&S.pos.dir!=='none'){ el.value=px; el.dispatchEvent(new Event('input')); }
+  };
+  /* 入场计划：epSuggest 已覆盖数值建议；此处只做 biasSel 空值提示 */
+  const tplEntry=()=>{
+    const {PL,px}=tplCtx();
+    if(PL&&px!=null&&S.spot&&!S.spot.bias){
+      const sug=px>=PL.HI?4:(px<PL.LO?-4:0);
+      if(sug!==0){ const el=$('biasSel'); if(el&&!el.value) el.value=String(sug); }
+    }
+  };
+  $('jTpl').addEventListener('click',jTpl);
+  /* n78: 页面打开即自动预填当日日期（仅空字段，其余背景仍一键「⚡ 今日模板」生成） */
+  if(jEls.day&&!jEls.day.value) jEls.day.value=bjStr(bj()).slice(5).replace('-','');
   /* 折叠/展开 */
   $('jFoldBtn').addEventListener('click',()=>{
     const f=$('jFold'), open=f.style.display!=='none';
