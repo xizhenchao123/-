@@ -2522,7 +2522,15 @@ function deriveLive(){
   const hi = Math.max(...session.map(b=>b.h), price||-1e9);
   const lo = Math.min(...session.map(b=>b.l), price==null?1e9:price);
   const vol = (et&&et.vol>0&&hasTodayBars)? et.vol : (dayBar? dayBar.v : session.reduce((s,b)=>s+b.v,0));
-  const prevSettle = prevBar? prevBar.s : (dayBar? (dayBar.s||o) : null);
+  /* n75: 昨结兜底链（挂账清偿：东财备源emKline/自定义源normalizeRaw产的bar无结算价s字段，
+     备源接管日 prevSettle 断链 → 顶部"昨结 --/#bigchg --"全哑）——
+     无s退昨收prevBar.c（近似口径，chip加≈标注如实呈现）；prevBar为空（上市首日）退今日结算；
+     原 dayBar.s||o 以今日开盘冒充昨结属错值，弃 */
+  let prevSettle, prevSettleFb=false;
+  if(prevBar&&prevBar.s>0) prevSettle=prevBar.s;
+  else if(prevBar&&prevBar.c>0){ prevSettle=prevBar.c; prevSettleFb=true; }
+  else if(dayBar&&dayBar.s>0) prevSettle=dayBar.s;
+  else prevSettle=null;
   const prevOI = prevBar? prevBar.oi : null;
   /* 量比：当日量 / 前5日均量 */
   let vr=null;
@@ -2530,7 +2538,7 @@ function deriveLive(){
   if(p5.length>=3 && vol){ vr = vol / (p5.reduce((s,b)=>s+b.v,0)/p5.length); }
   S.live = {
     date: day, price, dayOpen:o, dayH:hi, dayL:lo, dayVol:vol,
-    prevSettle, prevOI, oi, oiDelta: (prevOI&&oi!=null)? oi-prevOI : null,
+    prevSettle, prevSettleFb, prevOI, oi, oiDelta: (prevOI&&oi!=null)? oi-prevOI : null,
     volRatio: vr, t: srcTime || (session.length? session[session.length-1].t : Date.now()),
     isToday: day===today
   };
@@ -3887,7 +3895,7 @@ function renderHeader(){
       chips.push(`<span class="chip">成交量<b class="num">${fmtN(L.dayVol)}</b></span>`);
       if(L.volRatio!=null) chips.push(`<span class="chip">量比<b class="num">${L.volRatio.toFixed(2)}</b></span>`);
     }
-    chips.push(`<span class="chip">昨结<b class="num">${L.prevSettle!=null?L.prevSettle.toFixed(0):'--'}</b></span>`);
+    chips.push(`<span class="chip">昨结${L.prevSettleFb?'≈':''}<b class="num">${L.prevSettle!=null?L.prevSettle.toFixed(0):'--'}</b></span>`);
     chips.push(`<span class="chip">持仓<b class="num">${L.oi!=null?fmtN(L.oi):'--'}</b></span>`);
     if(!incomplete && L.oiDelta!=null){
       chips.push(`<span class="chip">仓差<b class="num" style="color:${L.oiDelta>=0?C.up:C.dn}">${L.oiDelta>0?'+':''}${fmtN(L.oiDelta)}</b></span>`);
@@ -5475,8 +5483,9 @@ function bindUI(){
       if(!got&&!deltaOnly&&!_autoSnap.rankErr)_autoSnap.rankErr='东财排行镜像近9日无数据';   /* 增量未命中不算错误（发布前常态） */
       if(got&&c0===S.contract){   /* n73: 仅当合约未变时写入 */
         const t=got.t,p=got.p;
-        _autoSnap.rank={long20:t.LONG_POSITION,short20:t.SHORT_POSITION,netShort:t.SHORT_POSITION-t.LONG_POSITION,vol20:t.VOLUME,
-          top:'⚡东财镜像自动抓取：多头增 '+(t.LP_CHANGE>=0?'+':'')+t.LP_CHANGE+' / 空头增 '+(t.SP_CHANGE>=0?'+':'')+t.SP_CHANGE+'（上日 多'+p.LONG_POSITION+'/空'+p.SHORT_POSITION+'）',   /* n73: 增减带符号，修复负值显示"多+-22891" */
+        const ld=t.LONG_POSITION-p.LONG_POSITION, sd=t.SHORT_POSITION-p.SHORT_POSITION;
+        _autoSnap.rank={long20:t.LONG_POSITION,short20:t.SHORT_POSITION,netShort:sd,vol20:t.VOLUME,
+          top:'⚡东财镜像自动抓取：多头增 '+(ld>=0?'+':'')+ld+' / 空头增 '+(sd>=0?'+':'')+sd+'（本日−上日自算；上日 多'+p.LONG_POSITION+'/空'+p.SHORT_POSITION+'）',   /* n75: 弃接口LP_CHANGE/SP_CHANGE字段——实测11-18接口给-2184/-2091，本日-上日自算-2912/-4081，偏差约700手不可信；netShort同步改自算口径。n73的增减带符号修法保留 */
           note:'自动源 RPT_FUTU_DAILYPOSITION（大商所盘后排名口径），每日收盘后自动更新，不再人工录入'};
         _autoSnap.rankDate=got.date;_autoSnap.rankErr=null;
       }
