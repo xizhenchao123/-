@@ -1782,6 +1782,24 @@ window.__TRAE_PUSH_INLINE__={
       </div>
     </div>
 
+    <!-- n74: 入场计划卡——11-18复盘教训：方向≠买点（研判给"做多"，实际先跌74点再收复，开仓即套）。
+         把方向转成 触发/止损/目标 三件套，实时对照现价给状态；多头=回踩到位+企稳确认，空头=破位+增仓跟随 -->
+    <div class="card tm tj" id="entryCard">
+      <h3>入场计划卡 <span class="tag">方向 ≠ 买点 · 到位+确认才动手</span></h3>
+      <div class="basisbox" id="entryBox" style="border-color:var(--blue);background:rgba(64,158,255,.05)">
+        <div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:12px">
+          <label>方向 <select id="epDir" style="background:#1a2332;color:inherit;border:1px solid var(--line);border-radius:4px;padding:2px 4px;font-size:12px"><option value="long">多头回踩</option><option value="short">空头破位</option></select></label>
+          <label>触发 <input id="epTrigger" type="number" step="1" placeholder="如 3198" style="width:62px"></label>
+          <label>止损 <input id="epStop" type="number" step="1" placeholder="如 3165" style="width:62px"></label>
+          <label>目标1 <input id="epT1" type="number" step="1" style="width:62px"></label>
+          <label>目标2 <input id="epT2" type="number" step="1" style="width:62px"></label>
+          <button id="epSuggest" style="background:none;border:1px solid var(--blue);color:var(--blue);font-weight:700;border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer">⚡自动建议</button>
+          <button id="epClear" style="background:none;border:1px solid var(--line);color:var(--faint);border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer">清空</button>
+        </div>
+        <div id="entryStatusTxt" style="font-size:12px;line-height:1.7;margin-top:6px">填入触发/止损/目标（或点 ⚡自动建议），此处实时对照现价给状态。</div>
+      </div>
+    </div>
+
     <div class="card tj">
       <h3>四项打分 <span class="tag">规则引擎 · 每项0~25</span></h3>
       <div id="scoretotal">
@@ -3815,6 +3833,7 @@ function renderHeader(){
   /* n73: 降频——renderHeader 每秒被 timerClock 调用，renderBasisSnap/renderPlan 每秒整段 innerHTML 重建
      属无谓 DOM 抖动（手机端耗电）。改10秒节流；两者在自动抓取/数据落库时另有直接调用即时刷新，不受影响 */
   if(typeof renderBasisSnap==='function'){ const _n=Date.now(); if(!_hdrSnapT||_n-_hdrSnapT>=10000){_hdrSnapT=_n; renderBasisSnap(); renderPlan();} }   /* n55基差 + n65预案 */
+  if(typeof renderEntry==='function') renderEntry();   /* n74: 入场计划卡实时状态（内部带变更守卫，文本无变化不写DOM，开销可忽略） */
   /* 模式 */
   const b=$('modebadge');
   const live = S.mode==='live';
@@ -5285,6 +5304,81 @@ function bindUI(){
     }).join('<br>');
   }
   window.renderPlan=renderPlan;   /* n65: 立即挂全局，保证 renderHeader 的 typeof 检查能命中（不等首次调用） */
+  /* ===================== n74: 入场计划卡 =====================
+     11-18复盘教训：系统研判输出"做多"，实际路径先跌74点再收复——方向对了但开仓即套，因为只有方向没有入场结构。
+     本卡把方向转成 触发/止损/目标 三件套 + 实时状态五态（未到位/入场区待确认/已触发/已到目标/已失效），纯现价判定、无历史状态依赖。
+     纪律口径：多头=回踩到位+企稳确认（15分钟不创新低+OI止跌）才动手；空头=破位+增仓确认跟随；越界即作废切换另一侧预案。
+     自动建议规则（填入后可手改，localStorage 持久化，键 epTrigger/epStop/epT1/epT2/epDir）：
+       多头回踩：触发=昨结（多空分水岭）· 止损=当日低−3（结构位下方缓冲）· 目标1=当日高−15（缺口区）· 目标2=PLAN上线
+       空头破位：触发=当日低（破位确认位）· 止损=昨结（回抽失效位）· 目标1=触发−max(40,风险×1.5)（盈亏比≥1.5起步）· 目标2=PLAN生死线 */
+  function renderEntry(){
+    window.renderEntry=renderEntry;
+    const box=$('entryStatusTxt'); if(!box) return;
+    const dir=($('epDir')&&$('epDir').value)||'long';
+    const num=id=>{ const el=$(id); const v=el?parseFloat(el.value):NaN; return (isFinite(v)&&v>0)?v:null; };
+    const tr=num('epTrigger'), st=num('epStop'), t1=num('epT1'), t2=num('epT2');
+    const L=S.live, px=(L&&L.isToday&&L.price!=null)?L.price:null;
+    const _oiOK=v=>v!=null&&v>1000&&v<5000000;
+    const oid=(L&&_oiOK(L.oi)&&_oiOK(L.prevOI))?(L.oi-L.prevOI):null;
+    const oiTxt=oid==null?'':(oid>0?('OI日内增 <b style="color:var(--warn)">+'+oid+'</b>'):(oid<0?('OI日内减 <b style="color:var(--ok)">'+oid+'</b>'):('OI日内持平')));
+    let html;
+    if(tr==null||st==null||t1==null||t2==null){
+      html='<span style="color:var(--faint)">填入触发/止损/目标（或点 ⚡自动建议），此处实时对照现价给五态：未到位 → 入场区待确认 → 已触发 → 已到目标 → 已失效。</span>';
+    } else if(px==null){
+      html='<span style="color:var(--faint)">⏳ 等待当日实时行情载入后判定状态。</span>';
+    } else {
+      let cls,main,sub='';
+      if(dir==='long'){
+        if(px<=st){ cls='var(--risk)'; main='🔴 已失效——现价 '+px+' 已破止损 '+st+'，本计划作废，切换「空头破位」预案'; }
+        else if(px>=t2){ cls='var(--ok)'; main='✅ 已到目标2 '+t2+'（越过 +'+(px-t2)+'）——止盈区，不恋战'; }
+        else if(px>=t1){ cls='var(--ok)'; main='✅ 已到目标1 '+t1+'——减仓区，余仓看目标2 '+t2; }
+        else if(px>=tr){ cls='inherit'; main='⚪ 已越过入场参考 '+tr+'（当前浮盈 +'+(px-tr)+' 点）——按计划持有，不追加'; }
+        else { cls='var(--warn)'; main='🟡 回踩入场区（现价 '+px+'，距触发还差 '+(tr-px)+' 点）——等企稳确认：15分钟不再创新低 + OI 止跌，二者齐才动手，不抢跑'; }
+        if(oiTxt) sub='　'+oiTxt+(oid>0?'（增仓压价=回踩未止跌，别接）':'（减仓下探=抛压衰竭信号）');
+      } else {
+        if(px>=st){ cls='var(--risk)'; main='🔴 已失效——现价 '+px+' 反弹过止损 '+st+'，本计划作废，切换「多头回踩」预案'; }
+        else if(px<=t2){ cls='var(--ok)'; main='✅ 已到目标2 '+t2+'——生死线附近，防减仓反弹，止盈不恋战'; }
+        else if(px<=t1){ cls='var(--ok)'; main='✅ 已到目标1 '+t1+'——减仓区，余仓看目标2 '+t2; }
+        else if(px<=tr){ cls='inherit'; main='⚪ 已破触发位 '+tr+'（当前浮盈 +'+(tr-px)+' 点）——确认破位有效性：增仓跟进=真攻，减仓下破=假摔防回抽'; }
+        else { cls='var(--warn)'; main='🟡 等破位（现价 '+px+'，距触发还差 '+(px-tr)+' 点）——不抢跑：跌破触发 + OI 增仓同步，二者齐才动手'; }
+        if(oiTxt) sub='　'+oiTxt+(oid>0?'（增仓下跌=真攻，确认条件满足）':'（减仓下跌=背离，破位需增仓确认）');
+      }
+      html='<b style="color:'+cls+'">'+main+'</b>'+sub;
+    }
+    if(html!==renderEntry._last){ renderEntry._last=html; box.innerHTML=html; }
+  }
+  function epSuggest(){
+    const L=S.live;
+    const fail=()=>{ const b=$('entryStatusTxt'); if(b) b.innerHTML='<b style="color:var(--warn)">⚠ 当日高低点/昨结未就绪，无法自动建议（等实时行情载入后重试，或手动填入）</b>'; renderEntry._last=null; };
+    if(!L||!L.isToday||!(L.dayH>0)||!(L.dayL>0)) return fail();
+    const HI=Math.round(PLAN.baseHi*(PLAN.ratios[S.contract]||1)), LO=Math.round(PLAN.baseLo*(PLAN.ratios[S.contract]||1));
+    const dir=($('epDir')&&$('epDir').value)||'long';
+    const settle=(L.prevSettle&&L.prevSettle>0)?Math.round(L.prevSettle):Math.round((L.dayH+L.dayL)/2);
+    let tr,st,t1,t2,tip;
+    if(dir==='long'){
+      tr=settle; st=L.dayL-3; t1=Math.max(tr+1,L.dayH-15); t2=Math.max(HI,tr+1);
+      tip='⚡建议（多头回踩）：触发=昨结 '+settle+'（多空分水岭）· 止损=当日低 '+L.dayL+'−3='+st+' · 目标1=当日高 '+L.dayH+'−15='+t1+'（缺口区）· 目标2=PLAN上线 '+t2+'。可手改，改后状态实时更新。';
+    } else {
+      tr=L.dayL; st=settle; t1=tr-Math.max(40,Math.round((st-tr)*1.5)); t2=Math.min(LO,tr-1);
+      tip='⚡建议（空头破位）：触发=当日低 '+tr+'（破位确认位）· 止损=昨结 '+st+'（回抽失效位）· 目标1='+t1+'（盈亏比≥1.5）· 目标2=PLAN生死线 '+t2+'。可手改，改后状态实时更新。';
+    }
+    ['epTrigger','epStop','epT1','epT2'].forEach((k,i)=>{ const el=$(k); const v=[tr,st,t1,t2][i]; if(el&&v!=null&&v>0){ el.value=v; LS.set(k,v); } });
+    const b=$('entryStatusTxt'); if(b) b.innerHTML='<span style="color:var(--faint)">'+tip+'</span>';
+    renderEntry._last=null;
+  }
+  function epBind(){
+    window.renderEntry=renderEntry;
+    const dir=$('epDir'); if(dir) dir.value=LS.get('epDir','long');
+    ['epTrigger','epStop','epT1','epT2'].forEach(k=>{ const el=$(k); const v=LS.get(k,null); if(el&&v!=null&&v>0) el.value=v; });
+    ['epDir','epTrigger','epStop','epT1','epT2'].forEach(k=>{ const el=$(k); if(el) el.addEventListener('change',()=>{
+      if(el.id==='epDir'){ LS.set('epDir',el.value); renderEntry._last=null; renderEntry(); return; }   /* 换向不改数值，用户自行重填或再点建议 */
+      const v=parseFloat(el.value); LS.set(el.id,(isFinite(v)&&v>0)?v:null); renderEntry._last=null; renderEntry();
+    }); });
+    const sb=$('epSuggest'); if(sb) sb.addEventListener('click',epSuggest);
+    const cb=$('epClear'); if(cb) cb.addEventListener('click',()=>{ ['epTrigger','epStop','epT1','epT2'].forEach(k=>{ const el=$(k); if(el) el.value=''; LS.set(k,null); }); renderEntry._last=null; renderEntry(); });
+    renderEntry();
+  }
+  epBind();
   /* n71: 人工快照自动化——①F9前20排行改东财数据中心镜像自动抓取（RPT_FUTU_DAILYPOSITION，实测CORS开放✅，TYPE=1含本日/上日合计与增减）
      ②现货加商务部全国鸡蛋批发价日度源（cif.mofcom.gov.cn dataDetail.fhtml id=22939909，实测CORS开放✅，元/公斤÷2=元/斤）
      两源失败时自动回退上方硬编码快照（RANKSNAP/BASISSNAP），rankPending守卫继续兜底；排行每日约17:30交易所发布后自动出现，批发价日更 */
