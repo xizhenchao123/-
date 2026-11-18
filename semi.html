@@ -5390,7 +5390,7 @@ function bindUI(){
   /* n71: 人工快照自动化——①F9前20排行改东财数据中心镜像自动抓取（RPT_FUTU_DAILYPOSITION，实测CORS开放✅，TYPE=1含本日/上日合计与增减）
      ②现货加商务部全国鸡蛋批发价日度源（cif.mofcom.gov.cn dataDetail.fhtml id=22939909，实测CORS开放✅，元/公斤÷2=元/斤）
      两源失败时自动回退上方硬编码快照（RANKSNAP/BASISSNAP），rankPending守卫继续兜底；排行每日约17:30交易所发布后自动出现，批发价日更 */
-  const _autoSnap={rank:null,rankDate:null,rankErr:null,spot:null,spotErr:null};   /* 声明前置：renderBasisSnap 首次调用即引用 */
+  const _autoSnap={rank:null,rankDate:null,rankErr:null,spot:null,spotErr:null,f9:null,f9Err:null};   /* 声明前置：renderBasisSnap 首次调用即引用；n76 加 F9现货18区自动源 */
   window._autoSnap=_autoSnap;
   function renderBasisSnap(){   /* n64f修复#1: 提升为全局函数，renderHeader L3793 的 typeof 检查才能命中（原在 bindUI 内作用域隔离，实时基差从不刷新） */
     window.renderBasisSnap=renderBasisSnap;
@@ -5398,20 +5398,40 @@ function bindUI(){
     const wr=$('wrSnapTxt');
     const px=(S.live&&S.live.price!=null)?S.live.price:(S.bars.d.length?S.bars.d[S.bars.d.length-1].c:null);
     const AS=_autoSnap&&_autoSnap.spot?_autoSnap.spot:null;   /* n71: 商务部批发价自动源优先 */
-    const spotShow=AS?AS.val:BASISSNAP.spot, spotPrevShow=AS?null:BASISSNAP.prev, spotDateShow=AS?AS.date:BASISSNAP.date;
+    const F9=_autoSnap&&_autoSnap.f9?_autoSnap.f9:null;   /* n76: F9现货18区均价自动源（spot18.json，TDX表同源）次优先，人工BASISSNAP兜底 */
+    const spotShow=AS?AS.val:(F9?F9.spot:BASISSNAP.spot), spotDateShow=AS?AS.date:(F9?F9.date:BASISSNAP.date);
     const diff=px!=null?(spotShow*1000-px).toFixed(0):null;   // 基差（元/500千克），与打分口径一致
     const pct=diff!=null&&px?((spotShow*1000-px)/px*100).toFixed(1):null;
-    const chg=AS?null:(BASISSNAP.spot-BASISSNAP.prev);
-    /* n63b 修复#5: 快照时效警示——快照日期距今≥2天自动橙色标注，防止一周不更新时现货价看起来永远"最新" */
-    const _rawStale=Math.floor((bj() - new Date(BASISSNAP.date+'T15:00:00+08:00'))/86400000);
+    /* n76: 环比段——AS不显示；F9.prev缺失时诚实省略（不用人工快照值混口径） */
+    let chg=null, prevSeg='';
+    if(!AS){
+      if(F9){ if(F9.prev!=null){ chg=F9.spot-F9.prev; prevSeg='，昨日 '+F9.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'; } }
+      else { chg=BASISSNAP.spot-BASISSNAP.prev; prevSeg='，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'; }
+    }
+    /* n63b 修复#5: 快照时效警示——n76改按实际展示日期计算（AS/F9激活时原错按BASISSNAP.date致误标） */
+    const _snapDate=AS?AS.date:(F9?F9.date:BASISSNAP.date);
+    const _rawStale=Math.floor((bj() - new Date(_snapDate+'T15:00:00+08:00'))/86400000);
     const _staleDays=Math.max(0,_rawStale);
     const _staleTag=_rawStale<0?'<b style="color:var(--warn)">⚠ 快照日期异常（未来）</b>　':(_staleDays>=2?'<b style="color:var(--warn)">⚠ 快照已'+_staleDays+'天未更新</b>　':'');
-    el.innerHTML=(AS?'<b style="color:var(--ok)">⚡自动</b>　':'')+_staleTag+'现货 <b>'+spotShow.toFixed(2)+'</b> 元/斤（'+(AS?AS.name+'·'+AS.raw+'·'+spotDateShow:BASISSNAP.src+'·快照 '+BASISSNAP.date)+'）'
-      +(AS?'':'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）')
+    /* n76: F9官方基差（结算口径）自动自算=现货×1000−对应日期日线结算价s（bar.t为时间戳，按'YYYY-MM-DDT00:00+08:00'解析匹配）；
+       结算价缺失诚实显示--；TDX表basis_value口径不同（11-18实测801 vs 自算895）不入库 */
+    let f9b=null,f9p=null,f9bTag='';
+    if(F9){
+      const _m={}; (S.bars.d||[]).forEach(b=>{_m[b.t]=b;});
+      const _sOf=d=>{ const b=_m[Date.parse(d+'T00:00:00+08:00')]; return b&&b.s>0?b.s:null; };
+      const _s1=_sOf(F9.date), _s0=F9.prevDate?_sOf(F9.prevDate):null;
+      if(_s1&&F9.spot!=null) f9b=Math.round(F9.spot*1000-_s1);
+      if(_s0&&F9.prev!=null) f9p=Math.round(F9.prev*1000-_s0);
+      f9bTag='（自算'+(f9b!=null?'':'·待日线结算价')+'）';
+    }else{ f9b=BASISSNAP.f9basis; f9p=BASISSNAP.f9prev; }
+    el.innerHTML=((AS||F9)?'<b style="color:var(--ok)">⚡自动</b>　':'')+_staleTag+'现货 <b>'+spotShow.toFixed(2)+'</b> 元/斤（'+(AS?AS.name+'·'+AS.raw+'·'+spotDateShow:(F9?F9.src+'·自动 '+F9.date:BASISSNAP.src+'·快照 '+BASISSNAP.date))+'）'
+      +prevSeg
       +(pct!=null?('　期货现价 '+px.toFixed(0)+' → 期现基差 <b>'+diff+'</b>（'+pct+'%，'+(diff>0?'期货贴水':'期货升水')+'）'):'　（等待行情载入后显示基差）')
-      +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d>0?'走阔 +':'收窄 ')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+')'
+      +'　F9官方基差'+f9bTag+' '+(f9b!=null?f9b:'--')
+      +(f9b!=null&&f9p!=null?('（昨 '+f9p+'，'+((d=>d===0?'持平':(d>0?'走阔 +':'收窄 ')+Math.abs(d))(f9b-f9p))+')'):(!F9?('（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d>0?'走阔 +':'收窄 ')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+')'):''))
       +(_autoSnap&&_autoSnap.spotErr?('　<b style="color:var(--warn)">⚠ 批发价自动源: '+_autoSnap.spotErr+'，已回退F9快照</b>'):'')
-      +'　<span style="color:var(--faint)">'+(AS?'商务部全国批发价口径（自动日更），与F9主产区18区均价口径有差异':'F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较')+'</span>';
+      +(_autoSnap&&_autoSnap.f9Err?('　<b style="color:var(--warn)">⚠ F9自动源: '+_autoSnap.f9Err+'，已回退人工快照</b>'):'')
+      +'　<span style="color:var(--faint)">'+(AS?'商务部全国批发价口径（自动日更），与F9主产区18区均价口径有差异':(F9?'F9主产区18区口径（spot18.json 自动日更，TDX表11-17人工对照一致）；F9基差=现货×1000−结算价':'F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较'))+'</span>';
     if(wr){ const _wd2=Math.floor((bj() - new Date(WRSNAP.date+'T15:00:00+08:00'))/86400000); wr.innerHTML=(_wd2>=2?'<b style="color:var(--warn)">⚠ 仓单快照已'+_wd2+'天未更新</b>　':'')+'🏷 注册仓单 <b>'+WRSNAP.total+'</b> 张（'+WRSNAP.note+'）· '+WRSNAP.warn+'　<span style="color:var(--faint)">快照 '+WRSNAP.date+'，DCE厂库标准仓单</span>'; }
     const rk=$('rankSnapTxt');
     if(rk){
@@ -5509,6 +5529,24 @@ function bindUI(){
     }catch(e){_autoSnap.spotErr='抓取失败: '+e.message;}
     renderBasisSnap();
   }
+  /* n76: F9现货18区均价自动化——repo同源 spot18.json（由会话内TDX MCP f9_commodity_future_spot_price_table 拉取推送，18区明细每日均价；
+     11-17口径对照：TDX AVG=4.148=人工F9录入，可信）。prev 取 hist 中 date 前最近一日（周末报价日不跳过，与人工口径一致）；1小时缓存（日更数据） */
+  let _f9At=0;
+  async function fetchF9Spot18(){
+    try{
+      if(Date.now()-_f9At<3600000){return;}
+      const r=await fetch('spot18.json?v='+Date.now(),{cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const j=await r.json();
+      if(!j||!(j.avg>0)||!j.date) throw new Error('数据无效');
+      let prev=null,prevDate=null;
+      if(j.hist&&j.hist.length){ for(let i=j.hist.length-1;i>=0;i--){ if(j.hist[i].d<j.date&&j.hist[i].avg>0){ prev=+j.hist[i].avg; prevDate=j.hist[i].d; break; } } }
+      _autoSnap.f9={date:j.date,spot:+j.avg,prev,prevDate,src:j.src||'通达信F9现货18地区均价',regions:j.regions||null,hist:j.hist||null,updated:j.updated||null};
+      _autoSnap.f9Err=null; _f9At=Date.now();
+    }catch(e){ _autoSnap.f9Err='spot18.json 加载失败: '+e.message; }
+    renderBasisSnap();
+  }
+  fetchF9Spot18();
   fetchRankAuto(); fetchSpotAuto(); scheduleRank();
   setInterval(()=>fetchSpotAuto(),60*60000);   /* 批发价每小时兜底一拍（内部24h缓存，新鲜期零请求） */
   /* n72: 排行触发器——回前台立即补抓（换合约触发已合并至上方 #contract 主监听器） */
@@ -5521,12 +5559,13 @@ function bindUI(){
   $('basisFillBtn').onclick=()=>{
     /* n73: 自动源优先——_autoSnap.spot（商务部批发价）有值时填自动价，否则回退硬编码快照 */
     const AS=_autoSnap&&_autoSnap.spot?_autoSnap.spot:null;
-    const f=AS?AS.val:BASISSNAP.spot, fDate=AS?AS.date:BASISSNAP.date;
+    const F9=_autoSnap&&_autoSnap.f9?_autoSnap.f9:null;   /* n76: F9自动源次优先 */
+    const f=AS?AS.val:(F9?F9.spot:BASISSNAP.spot), fDate=AS?AS.date:(F9?F9.date:BASISSNAP.date);
     $('spotToday').value=f.toFixed(2);
-    $('spotYest').value=(AS?AS.val:BASISSNAP.prev).toFixed(2);
+    $('spotYest').value=(AS?AS.val:(F9&&F9.prev!=null?F9.prev:BASISSNAP.prev)).toFixed(2);
     spotChange();
     const tip=$('basisFillTip');
-    tip.textContent='已填入 '+fDate+(AS?' 自动源':' 快照')+' 现货价并重算';
+    tip.textContent='已填入 '+fDate+(AS?' 自动源':(F9?' F9自动源':' 快照'))+' 现货价并重算';
     setTimeout(()=>{tip.textContent='';},5000);
   };
   /* ---- 持仓录入（第五步：录入后自动监测；方向=none 即平仓清空） ---- */
