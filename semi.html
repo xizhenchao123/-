@@ -2155,9 +2155,10 @@ function ifindAutoFill(){
 async function fetchM1(){
   if(S.busy.m1) return;
   S.busy.m1 = true;
+  const c=S.contract;   /* n73: 请求发起时锁定合约，响应回来若用户已切合约则丢弃旧数据（防竞态串合约） */
   try{
-    const raw = await jsonp('InnerFuturesNewService.getFewMinLine',{symbol:S.contract,type:1}, 6000);
-    if(raw.length){ S.m1 = toBars(raw, 420); S.lastOK = Date.now(); S.errStreak = 0; }  /* 420根≈一个交易日1分钟：微观资金脉冲/诱多诱空识别用 */
+    const raw = await jsonp('InnerFuturesNewService.getFewMinLine',{symbol:c,type:1}, 6000);
+    if(c===S.contract&&raw.length){ S.m1 = toBars(raw, 420); S.lastOK = Date.now(); S.errStreak = 0; }  /* 420根≈一个交易日1分钟：微观资金脉冲/诱多诱空识别用 */
   }catch(e){ S.errStreak++; }
   finally{ S.busy.m1 = false; }
 }
@@ -2300,6 +2301,14 @@ function watchdog(){
      工作日假日靠日历表 HOLIDAYS 判定；国务院通常于前一年11-12月公布次年安排，
      届时核对更新此表即可（2027 年安排以官方公告为准）。 */
   const HOLIDAYS=new Set([
+    /* n73: 补全 2026 年法定假日（2025-11 官方公布口径：期货市场休市日=工作日假期+调休休市） */
+    '2026-01-01','2026-01-02',                /* 元旦（1-1周四，1-2周五休市） */
+    '2026-02-16','2026-02-17','2026-02-18','2026-02-19','2026-02-20', /* 春节（除夕2-16周一，假期2-15~2-22，工作日部分） */
+    '2026-04-06',                              /* 清明（4-5周日，4-6周一补休） */
+    '2026-05-04','2026-05-05',                /* 劳动节（5-1周五，工作日部分5-4/5-5） */
+    '2026-06-19',                              /* 端午（6-19周五） */
+    '2026-09-25',                              /* 中秋（9-25周五） */
+    '2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-07','2026-10-08', /* 国庆（10-3/4为周末，工作日部分） */
     '2027-01-01','2027-01-04',                /* 元旦（1-1周六，顺延补休1-4周五→1-4为周五补休） */
     '2027-02-08','2027-02-09','2027-02-10','2027-02-11','2027-02-12', /* 春节（初一2-6周六，假期2-7~2-13，工作日部分） */
     '2027-04-05',                              /* 清明 */
@@ -3800,12 +3809,12 @@ const chart = {
 /* =====================================================================
  *  UI 渲染
  * ===================================================================== */
+let _hdrSnapT=0;   /* n73: renderHeader 内 renderBasisSnap/renderPlan 的10秒节流计数器 */
 function renderHeader(){
   const L=S.live, A=S.A;
-  if(typeof renderBasisSnap==='function') renderBasisSnap();   /* n55: 实时价变化时刷新基差助手 */
-  /* n65: 预案档位需随"合约切换/日线载入"刷新——原 renderPlan 仅在 bindUI 启动时调用一次，
-     切合约后 sameC/lastC 永不更新（浏览器实测JD2702仍显示旧文案）。挂到 renderHeader 秒级刷新。 */
-  if(typeof renderPlan==='function') renderPlan();
+  /* n73: 降频——renderHeader 每秒被 timerClock 调用，renderBasisSnap/renderPlan 每秒整段 innerHTML 重建
+     属无谓 DOM 抖动（手机端耗电）。改10秒节流；两者在自动抓取/数据落库时另有直接调用即时刷新，不受影响 */
+  if(typeof renderBasisSnap==='function'){ const _n=Date.now(); if(!_hdrSnapT||_n-_hdrSnapT>=10000){_hdrSnapT=_n; renderBasisSnap(); renderPlan();} }   /* n55基差 + n65预案 */
   /* 模式 */
   const b=$('modebadge');
   const live = S.mode==='live';
@@ -4999,8 +5008,7 @@ function onTick(){
     if(typeof Chart!=='undefined' && cjsChart && cjsChart.$bars && cjsChart.$bars.length){
       try{
         const ds=cjsChart.data.datasets;
-        if(ds[1]&&ds[1].data.length) ds[1].data[ds[1].data.length-1]=S.live.price;   /* 只同步收盘价折线；
-          成交量为单根bar口径，秒级拿不到当根增量，仍以60秒全量刷新为准，避免量柱虚高 */
+        if(S.live.price!=null&&ds[1]&&ds[1].data.length) ds[1].data[ds[1].data.length-1]=S.live.price;   /* n73: 加 null 守卫——极端空窗时 price 可能为 null；成交量为单根bar口径仍以60秒全量刷新为准 */
         cjsChart.update('none');
       }catch(e){ /* 速览图更新失败不影响主图 */ }
     }
@@ -5009,6 +5017,8 @@ function onTick(){
   }
 }
 async function fullCycle(){
+  if(S.busy.cycle) return;   /* n73: 防重入——60秒慢循环与换合约 handler 的 fullCycle 并发会交错写 S.bars（竞态串数据） */
+  S.busy.cycle=true;
   try{
     await fetchM1();
     await fetchAllKlines();
@@ -5030,6 +5040,7 @@ async function fullCycle(){
     $('errbox').textContent='数据获取异常：'+e.message+'（自动重试中）';
     $('errbox').style.display='block';
   }
+  finally{ S.busy.cycle=false; }
 }
 function setChartData(){
   const bars = S.tf==='m5'? S.bars.m5 : (S.tf==='h1'? S.bars.h1 : S.bars.d);
@@ -5168,6 +5179,7 @@ function bindUI(){
     if(expiredContract(v)){ const _nx=nextMonthContract(v)||''; alert(v+' 已过期交割，请切换到 '+(_nx||'更新的月份')+' 或之后的月份合约'); $('contract').value=S.contract; return; }
     S.contract=v; LS.set('contract',v);
     S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null;
+    fetchRankAuto(); scheduleRank();   /* n73: 换合约立即重抓排行（从 L5400 分散监听合并至此，与重载同一入口） */
     await fullCycle();
   });
   const spotChange=()=>{
@@ -5341,11 +5353,10 @@ function bindUI(){
     const known=_autoSnap.rankDate;
     const today=bjStr(bj());
     const canDelta=!!(known&&isWeekday()&&today>=known);
-    fetchRankAuto(canDelta).then(()=>{
+    fetchRankAuto(canDelta).catch(()=>{}).then(()=>{
       if(_autoSnap.rankDate!==known){_rankStage=0;_rankStageCount=0;}   /* 抓到新发布日 → 回到快探阶段 */
       else if(_rankStage===0&&++_rankStageCount>=15){_rankStage=1;_rankStageCount=0;}   /* 快探15轮未出新 → 升慢探 */
-      scheduleRank();
-    });
+    }).finally(scheduleRank);   /* n73: finally 兜底——renderBasisSnap 内部抛错也不得让排行轮询链永久停摆 */
   }
   function scheduleRank(){   /* 按阶段设定下次探测间隔 */
     if(_rankTimer) clearTimeout(_rankTimer);
@@ -5353,8 +5364,9 @@ function bindUI(){
     _rankTimer=setTimeout(rankTick,iv);
   }
   async function fetchRankAuto(deltaOnly){
+    const c0=S.contract;   /* n73: 锁定合约——抓取途中切合约时丢弃旧合约结果（防竞态串数据） */
     try{
-      const c=S.contract; let got=null;
+      const c=c0; let got=null;
       const days=deltaOnly?1:9;   /* 增量模式只探今日；全量模式近9个自然日倒序（覆盖周末+发布延迟） */
       for(let i=0;i<days&&!got;i++){
         const d=new Date(bj()-i*86400000);
@@ -5367,10 +5379,10 @@ function bindUI(){
         }
       }
       if(!got&&!deltaOnly&&!_autoSnap.rankErr)_autoSnap.rankErr='东财排行镜像近9日无数据';   /* 增量未命中不算错误（发布前常态） */
-      if(got){
+      if(got&&c0===S.contract){   /* n73: 仅当合约未变时写入 */
         const t=got.t,p=got.p;
         _autoSnap.rank={long20:t.LONG_POSITION,short20:t.SHORT_POSITION,netShort:t.SHORT_POSITION-t.LONG_POSITION,vol20:t.VOLUME,
-          top:'⚡东财镜像自动抓取：多头增 '+t.LP_CHANGE+' / 空头增 '+t.SP_CHANGE+'（上日 多'+p.LONG_POSITION+'/空'+p.SHORT_POSITION+'），总量增减 多+'+(t.LP_CHANGE!=null?t.LP_CHANGE:'?')+'',
+          top:'⚡东财镜像自动抓取：多头增 '+(t.LP_CHANGE>=0?'+':'')+t.LP_CHANGE+' / 空头增 '+(t.SP_CHANGE>=0?'+':'')+t.SP_CHANGE+'（上日 多'+p.LONG_POSITION+'/空'+p.SHORT_POSITION+'）',   /* n73: 增减带符号，修复负值显示"多+-22891" */
           note:'自动源 RPT_FUTU_DAILYPOSITION（大商所盘后排名口径），每日收盘后自动更新，不再人工录入'};
         _autoSnap.rankDate=got.date;_autoSnap.rankErr=null;
       }
@@ -5396,8 +5408,7 @@ function bindUI(){
   }
   fetchRankAuto(); fetchSpotAuto(); scheduleRank();
   setInterval(()=>fetchSpotAuto(),60*60000);   /* 批发价每小时兜底一拍（内部24h缓存，新鲜期零请求） */
-  /* n72: 排行触发器——换合约立即跟手 + 回前台立即补抓 */
-  $('contract').addEventListener('change',()=>{fetchRankAuto();scheduleRank();});
+  /* n72: 排行触发器——回前台立即补抓（换合约触发已合并至上方 #contract 主监听器） */
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='visible'){
       rankTick(); fetchSpotAuto();   /* 后台挂起期间定时器被钳制，回前台立即补抓对齐行情 */
@@ -5405,11 +5416,14 @@ function bindUI(){
     }
   });
   $('basisFillBtn').onclick=()=>{
-    $('spotToday').value=BASISSNAP.spot.toFixed(2);
-    $('spotYest').value=BASISSNAP.prev.toFixed(2);
+    /* n73: 自动源优先——_autoSnap.spot（商务部批发价）有值时填自动价，否则回退硬编码快照 */
+    const AS=_autoSnap&&_autoSnap.spot?_autoSnap.spot:null;
+    const f=AS?AS.val:BASISSNAP.spot, fDate=AS?AS.date:BASISSNAP.date;
+    $('spotToday').value=f.toFixed(2);
+    $('spotYest').value=(AS?AS.val:BASISSNAP.prev).toFixed(2);
     spotChange();
     const tip=$('basisFillTip');
-    tip.textContent='已填入 '+BASISSNAP.date+' 快照并重算';
+    tip.textContent='已填入 '+fDate+(AS?' 自动源':' 快照')+' 现货价并重算';
     setTimeout(()=>{tip.textContent='';},5000);
   };
   /* ---- 持仓录入（第五步：录入后自动监测；方向=none 即平仓清空） ---- */
