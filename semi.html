@@ -5273,21 +5273,31 @@ function bindUI(){
     }).join('<br>');
   }
   window.renderPlan=renderPlan;   /* n65: 立即挂全局，保证 renderHeader 的 typeof 检查能命中（不等首次调用） */
+  /* n71: 人工快照自动化——①F9前20排行改东财数据中心镜像自动抓取（RPT_FUTU_DAILYPOSITION，实测CORS开放✅，TYPE=1含本日/上日合计与增减）
+     ②现货加商务部全国鸡蛋批发价日度源（cif.mofcom.gov.cn dataDetail.fhtml id=22939909，实测CORS开放✅，元/公斤÷2=元/斤）
+     两源失败时自动回退上方硬编码快照（RANKSNAP/BASISSNAP），rankPending守卫继续兜底；排行每日约17:30交易所发布后自动出现，批发价日更 */
+  const _autoSnap={rank:null,rankDate:null,rankErr:null,spot:null,spotErr:null};   /* 声明前置：renderBasisSnap 首次调用即引用 */
+  window._autoSnap=_autoSnap;
   function renderBasisSnap(){   /* n64f修复#1: 提升为全局函数，renderHeader L3793 的 typeof 检查才能命中（原在 bindUI 内作用域隔离，实时基差从不刷新） */
     window.renderBasisSnap=renderBasisSnap;
     const el=$('basisSnapTxt'); if(!el) return;
     const wr=$('wrSnapTxt');
     const px=(S.live&&S.live.price!=null)?S.live.price:(S.bars.d.length?S.bars.d[S.bars.d.length-1].c:null);
-    const diff=px!=null?(BASISSNAP.spot*1000-px).toFixed(0):null;   // 基差（元/500千克），与打分口径一致
-    const pct=diff!=null&&px?((BASISSNAP.spot*1000-px)/px*100).toFixed(1):null;
-    const chg=(BASISSNAP.spot-BASISSNAP.prev);
+    const AS=_autoSnap&&_autoSnap.spot?_autoSnap.spot:null;   /* n71: 商务部批发价自动源优先 */
+    const spotShow=AS?AS.val:BASISSNAP.spot, spotPrevShow=AS?null:BASISSNAP.prev, spotDateShow=AS?AS.date:BASISSNAP.date;
+    const diff=px!=null?(spotShow*1000-px).toFixed(0):null;   // 基差（元/500千克），与打分口径一致
+    const pct=diff!=null&&px?((spotShow*1000-px)/px*100).toFixed(1):null;
+    const chg=AS?null:(BASISSNAP.spot-BASISSNAP.prev);
     /* n63b 修复#5: 快照时效警示——快照日期距今≥2天自动橙色标注，防止一周不更新时现货价看起来永远"最新" */
     const _rawStale=Math.floor((bj() - new Date(BASISSNAP.date+'T15:00:00+08:00'))/86400000);
     const _staleDays=Math.max(0,_rawStale);
     const _staleTag=_rawStale<0?'<b style="color:var(--warn)">⚠ 快照日期异常（未来）</b>　':(_staleDays>=2?'<b style="color:var(--warn)">⚠ 快照已'+_staleDays+'天未更新</b>　':'');
-    el.innerHTML=_staleTag+'快照日期 <b>'+BASISSNAP.date+'</b>（'+BASISSNAP.src+'）：今日现货 <b>'+BASISSNAP.spot.toFixed(2)+'</b> '+BASISSNAP.unit+'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）'
+    el.innerHTML=(AS?'<b style="color:var(--ok)">⚡自动</b>　':'')+_staleTag+'现货 <b>'+spotShow.toFixed(2)+'</b> 元/斤（'+(AS?AS.name+'·'+AS.raw+'·'+spotDateShow:BASISSNAP.src+'·快照 '+BASISSNAP.date)+'）'
+      +(AS?'':'，昨日 '+BASISSNAP.prev.toFixed(2)+'（环比 '+(chg>0?'+':'')+chg.toFixed(2)+'）')
       +(pct!=null?('　期货现价 '+px.toFixed(0)+' → 期现基差 <b>'+diff+'</b>（'+pct+'%，'+(diff>0?'期货贴水':'期货升水')+'）'):'　（等待行情载入后显示基差）')
-      +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d>0?'走阔 +':'收窄 ')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+'）　<span style="color:var(--faint)">F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较</span>';
+      +'　F9官方基差 '+BASISSNAP.f9basis+'（昨 '+BASISSNAP.f9prev+'，'+((d=>d===0?'持平':(d>0?'走阔 +':'收窄 ')+Math.abs(d))(BASISSNAP.f9basis-BASISSNAP.f9prev))+')'
+      +(_autoSnap&&_autoSnap.spotErr?('　<b style="color:var(--warn)">⚠ 批发价自动源: '+_autoSnap.spotErr+'，已回退F9快照</b>'):'')
+      +'　<span style="color:var(--faint)">'+(AS?'商务部全国批发价口径（自动日更），与F9主产区18区均价口径有差异':'F9基差=现货×1000−结算价（结算口径），页面上方期现基差=现货×1000−实时价（实时口径），两者基准不同不可直接比较')+'</span>';
     if(wr){ const _wd2=Math.floor((bj() - new Date(WRSNAP.date+'T15:00:00+08:00'))/86400000); wr.innerHTML=(_wd2>=2?'<b style="color:var(--warn)">⚠ 仓单快照已'+_wd2+'天未更新</b>　':'')+'🏷 注册仓单 <b>'+WRSNAP.total+'</b> 张（'+WRSNAP.note+'）· '+WRSNAP.warn+'　<span style="color:var(--faint)">快照 '+WRSNAP.date+'，DCE厂库标准仓单</span>'; }
     const rk=$('rankSnapTxt');
     if(rk){
@@ -5296,18 +5306,71 @@ function bindUI(){
       const netPct=(oi&&sameC)?((RANKSNAP.netShort/oi)*100).toFixed(1):null;
       const _rd2=Math.floor((bj() - new Date(RANKSNAP.date+'T15:00:00+08:00'))/86400000);
       const netAbs=Math.abs(RANKSNAP.netShort), netTxt=RANKSNAP.netShort===0?'净仓持平':((RANKSNAP.netShort>0?'净空 +':'净多 -')+netAbs), netCls=RANKSNAP.netShort>0?'var(--dn)':(RANKSNAP.netShort<0?'var(--up)':'var(--faint)');   /* n64p修复: 涨=红/跌=绿主题下净空标绿(--dn)、净多标红(--up)；原--down未定义致净空无色 */
-      /* n69: F9排行待补占位守卫——long20/short20/vol20 全为0时是占位值，显示"多0/空0/净仓持平"属误导 */
-      const rankPending=(RANKSNAP.long20===0&&RANKSNAP.short20===0&&RANKSNAP.vol20===0);
+      /* n71: 自动抓取优先——_autoSnap.rank 有值则覆盖 RANKSNAP 展示（带⚡标识），失败回退硬编码快照 */
+      const AR=_autoSnap&&_autoSnap.rank?_autoSnap.rank:null;
+      const aRdate=AR?_autoSnap.rankDate:RANKSNAP.date;
+      const aRlong=AR?AR.long20:RANKSNAP.long20, aRshort=AR?AR.short20:RANKSNAP.short20, aRnet=AR?AR.netShort:RANKSNAP.netShort, aRvol=AR?AR.vol20:RANKSNAP.vol20;
+      const aRsameC=S.contract===(AR?S.contract:RANKSNAP.contract);
+      const rankPending=(aRlong===0&&aRshort===0&&aRvol===0);
+      const netAbs2=Math.abs(aRnet), netTxt2=aRnet===0?'净仓持平':((aRnet>0?'净空 +':'净多 -')+netAbs2), netCls2=aRnet>0?'var(--dn)':(aRnet<0?'var(--up)':'var(--faint)');
+      const aRhead='🏦 官方持仓排名前20'+(AR?'（⚡自动）':'（'+RANKSNAP.contract+'）')+'，'+aRdate+'：多 <b>'+aRlong+'</b> / 空 <b>'+aRshort+'</b> / <b style="color:'+netCls2+'">'+netTxt2+'</b>'
+        +(aRsameC&&oi?('（占OI '+((aRnet/oi)*100).toFixed(1)+'%）'):'')+'，成交量前20 '+aRvol;
       const rankHead=rankPending
-        ?'🏦 官方持仓排名前20（'+RANKSNAP.contract+'，'+RANKSNAP.date+'）：<b style="color:var(--warn)">⏳ F9 排行待补（交易所排行需人工录入）</b>'
-        :'🏦 官方持仓排名前20（'+RANKSNAP.contract+'，'+RANKSNAP.date+'）：多 <b>'+RANKSNAP.long20+'</b> / 空 <b>'+RANKSNAP.short20+'</b> / <b style="color:'+netCls+'">'+netTxt+'</b>'
-        +(netPct?('（占OI '+netPct+'%）'):'')+'，成交量前20 '+RANKSNAP.vol20;
-      rk.innerHTML=(_rd2>=2?'<b style="color:var(--warn)">⚠ 排名快照已'+_rd2+'天未更新</b>　':'')+rankHead+'　'+RANKSNAP.top+'　· '+RANKSNAP.note
-        +'　<span style="color:var(--faint)">快照 '+RANKSNAP.date+'，交易所排行（F9）</span>';
+        ?aRhead+'　<b style="color:var(--warn)">⏳ F9 排行待补</b>'
+        :aRhead;
+      const aRnote=AR?('<b style="color:var(--ok)">⚡'+AR.top+'</b>　'+AR.note):('　'+RANKSNAP.top+'　· '+RANKSNAP.note);
+      rk.innerHTML=(_rd2>=2&&!AR?'<b style="color:var(--warn)">⚠ 排名快照已'+_rd2+'天未更新</b>　':'')
+        +rankHead+aRnote
+        +(_autoSnap&&_autoSnap.rankErr?('　<b style="color:var(--warn)">⚠ 自动抓取: '+_autoSnap.rankErr+'，已回退快照</b>'):'')
+        +'　<span style="color:var(--faint)">'+(AR?'东财镜像·大商所口径':'快照 '+RANKSNAP.date+'，交易所排行（F9）')+'</span>';
     }
   }
   renderBasisSnap();
   renderPlan();   /* n64q: 预案档位随快照渲染 */
+  /* n71: 人工快照自动化——①F9前20排行改东财数据中心镜像自动抓取（RPT_FUTU_DAILYPOSITION，实测CORS开放✅，TYPE=1含本日/上日合计与增减）
+     ②现货加商务部全国鸡蛋批发价日度源（cif.mofcom.gov.cn dataDetail.fhtml id=22939909，实测CORS开放✅，元/公斤÷2=元/斤）
+     两源失败时自动回退上方硬编码快照（RANKSNAP/BASISSNAP），rankPending守卫继续兜底；排行每日约17:30交易所发布后自动出现，批发价日更（声明见上方 _autoSnap 前置处） */
+  async function fetchRankAuto(){
+    try{
+      const c=S.contract; let got=null;
+      for(let i=0;i<9&&!got;i++){   /* 最近9个自然日倒序探测最新已发布交易日（覆盖周末+发布延迟） */
+        const d=new Date(bj()-i*86400000);
+        const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        const u='https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_FUTU_DAILYPOSITION&columns=ALL&filter=(SECURITY_CODE%3D%22'+c+'%22)(TRADE_DATE%3D%27'+ds+'%27)(TYPE%3D%221%22)&pageNumber=1&pageSize=10&source=WEB&client=WEB';
+        const j=await(await fetch(u)).json();
+        if(j&&j.result&&j.result.data){
+          const t=j.result.data.find(x=>x.MEMBER_NAME_ABBR==='本日合计'),p=j.result.data.find(x=>x.MEMBER_NAME_ABBR==='上日合计');
+          if(t&&p){got={date:ds,t,p};break;}
+        }
+      }
+      if(!got){_autoSnap.rankErr='东财排行镜像近9日无数据';}
+      else{
+        const t=got.t,p=got.p;
+        _autoSnap.rank={long20:t.LONG_POSITION,short20:t.SHORT_POSITION,netShort:t.SHORT_POSITION-t.LONG_POSITION,vol20:t.VOLUME,
+          top:'⚡东财镜像自动抓取：多头增 '+t.LP_CHANGE+' / 空头增 '+t.SP_CHANGE+'（上日 多'+p.LONG_POSITION+'/空'+p.SHORT_POSITION+'），总量增减 多+'+(t.LP_CHANGE!=null?t.LP_CHANGE:'?')+'',
+          note:'自动源 RPT_FUTU_DAILYPOSITION（大商所盘后排名口径），每日收盘后自动更新，不再人工录入'};
+        _autoSnap.rankDate=got.date;_autoSnap.rankErr=null;
+      }
+    }catch(e){_autoSnap.rankErr='抓取失败: '+e.message;}
+    renderBasisSnap();
+  }
+  async function fetchSpotAuto(){
+    try{
+      const now=bj();const f=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+      const r=await fetch('https://cif.mofcom.gov.cn/cif/phone/dataDetail.fhtml',{method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'id=22939909&startDate='+f(new Date(now.getTime()-14*86400000))+'&endDate='+f(new Date(now.getTime()+86400000))});
+      const j=await r.json();
+      const L=(j&&j.dataList)||[];
+      if(L.length){const last=L[L.length-1];
+        _autoSnap.spot={val:(+last.DATA)/2,date:last.DATADATE,raw:last.DATA+' 元/公斤',name:(j.index&&j.index.NAME)||'鸡蛋批发价'};
+        _autoSnap.spotErr=null;
+      } else _autoSnap.spotErr='商务部接口返回空';
+    }catch(e){_autoSnap.spotErr='抓取失败: '+e.message;}
+    renderBasisSnap();
+  }
+  fetchRankAuto(); fetchSpotAuto();
+  setInterval(fetchRankAuto,10*60*1000); setInterval(fetchSpotAuto,30*60*1000);   /* 排行每10分钟探测（捕捉17:30发布）、批发价每30分钟 */
   $('basisFillBtn').onclick=()=>{
     $('spotToday').value=BASISSNAP.spot.toFixed(2);
     $('spotYest').value=BASISSNAP.prev.toFixed(2);
