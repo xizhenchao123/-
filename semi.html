@@ -7,6 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://stock2.finance.sina.com.cn; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
 <title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分）；n56: 仓单快照（基差助手块内增仓单行：DCE厂库标准仓单日更WRSNAP，零仓单/注册/注销状态+临近交割月供给压力预警提示，只读不进打分） -->
 <!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
+<!-- n84: 判定对账卡——每日收盘自动重算三项机械判定（动量票延续/翻面线兑现/开盘30分状态标签）并与实际行情核销，LS键auditLog保留120条，与sigCard分工（那边对赌评级/方向信号快照，本卡核销机械判定兑现与否）；附n84分状态回测注记：宽开盘日(区间宽≥0.45×ATR)追破位期望-6.1点/笔(57样本,10/13合约负)不追突破、震荡日区间反转正期望集中2/13合约不稳健不采纳、θ=0.45维持 -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n82: 全Tab逐项审查死码清理——删 pushbadge 空壳徽标（n46废弃永不显示）/recapCard内 strategyBody 死DOM（n17改读stratBody后无读写）/startOpenCTP 空函数+调用点（n43停用）/S.mf 废弃状态（n77改自动源后零引用）；epTrigger等4键复核为活功能保留 -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
@@ -1456,6 +1457,12 @@ window.__TRAE_PUSH_INLINE__={
     <div class="card tr" id="sigCard" style="display:none">
       <h3>🧪 信号对账 · 系统自检 <span class="tag" id="sigTag">0 条快照</span></h3>
       <div id="sigBody"></div>
+    </div>
+
+    <!-- n84: 判定对账卡（收盘自动核销三项每日判定：动量票/翻面线/开盘状态标签；与sigCard分工——那边对赌评级/方向信号快照，本卡核销机械判定的兑现与否，纯本机localStorage） -->
+    <div class="card tr" id="auditCard" style="display:none">
+      <h3>📋 判定对账 · 三项自动核销 <span class="tag" id="auditTag">0 条</span></h3>
+      <div id="auditBody"></div>
     </div>
 
     <!-- n10: 交易日志（人工录入每笔交易 + 自动统计胜率/盈亏比/期望值 + 规则化 AI 错误复盘；纯展示层模块，不参与打分/评级） -->
@@ -4361,6 +4368,76 @@ function renderSigStats(){
   renderDailyThree()+   /* n83: 三问抽为独立函数，与快照解耦常显 */
    `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">快照 ${list.length} 条（${esc(S.contract)}，仅本机浏览器localStorage，跨设备不同步为设计行为）· 待结算 ${st.pend} 条（今日盘中快照，收盘出日线后自动对赌）· 观望/无方向 ${st.watch} 条（含否决态 ${st.vetoN} 条）只存不赌 · 数据不足排除 ${st.na} 条（超出本地K线覆盖）。<br>⚠ 快照是「状态序列」非独立交易（同一趋势会连续记录多个同向状态），命中率≠实盘胜率；样本 &lt;20 条无统计意义。方向总纲为量化参考加总，非预测非指令，不构成投资建议。</div>`;
 }
+/* n84: 判定对账——每日收盘自动重算三项机械判定并与实际行情核销。
+   与sigCard分工：那边对赌的是评级/方向「信号快照」（状态序列），本卡核销的是三项「机械判定」的兑现与否：
+   ①动量票延续（口径同intradayBP prevChg=(prev.c-prev2.c)/prev2.c：|prevChg|≥0.5%×2票 / 3日累计≥1.5%×1票；核销=今收相对昨收是否顺票向）
+   ②翻面线兑现（口径同n81-A预告：昨收×(1±0.5%) ceil/floor 防误报；触线但收盘未确认=诱多/诱空）
+   ③开盘30分状态标签（口径同n79Intraday：区间宽/ATR14 ≤0.45震荡/≥0.9趋势；核销=收盘是否留在开盘区间；不含n81-B盘中升级——核销的是09:35已知口径的原判）
+   全部独立重算（今日OHLC取自5m不等日线落库、ATR14取自已收盘日线），幂等重写当日行，LS键auditLog保留120条 */
+function auditWrite(){
+  if(S.mode!=='close') return;
+  const today=bjStr(bj());
+  const m5t=(S.bars.m5||[]).filter(b=>bjStr(new Date(b.t))===today);
+  if(m5t.length<40) return;                      /* 当日5m未收全（节假日close模式当日无bar同样跳过） */
+  const dAll=(S.bars.d||[]).filter(b=>bjStr(new Date(b.t))<today);
+  if(dAll.length<20) return;
+  const prev=dAll[dAll.length-1], prev2=dAll[dAll.length-2];
+  if(!prev||!prev2||!prev.c||!prev2.c) return;
+  let sum=0,cnt=0;                               /* ATR14，口径同planLines */
+  for(let i=Math.max(1,dAll.length-14);i<dAll.length;i++){ const p=dAll[i-1],b=dAll[i]; sum+=Math.max(b.h-b.l,Math.abs(b.h-p.c),Math.abs(b.l-p.c)); cnt++; }
+  const atr=cnt?sum/cnt:0; if(!atr) return;
+  const tH=Math.max(...m5t.map(b=>b.h)), tL=Math.min(...m5t.map(b=>b.l)), tC=m5t[m5t.length-1].c;
+  const log=LS.get('auditLog',[]);
+  const id=S.contract+'|'+today;
+  const ix=log.findIndex(r=>r.id===id);
+  const row={id,d:today,c:S.contract,ts:Date.now(),atr:Math.round(atr),close:tC};
+  const prevChg=(prev.c-prev2.c)/prev2.c*100;
+  const past3=dAll[dAll.length-4];
+  const cum3=past3&&past3.c?(prev.c-past3.c)/past3.c*100:null;
+  const momMake=(dir,src,w)=>({dir,src,w,hit:(tC-prev.c)*(dir==='多'?1:-1)>0,delta:Math.round((tC-prev.c)*(dir==='多'?1:-1)*10)/10});
+  if(isFinite(prevChg)&&Math.abs(prevChg)>=0.5) row.mom=momMake(prevChg>0?'多':'空','单日'+(prevChg>0?'+':'')+prevChg.toFixed(2)+'%',2);
+  else if(cum3!=null&&isFinite(cum3)&&Math.abs(cum3)>=1.5) row.mom=momMake(cum3>0?'多':'空','3日累计'+(cum3>0?'+':'')+cum3.toFixed(2)+'%',1);
+  const hiLine=Math.ceil(prev.c*1.005), loLine=Math.floor(prev.c*0.995);
+  const tHi=tH>=hiLine, tLo=tL<=loLine;
+  let fv=tC>=hiLine?'上沿兑现':(tC<=loLine?'下沿兑现':'弃权带');
+  if(tHi&&tC<hiLine) fv='触上沿未收复=诱多';
+  else if(tLo&&tC>loLine) fv='触下沿未收复=诱空';
+  row.flip={yc:prev.c,hi:hiLine,lo:loLine,tHi:tHi?1:0,tLo:tLo?1:0,fv};
+  const orb=m5t.map(b=>{const _d=new Date(b.t);const _b=new Date(_d.getTime()+(_d.getTimezoneOffset()+480)*60000);return{hm:_b.getHours()*100+_b.getMinutes(),h:b.h,l:b.l};}).filter(b=>b.hm>=900&&b.hm<=930);
+  if(orb.length>=5){
+    const oHi=Math.max(...orb.map(b=>b.h)), oLo=Math.min(...orb.map(b=>b.l));
+    const ratio=(oHi-oLo)/atr;
+    const k=ratio<=0.45?'震荡日':(ratio>=0.9?'趋势日':'中性');
+    const closeIn=tC>=oLo&&tC<=oHi;
+    const ok=k==='震荡日'?closeIn:(k==='趋势日'?!closeIn:null);
+    row.st={k,ratio:Math.round(ratio*100)/100,oHi,oLo,closeIn:closeIn?1:0,ok:ok==null?null:!!ok};
+  }
+  if(ix>=0) log[ix]=row; else log.push(row);
+  while(log.length>120) log.shift();
+  LS.set('auditLog',log);
+}
+function renderAudit(){
+  const card=$('auditCard'); if(!card) return;
+  const log=LS.get('auditLog',[]).filter(r=>r.c===S.contract);
+  const tag=$('auditTag'); if(tag) tag.textContent=log.length+' 条';
+  if(!log.length){ card.style.display='none'; return; }
+  card.style.display='';
+  const mom2=log.filter(r=>r.mom&&r.mom.w===2), mom1=log.filter(r=>r.mom&&r.mom.w===1);
+  const h2=mom2.filter(r=>r.mom.hit).length, h1=mom1.filter(r=>r.mom.hit).length;
+  const yd=log.filter(r=>r.flip&&r.flip.fv.indexOf('诱多')>=0).length;
+  const yk=log.filter(r=>r.flip&&r.flip.fv.indexOf('诱空')>=0).length;
+  const stA=log.filter(r=>r.st&&r.st.ok!=null), stOk=stA.filter(r=>r.st.ok).length;
+  const chip=(t,v,c)=>`<b style="display:inline-block;margin:2px 8px 2px 0;padding:2px 8px;border:1px solid var(--line);border-radius:6px;font-size:11px">${t} <span class="num" style="color:${c}">${v}</span></b>`;
+  const momCell=r=>r.mom?`<b class="num" style="color:${r.mom.hit?'var(--ok)':'var(--risk)'}">${r.mom.dir}×${r.mom.w}</b> <span style="color:var(--faint)">${r.mom.src}</span> ${r.mom.hit?'✓':'✗'}<span class="num" style="color:${r.mom.delta>=0?'var(--up)':'var(--dn)'}">(${r.mom.delta>=0?'+':''}${r.mom.delta})</span>`:'<span style="color:var(--faint)">无票（过滤弃权）</span>';
+  const flipCell=r=>{const f=r.flip;if(!f)return'--';const c=f.fv.indexOf('诱')>=0?'var(--warn)':(f.fv.indexOf('兑现')>=0?'var(--ok)':'var(--dim)');return `<span class="num" style="color:${c}">${f.fv}</span>${(f.tHi||f.tLo)?'<span style="color:var(--faint)"> 触'+(f.tHi?'上':'下')+'沿'+(f.tHi?f.hi:f.lo)+'</span>':''}`;};
+  const stCell=r=>{const s=r.st;if(!s)return'--';const c=s.ok==null?'var(--dim)':(s.ok?'var(--ok)':'var(--risk)');return `<span style="color:${c}">${s.k} r${s.ratio} ${s.ok==null?'':(s.ok?'✓':'✗')}</span>`;};
+  const rows=log.slice(-7).reverse().map(r=>`<tr><td class="num">${esc(r.d.slice(5))}</td><td class="num">${r.close}</td><td>${momCell(r)}</td><td>${flipCell(r)}</td><td>${stCell(r)}</td></tr>`).join('');
+  $('auditBody').innerHTML=
+   `<div style="font-size:11px;color:var(--dim);line-height:1.6">每日收盘自动重算三项判定并与实际行情核销（幂等重写当日行）：①动量票延续（今收相对昨收是否顺票向）②翻面线（昨收±0.5%，触线+收盘确认，未确认=诱多/诱空）③开盘30分状态标签（收盘是否留在开盘区间；r=区间宽/ATR14）。与 sigCard 分工：那边对赌的是评级/方向「信号快照」，这里核销的是三项「机械判定」。</div>`+
+   `<div style="margin:6px 0">${chip('动量票×2',mom2.length?h2+'/'+mom2.length+' 命中':'--',mom2.length?(h2/mom2.length>=0.5?'var(--ok)':'var(--risk)'):'var(--faint)')}${chip('降权×1',mom1.length?h1+'/'+mom1.length:'--','var(--dim)')}${chip('诱多',yd,'var(--warn)')}${chip('诱空',yk,'var(--warn)')}${chip('状态兑现',stA.length?stOk+'/'+stA.length:'--',stA.length&&stOk/stA.length>=0.6?'var(--ok)':'var(--dim)')}</div>`+
+   `<div class="lvlwrap"><table class="lvl"><tr><th style="width:52px">日期</th><th style="width:48px">收盘</th><th>动量票</th><th>翻面线</th><th style="width:104px">状态</th></tr>${rows}</table></div>`+
+   `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">回测注记（n84，13合约5m样本）：开盘30分区间宽≥0.45×ATR 的宽开盘日追破位期望 −6.1 点/笔（57样本，10/13 合约为负）——宽开盘日不追突破；「震荡日区间反转」正期望集中在 2/13 合约不稳健、不采纳为推荐打法；θ=0.45 阈值维持。本卡逐日积累的对账数据即上述结论的本地复检样本。仅本机localStorage，不构成投资建议。</div>`;
+}
 /* n37-3: 每日三问事件绑定——document 级委托，innerHTML 周期重建后仍有效 */
 document.addEventListener('click',e=>{
   const b=e.target.closest&&e.target.closest('#dailyThree [data-q]');
@@ -4586,7 +4663,8 @@ async function fullCycle(){
     analyze();
     if(S.mode==='close') S.recap=buildRecap();
     if(S.mode==='close') accumulateCase();
-    renderHeader(); renderPanels();
+    if(S.mode==='close') auditWrite();   /* n84: 收盘自动核销三项判定（动量票/翻面线/开盘状态），幂等重写当日行 */
+    renderHeader(); renderPanels(); renderAudit();   /* n84: 对账卡每轮刷新（历史条目各模式常显） */
     setChartData();
     if(S.mode==='close') ensureJD0Daily().then(m=>{ if(m){ caseKey=''; renderCases(); } });
     $('errbox').style.display='none';
@@ -5352,6 +5430,7 @@ function bindUI(){
   bindUI();
   renderHistStrategies();   /* n5: 页面加载时恢复历史策略面板（如有存档） */
   renderSigStats();         /* n32: 页面加载时恢复信号对账统计卡（如有快照） */
+  renderAudit();            /* n84: 页面加载时恢复判定对账卡（如有历史核销条目） */
   renderHeader();
   await fullCycle();
   restartTimers();
