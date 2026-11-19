@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- n52: CSP meta（GitHub Pages 无法配 HTTP 头）——script 仅本域+新浪JSONP+jsDelivr；connect 限自建源与行情域；img/style/data: 默认放行需覆盖 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://stock2.finance.sina.com.cn; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://stock2.finance.sina.com.cn; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
 <title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分）；n56: 仓单快照（基差助手块内增仓单行：DCE厂库标准仓单日更WRSNAP，零仓单/注册/注销状态+临近交割月供给压力预警提示，只读不进打分） -->
+<!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n82: 全Tab逐项审查死码清理——删 pushbadge 空壳徽标（n46废弃永不显示）/recapCard内 strategyBody 死DOM（n17改读stratBody后无读写）/startOpenCTP 空函数+调用点（n43停用）/S.mf 废弃状态（n77改自动源后零引用）；epTrigger等4键复核为活功能保留 -->
 <!-- n18: 桌面双栏K线图限高(560px)+吸顶，不再随右列分析卡总高拉伸 -->
@@ -1486,13 +1487,6 @@ window.__TRAE_PUSH_INLINE__={
       </div>
     </div>
 
-    <!-- n3: Chart.js 简易K线速览（5分钟K线+成交量柱，纯可视化不参与计算；CDN加载失败自动隐藏） -->
-    <div class="card tm" id="cjsCard" style="display:none">
-      <h3>5分钟K线速览 <span class="tag">Chart.js · 近60根</span></h3>
-      <div style="height:280px;position:relative"><canvas id="chartjs5m"></canvas></div>
-      <div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">红=涨 / 绿=跌（量柱同色），黄线为收盘价参考；量柱见底部下轴。仅作速览，精确看盘请用上方主图（自研渲染，无外部依赖）。</div>
-    </div>
-
     <!-- n5: 历史策略回查（localStorage 每日自动存档，支持导出JSON/清空） -->
     <div class="card tr" id="histCard" style="display:none">
       <h3>历史策略回查 <span class="tag" id="histTag">0 条</span>
@@ -1570,8 +1564,6 @@ window.__TRAE_PUSH_INLINE__={
 
 <footer><b>免责声明：</b>本内容仅为盘面数据复盘参考，不构成任何期货投资建议，期货杠杆风险极高，所有交易盈亏由使用者自行承担。本系统为规则化半量化工具，所有打分与标注均为算法估算，不预测未来涨跌，不提供任何做多/做空交易指令。<b>历史案例存在样本偏差</b>（案例库仅收录符合特定筛选条件的代表性行情，且历史规律由事后归纳得出），不能预判未来行情。</footer>
 
-<!-- n3: Chart.js CDN（简易K线速览用；加载失败时主图与全部功能不受影响，仅隐藏速览卡片） -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
 <script>
 /* =====================================================================
  *  鸡蛋期货 AI 半量化研判系统
@@ -1747,6 +1739,8 @@ function expiredContract(v){
   return yy<cy || (yy===cy&&mm<cm);
 }
 async function fetchDominance(){
+  /* n83: 休市停发——换月徽标是盘中监控用途，收盘后停止轮询（S.dom 缓存10分钟过期后徽标自然消隐），全天请求量约省2/3 */
+  if(S.mode!=='live') return;
   try{
     const nx=nextMonthContract(S.contract); if(!nx) return;
     const r=await fetch('https://futsseapi.eastmoney.com/static/114_'+nx.toLowerCase()+'_qt',{cache:'no-store'});
@@ -4309,11 +4303,32 @@ function sigStats(){
   });
   return st;
 }
+/* n83: 每日三问抽为独立函数——与信号快照解耦，快照为0时也常显（复盘固定清单不依赖快照数据） */
+function renderDailyThree(){
+  const today=bjStr(bj());
+  const store=LS.get('dailyThree',{});
+  const rec=store[today]||{a:null,b:null,c:''};
+  const btn=(k,val,txt,cur)=>`<b data-q="${k}" data-v="${val}" style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;border:1px solid ${cur===val?'var(--acc)':'var(--line)'};border-radius:6px;cursor:pointer;${cur===val?'color:var(--acc);':''}">${txt}</b>`;
+  const opts=(k,cur)=>btn(k,'y','是',cur)+btn(k,'n','否',cur)+btn(k,'na','不适用',cur);
+  return `<div id="dailyThree" style="margin-top:8px;padding:8px;border:1px dashed var(--line);border-radius:8px;font-size:11px;color:var(--dim)">
+    <b style="color:var(--fg)">每日三问</b>（收盘复盘固定清单，今天 ${today}，仅本机保存）<br>
+    ① 今日票方向命中？ ${opts('a',rec.a)}　② 复盘证伪线被触发？ ${opts('b',rec.b)}<br>
+    ③ 权重/阈值假设有无反例：<input id="dThreeC" value="${esc(rec.c||'')}" placeholder="没有则留空，有则记一句（如：连跌第5日票仍空向命中）" style="width:92%;margin-top:4px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--fg);padding:3px 6px;font-size:11px">
+    <div style="margin-top:3px;color:var(--faint)">点选/输入即时保存；②答"是"说明当日结论被行情推翻——这正是校准下一轮口径的原料。</div></div>`;
+}
 function renderSigStats(){
   const card=$('sigCard'); if(!card) return;
   const list=sigLoad().filter(r=>r.c===S.contract);
   const tag=$('sigTag'); if(tag) tag.textContent=list.length+' 条快照';
-  if(!list.length){ card.style.display='none'; return; }
+  /* n83: 三问与快照解耦——无快照时不再整卡隐藏，三问常显+待快照提示 */
+  if(!list.length){
+    card.style.display='';
+    const body=$('sigBody'); if(!body) return;
+    if(document.activeElement&&document.activeElement.id==='dThreeC') return;   /* 30秒周期重绘会打断输入框，聚焦时跳过 */
+    body.innerHTML=renderDailyThree()+
+      `<div style="margin-top:6px;font-size:11px;color:var(--faint)">尚无 ${esc(S.contract)} 快照：系统给出方向信号后自动存档（时间/价格/评级/方向），出现第一条快照后此处自动展开命中率与期望统计。每日三问不依赖快照，随时可答。</div>`;
+    return;
+  }
   card.style.display='';
   const st=sigStats();
   const pc=v=>v==null?'--':(v>0?'+':'')+v.toFixed(1);
@@ -4343,18 +4358,7 @@ function renderSigStats(){
     const cells=ks.map(k=>{ const b=st.streak.buckets[k]; const ex=b.pts.reduce((a,c)=>a+c,0)/b.pts.length;
       const lab=k>=5?'≥5':('第'+k); return `<b style="display:inline-block;margin:2px 8px 2px 0;padding:2px 8px;border:1px solid var(--line);border-radius:6px">${lab}日 <span class="num">${b.n}</b>条 命中<b class="num" style="color:${b.w/b.n>=0.5?'var(--ok)':'var(--risk)'}">${Math.round(b.w/b.n*100)}%</b> 期望<b class="num" style="color:${exC(ex)}">${pc(ex)}</b></b>`; }).join('');
     return `<div style="margin-top:6px;font-size:11px;color:var(--dim)">连续同向分桶（n37，检验惯性外推衰减）：方向总纲票按「趋势第N日」分桶结算<br>${cells}${ks.some(k=>k>=4)?'':'<br><span style="color:var(--faint)">尚无 ≥4 日样本：连续同向末端的命中率衰减暂无法验证，样本攒够后此处自动亮牌</span>'}</div>`; })()+
-  (()=>{   /* n37-3: 每日三问固定复盘区——收盘后手动勾选，localStorage 持久化，防反思结构随对话丢失 */
-    const today=bjStr(bj());
-    const store=LS.get('dailyThree',{});
-    const rec=store[today]||{a:null,b:null,c:'',};
-    const btn=(k,val,txt,cur)=>`<b data-q="${k}" data-v="${val}" style="display:inline-block;margin:2px 6px 2px 0;padding:2px 10px;border:1px solid ${cur===val?'var(--acc)':'var(--line)'};border-radius:6px;cursor:pointer;${cur===val?'color:var(--acc);':''}">${txt}</b>`;
-    const opts=(k,cur)=>btn(k,'y','是',cur)+btn(k,'n','否',cur)+btn(k,'na','不适用',cur);
-    return `<div id="dailyThree" style="margin-top:8px;padding:8px;border:1px dashed var(--line);border-radius:8px;font-size:11px;color:var(--dim)">
-      <b style="color:var(--fg)">每日三问</b>（收盘复盘固定清单，今天 ${today}，仅本机保存）<br>
-      ① 今日票方向命中？ ${opts('a',rec.a)}　② 复盘证伪线被触发？ ${opts('b',rec.b)}<br>
-      ③ 权重/阈值假设有无反例：<input id="dThreeC" value="${esc(rec.c||'')}" placeholder="没有则留空，有则记一句（如：连跌第5日票仍空向命中）" style="width:92%;margin-top:4px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--fg);padding:3px 6px;font-size:11px">
-      <div style="margin-top:3px;color:var(--faint)">点选/输入即时保存；②答"是"说明当日结论被行情推翻——这正是校准下一轮口径的原料。</div></div>`;
-  })()+
+  renderDailyThree()+   /* n83: 三问抽为独立函数，与快照解耦常显 */
    `<div class="sec" style="font-size:10px;color:var(--faint);margin-top:6px">快照 ${list.length} 条（${esc(S.contract)}，仅本机浏览器localStorage，跨设备不同步为设计行为）· 待结算 ${st.pend} 条（今日盘中快照，收盘出日线后自动对赌）· 观望/无方向 ${st.watch} 条（含否决态 ${st.vetoN} 条）只存不赌 · 数据不足排除 ${st.na} 条（超出本地K线覆盖）。<br>⚠ 快照是「状态序列」非独立交易（同一趋势会连续记录多个同向状态），命中率≠实盘胜率；样本 &lt;20 条无统计意义。方向总纲为量化参考加总，非预测非指令，不构成投资建议。</div>`;
 }
 /* n37-3: 每日三问事件绑定——document 级委托，innerHTML 周期重建后仍有效 */
@@ -4563,15 +4567,6 @@ function onTick(){
   if(S.A && (S.mode==='live')){
     mergeLiveTick();
     chart.draw();      /* n13: 主图每秒重绘（已含最新价合成），不重置缩放/平移状态 */
-    /* n13: Chart.js 速览轻量同步——只更新最后一个点（收盘价/量），update('none') 无动画，
-       避免整图销毁重建的性能开销；主图与速览图同步跳动 */
-    if(typeof Chart!=='undefined' && cjsChart && cjsChart.$bars && cjsChart.$bars.length){
-      try{
-        const ds=cjsChart.data.datasets;
-        if(S.live.price!=null&&ds[1]&&ds[1].data.length) ds[1].data[ds[1].data.length-1]=S.live.price;   /* n73: 加 null 守卫——极端空窗时 price 可能为 null；成交量为单根bar口径仍以60秒全量刷新为准 */
-        cjsChart.update('none');
-      }catch(e){ /* 速览图更新失败不影响主图 */ }
-    }
     /* 持仓中：轻量刷新持仓监测行（浮盈亏/止损参考随最新价变动，不重跑 analyze） */
     if(S.pos&&S.pos.on) renderTrack();
   }
@@ -4610,68 +4605,8 @@ function setChartData(){
   const last=bars[bars.length-1];
   if(last) $('lastts').textContent='最近K线: '+bjStr(new Date(last.t))+' '+(S.tf==='d'?'日线收盘':fmtT(last.t))+' · 可在行情软件对应周期定位';
   else $('lastts').textContent='最近K线: --';
-  renderChartJS();   /* n3: 简易K线速览（Chart.js），与主图同步刷新 */
 }
-/* =====================================================================
- *  n3 简易K线速览（Chart.js 4）：纯可视化，不参与任何计算。
- *  方案：bar 图承载成交量（y1 下方轴）+ inline plugin 自绘蜡烛+收盘价折线，
- *  不引入 financial 插件/日期适配器；Chart 未加载成功则整卡隐藏，主图不受影响。
- * ===================================================================== */
-let cjsChart=null;
-function renderChartJS(){
-  const card=$('cjsCard'), cvs=$('chartjs5m');
-  if(typeof Chart==='undefined'){ card.style.display='none'; return; }   /* CDN 失败降级 */
-  const bars=S.bars.m5.slice(-60);
-  if(!bars.length){ card.style.display='none'; if(cjsChart){cjsChart.destroy(); cjsChart=null;} return; }
-  card.style.display='block';
-  const labels=bars.map(b=>fmtT(b.t));
-  const vols=bars.map(b=>b.v);
-  const vc  =bars.map(b=>b.c>=b.o?C.volUp:C.volDn);
-  /* 内联蜡烛绘制插件：每根K线画影线+实体（涨红跌绿，与主图配色一致）；数据直接读闭包 bars，首次渲染即可绘制 */
-  const candle={id:'candle',afterDatasetsDraw(ch){
-    const {ctx,chartArea:ar,scales:{y}}=ch, data=bars;
-    if(!ar||!data.length) return;
-    const n=data.length, step=ar.width/n, bw=Math.max(1.5,Math.min(9,step*0.62));
-    ctx.save(); ctx.lineWidth=1;
-    data.forEach((b,i)=>{
-      const x=ar.left+step*i+step/2;
-      const up=b.c>=b.o, col=up?C.up:C.dn;
-      const yH=y.getPixelForValue(b.h), yL=y.getPixelForValue(b.l);
-      const yO=y.getPixelForValue(b.o), yC=y.getPixelForValue(b.c);
-      ctx.strokeStyle=col; ctx.fillStyle=col;
-      ctx.beginPath(); ctx.moveTo(x,yH); ctx.lineTo(x,yL); ctx.stroke();          /* 影线 */
-      const top=Math.min(yO,yC), h=Math.max(1,Math.abs(yO-yC));
-      ctx.globalAlpha=up?1:0.85; ctx.fillRect(x-bw/2,top,bw,h); ctx.globalAlpha=1; /* 实体 */
-    });
-    ctx.restore();
-  }};
-  const cfg={
-    type:'bar',
-    data:{labels:labels,datasets:[
-      {label:'成交量',data:vols,backgroundColor:vc,yAxisID:'yv',order:3,barPercentage:0.62,borderWidth:0},
-      {label:'收盘价',data:bars.map(b=>b.c),type:'line',borderColor:C.ma5,backgroundColor:'rgba(240,185,11,.08)',borderWidth:1.5,pointRadius:0,tension:.25,yAxisID:'y',order:2}
-    ]},
-    options:{
-      responsive:true,maintainAspectRatio:false,animation:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(13,16,23,.92)',borderColor:'#1c2333',borderWidth:1,titleColor:'#cfd8e6',bodyColor:'#8391a8',callbacks:{
-        label:c=>c.datasetIndex===1? '收 '+c.parsed.y.toFixed(0) : '量 '+c.parsed.y.toFixed(0),
-        afterBody:items=>{ const b=(typeof cjsChart!=='undefined'&&cjsChart&&cjsChart.$bars||[])[items[0].dataIndex]; if(!b) return '';
-          return ['开 '+b.o.toFixed(0)+'  高 '+b.h.toFixed(0)+'  低 '+b.l.toFixed(0)]; }
-      }}},
-      scales:{
-        x:{ticks:{color:C.axis,font:{size:9},maxTicksLimit:8,maxRotation:0},grid:{color:'rgba(28,35,51,.35)'}},
-        y:{position:'right',grace:'8%',ticks:{color:C.axis,font:{size:9},maxTicksLimit:6},grid:{color:'rgba(28,35,51,.35)'}},
-        yv:{position:'left',display:false,beginAtZero:true,weight:0}
-      }
-    },
-    plugins:[candle]
-  };
-  if(cjsChart){ cjsChart.destroy(); cjsChart=null; }
-  cvs.style.position='absolute';
-  cjsChart=new Chart(cvs.getContext('2d'),cfg);
-  cjsChart.$bars=bars;   /* tooltip afterBody 读取 OHLC 用 */
-}
+/* n83: Chart.js 5分钟速览卡全链路已删（cjsCard DOM/CDN script/CSP白名单/onTick增量同步/renderChartJS）——与主K线图完全重复（同一份 S.bars.m5 两套渲染器），精简后主图独挑可视化 */
 /* 定时器管理 */
 let timerFast=null, timerSlow=null, timerClock=null;
 function restartTimers(){
@@ -5426,8 +5361,8 @@ function bindUI(){
      徽标根本不创建——手机端收盘时段看不到右下角徽标。挂到此处 30 秒慢循环，全时段常驻。 */
   watchdog();
   setInterval(watchdog, 30000);
-  fetchDominance();   /* n45: 主力对比监控，30秒慢循环低频轮询（同看门狗节奏） */
-  setInterval(fetchDominance, 30000);
+  fetchDominance();   /* n45/n83: 主力对比监控——休市停发（函数内守卫），盘中60秒轮询（原30秒，仅服务换月徽标） */
+  setInterval(fetchDominance, 60000);
 })();
 </script>
 <!-- n21: 底部Tab分区导航（仅窄屏显示；纯布局层，不动任何数据链路/功能ID） -->
