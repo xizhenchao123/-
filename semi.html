@@ -4753,6 +4753,38 @@ function bindUI(){
     const HI=Math.round(hi), LO=Math.round(Math.max(lo,HI-3*atr)), BLO=Math.round(LO-Math.max(3,atr/10));
     return {HI,LO,BLO,atr:Math.round(atr),date:bjStr(new Date(last.t)),lastC:last.c};
   }
+  /* n79: 日内盘口三件套——①当日均价VWAP+多空分界 ②近5日短箱体 ③今日状态标签（开盘30分区间宽度 vs 日线ATR14）
+     数据全部来自既有自动源（m5分钟线/日线），无新增请求；震荡日/趋势日打法不同，一眼定调 */
+  function n79Intraday(L){
+    const today=bjStr(bj()), out={};
+    /* ① VWAP：今日5分钟收盘×成交量加权均价（震荡日的日内多空分界） */
+    const m5t=(S.bars.m5||[]).filter(b=>bjStr(new Date(b.t))===today);
+    let sv=0,sPV=0;
+    for(const b of m5t){ if(b.v>0){ sv+=b.v; sPV+=b.c*b.v; } }
+    out.vwap=sv>0?Math.round(sPV/sv):null;
+    /* ② 近5日短箱体：最近5根已收盘日线高低点（剔除今日未收盘bar，口径同planLines）——20日档位对日内太远，5日箱体才是高抛低吸的实际边界 */
+    const bars=S.bars.d||[];
+    if(bars.length>=6){
+      const _closedToday=isWeekday()&&bjHM()>=1500;
+      const inComp=bjStr(new Date(bars[bars.length-1].t))===today&&!_closedToday;
+      const closed=inComp?bars.slice(0,-1):bars;
+      const w5=closed.slice(-5);
+      if(w5.length===5){ out.hi5=Math.max.apply(null,w5.map(b=>b.h)); out.lo5=Math.min.apply(null,w5.map(b=>b.l)); }
+    }
+    /* ③ 今日状态：开盘30分钟（09:00-09:30）区间宽度 vs 日线ATR14——窄=震荡日箱体打法，宽=趋势日顺方向 */
+    if(L&&L.atr&&m5t.length){
+      const morn=m5t.map(b=>{ const _d=new Date(b.t); const _b=new Date(_d.getTime()+(_d.getTimezoneOffset()+480)*60000); return {hm:_b.getHours()*100+_b.getMinutes(),h:b.h,l:b.l}; });
+      const orb=morn.filter(b=>b.hm>=900&&b.hm<=930);
+      if(orb.length>=5){
+        out.orHi=Math.max.apply(null,orb.map(b=>b.h)); out.orLo=Math.min.apply(null,orb.map(b=>b.l));
+        const w=out.orHi-out.orLo, ratio=w/L.atr;
+        out.state=(ratio<=0.45)?{k:'震荡日',c:'warn',tip:'箱体内高抛低吸，冲上沿/下沿不站稳先按假突破对待，别追突破'}
+          :((ratio>=0.9)?{k:'趋势日',c:'ok',tip:'顺开盘方向操作，回踩开盘区间边界或当日均价再进'}
+          :{k:'中性',c:'gold',tip:'方向待选择，等开盘区间任一边被放量突破再动手'});
+      } else if(bjHM()<935){ out.state={k:'开盘区间统计中',c:'faint',tip:'09:30 后自动判别震荡/趋势'}; }
+    }
+    return out;
+  }
   function renderPlan(){
     window.renderPlan=renderPlan;
     const el=$('planTxt'); if(!el) return;
@@ -4772,7 +4804,19 @@ function bindUI(){
     const distTxt=(livePx!=null)
       ? ' · 实时 '+livePx+' 距上线 '+(HI-livePx>0?('<b style="color:var(--ok)">-'+(HI-livePx)+'</b>'):'<b style="color:var(--ok)">+'+(livePx-HI)+'（已越线）</b>')+' / 距生死线 '+(livePx-LO>0?('<b style="color:var(--risk)">+'+(livePx-LO)+'</b>'):('<b style="color:var(--risk)">-'+(LO-livePx)+'（已破线）</b>'))
       : '';
-    if(st) st.innerHTML='<span style="color:var(--faint)">⚡自动档位（近20日收盘高低点+ATR14='+L.atr+'，数据截至 '+L.date+'） · 档位线 '+LO+' / '+HI+'（支撑带 '+BLO+'）'+distTxt+' · 锚状态：'+anchorTxt+'</span>';
+    /* n79: 日内三件套展示——均价多空分界/近5日短箱体/今日状态，拼进状态行 */
+    const n79=(S.bars&&(S.bars.m5||[]).length||(S.bars.d||[]).length)?n79Intraday(L):{};
+    const live79=(S.live&&S.live.price!=null&&S.live.isToday)?S.live.price:null;
+    let n79Txt='';
+    if(n79.vwap!=null){
+      const abv=live79!=null&&live79>=n79.vwap;
+      n79Txt+=' · <b style="color:'+(abv?'var(--ok)':'var(--risk)')+'">VWAP '+n79.vwap+'</b>'+(live79!=null?('（现价在当日均价'+(abv?'上→日内偏多':'下→日内偏空')+'）'):'');
+    }
+    if(n79.hi5!=null) n79Txt+=' · 近5日短箱体 <b>'+n79.lo5+'–'+n79.hi5+'</b>';
+    if(n79.state){ n79Txt+=(n79.orHi!=null)
+      ?(' · 今日状态：<b style="color:var(--'+n79.state.c+')">'+n79.state.k+'</b>（开盘30分 '+n79.orLo+'–'+n79.orHi+'，宽度 '+(n79.orHi-n79.orLo)+' vs ATR '+L.atr+'）——'+n79.state.tip)
+      :(' · 今日状态：'+n79.state.k+'，'+n79.state.tip); }
+    if(st) st.innerHTML='<span style="color:var(--faint)">⚡自动档位（近20日收盘高低点+ATR14='+L.atr+'，数据截至 '+L.date+'） · 档位线 '+LO+' / '+HI+'（支撑带 '+BLO+'）'+distTxt+' · 锚状态：'+anchorTxt+n79Txt+'</span>';
     const tiers=[
       {k:'hi',cls:'ok',cond:'收盘 ≥ '+HI,act:'锚翻多恢复——失败判定作废，重计观察期'},
       {k:'mid',cls:'warn',cond:LO+'-'+HI+' 区间',act:'观望建多；重点盯 '+BLO+'-'+LO+' 支撑带受压与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险'},
