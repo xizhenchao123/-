@@ -2904,16 +2904,17 @@ function biasSummary(A,BP){
   const out={long:0,short:0,votes:[],side:'中性'};
   if(!A) return out;
   const M=A.mtf||{};
-  if(M.d==='up'&&M.h1==='up'){ out.long++; out.votes.push(['多周期共振','日线+60分钟同向向上']); }
-  else if(M.d==='down'&&M.h1==='down'){ out.short++; out.votes.push(['多周期共振','日线+60分钟同向向下']); }
+  if(M.d==='up'&&M.h1==='up'){ out.long++; out.votes.push(['多周期共振','日线+60分钟同向向上（收盘口径·滞后实时）']); }
+  else if(M.d==='down'&&M.h1==='down'){ out.short++; out.votes.push(['多周期共振','日线+60分钟同向向下（收盘口径·滞后实时）']); }
   else out.votes.push(['多周期共振','日线/60分钟方向分歧，弃权']);
   const beh=(A.wy&&A.wy.behavior)||'';
-  if(/吸筹|拉升/.test(beh)){ out.long++; out.votes.push(['量仓行为',beh+'：资金面偏多']); }
-  else if(/砸盘|派发/.test(beh)){ out.short++; out.votes.push(['量仓行为',beh+'：资金面偏空']); }
+  if(/吸筹|拉升/.test(beh)){ out.long++; out.votes.push(['量仓行为',beh+'：资金面偏多（威科夫·日内量仓口径）']); }
+  else if(/砸盘|派发/.test(beh)){ out.short++; out.votes.push(['量仓行为',beh+'：资金面偏空（威科夫·日内量仓口径）']); }
   else if(beh) out.votes.push(['量仓行为',beh+'：方向性不明确，弃权']);
   const fu=(A.fu&&A.fu.verdict)||'';
-  if(/利多|偏多/.test(fu)){ out.long++; out.votes.push(['现货供需',fu]); }
-  else if(/利空|偏空/.test(fu)){ out.short++; out.votes.push(['现货供需',fu]); }
+  if(/利多|偏多/.test(fu)){ out.long++; out.votes.push(['现货供需',fu+'（现货18区口径）']); }
+  else if(/利空|偏空/.test(fu)){ out.short++; out.votes.push(['现货供需',fu+'（现货18区口径）']); }
+  else if(fu) out.votes.push(['现货供需',fu+'：方向性不明确，弃权（n80：弃权也入票箱，不再静默缺席）']);
   if(BP&&BP.on){
     const w=BP.momSrc?1:2;   /* n34: 3日累计通道扩样假设，×1权重；回测验证的单日通道保持×2 */
     if(BP.dir==='多'){ out.long+=w; out.votes.push(['动量过滤',(BP.momSrc||('前日+'+BP.prevChg.toFixed(2)+'%顺势日'))+(BP.momSrc?'（扩样假设降级，×'+w+'权重）':'（回测核心edge，×'+w+'权重）')]); }
@@ -3955,6 +3956,22 @@ function renderStrategyInner(){
 <tr><td style="padding:2px 4px;color:var(--dim)">都中性 / 混乱（横·区间）</td><td style="padding:2px 4px">空仓也是仓位，按区间上下沿高抛低吸或观望</td></tr>
 </table></td></tr>`);
   rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
+  /* n80: 日内实时盘面与总纲相反的透明提示——总纲票箱含收盘口径票（多周期/动量过滤吃前日收盘数据，滞后实时），
+     日内实时（现价 vs 当日均价VWAP）与总纲相反时如实亮出来，两个口径都对，给处置预案而非静默矛盾 */
+  (function(){
+    try{
+      const n79=(typeof window.n79Intraday==='function')?window.n79Intraday(null):null;
+      const live=S.live&&S.live.price;
+      if(n79&&n79.vwap&&live&&BIAS.side&&BIAS.side.indexOf('中性')<0){
+        const dir79=live>n79.vwap?'up':(live<n79.vwap?'down':null);
+        const biasDir=BIAS.side.indexOf('偏多')>=0?'up':(BIAS.side.indexOf('偏空')>=0?'down':null);
+        if(dir79&&biasDir&&dir79!==biasDir){
+          const _w79=Math.round(Math.abs(live-n79.vwap));
+          rows.push(`<tr><td colspan="2" style="background:rgba(240,180,41,.12);border:1px solid var(--warn);border-radius:6px;padding:6px 10px"><b style="color:var(--warn)">⏳ 口径差提示（n80）</b>　<span style="color:var(--txt)">日内实时盘面偏${dir79==='up'?'多':'空'}（现价 ${live} ${dir79==='up'?'站在':'跌破'}当日均价 ${n79.vwap}，相差 ${_w79} 点），与本卡总纲「${BIAS.side}」方向相反——两者口径不同、都对：总纲票箱含收盘数据票（多周期共振/动量过滤吃的是前日收盘，滞后实时），日内看的是当下盘面。处置参照「顺·观望」口诀：更可能是回调/反弹而非转势，降仓+严格短线止损+勿扛单，若日内方向持续走强收复锚向，总纲下帧有望翻面。</span></td></tr>`);
+        }
+      }
+    }catch(e){}
+  })();
   /* n27: 顶部方向总纲横幅——与策略卡共用同一BIAS对象同帧写入（零口径差），全Tab常显 */
   (function(){
     const bb=$('biasBanner'); if(!bb) return;
@@ -4785,6 +4802,7 @@ function bindUI(){
     }
     return out;
   }
+  window.n79Intraday=n79Intraday;   /* n80: 暴露给总纲卡做日内方向对比（renderPlan 之外的独立调用点） */
   function renderPlan(){
     window.renderPlan=renderPlan;
     const el=$('planTxt'); if(!el) return;
