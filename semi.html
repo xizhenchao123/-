@@ -3628,6 +3628,14 @@ function renderMF(){
   /* 行为判定着色 */
   const bCls={'主力持续增多':'demand','主力持续增空':'supply','多空分歧加大':'dist','投机资金派发离场':'dist','多空均衡':'neutral'};
   let html='<div style="margin-bottom:5px"><span class="pill '+(bCls[MF.behavior]||'neutral')+'">'+esc(MF.behavior)+'</span> '+esc(MF.behaviorTxt)+'</div>';
+  /* n81-C: 资金口径冲突黄注——量仓票（威科夫·5分钟量价仓，分钟级）与资金卡（东财前20持仓排名，上一交易日晚间发布）
+     方向相反时如实亮出：两源不同步（当下盘面资金进出 vs 昨夜持仓格局），属于阶段性常态，透明提示而非报错 */
+  const _wyB=(S.A&&S.A.wy&&S.A.wy.behavior)||'';
+  const _wyDir=/吸筹|拉升/.test(_wyB)?'up':(/砸盘|派发/.test(_wyB)?'down':null);
+  const _mfDir=(MF.behavior==='主力持续增多')?'up':((MF.behavior==='主力持续增空')?'down':null);
+  if(_wyDir&&_mfDir&&_wyDir!==_mfDir){
+    html+='<div style="margin-top:5px;background:rgba(240,180,41,.12);border:1px solid var(--warn);border-radius:6px;padding:6px 8px;font-size:11px;color:var(--txt)"><b style="color:var(--warn)">⏳ 口径差提示（n81）</b>　量仓行为（威科夫5m量价仓·分钟级）判「'+esc(_wyB)+'」偏'+(_wyDir==='up'?'多':'空')+'，本卡（东财前20持仓排名·上交易日口径）判「'+esc(MF.behavior)+'」偏'+(_mfDir==='up'?'多':'空')+'——两个数据源不同步：前者看当下盘面资金进出，后者看昨日收盘后的持仓格局，两者都对也都可以阶段性错；冲突期间以一票否决+行情定性为准，本注仅作透明提示。</div>';
+  }
   /* 净持仓速览 */
   html+='<div style="font-size:11px;color:var(--dim);margin-bottom:4px">投机净持仓：<b class="num" style="color:'+(I.net>0?'var(--up)':I.net<0?'var(--dn)':'var(--dim)')+'">'+(I.net!=null?((I.net>0?'+':'')+fmtN(I.net)+' 手'):'--')+'</b>'
        +(I.netDelta!=null?('　较上期：<b class="num" style="color:'+(I.netDelta>0?'var(--up)':I.netDelta<0?'var(--dn)':'var(--dim)')+'">'+(I.netDelta>0?'+':'')+fmtN(I.netDelta)+' 手</b>'):'')
@@ -3968,6 +3976,25 @@ function renderStrategyInner(){
         if(dir79&&biasDir&&dir79!==biasDir){
           const _w79=Math.round(Math.abs(live-n79.vwap));
           rows.push(`<tr><td colspan="2" style="background:rgba(240,180,41,.12);border:1px solid var(--warn);border-radius:6px;padding:6px 10px"><b style="color:var(--warn)">⏳ 口径差提示（n80）</b>　<span style="color:var(--txt)">日内实时盘面偏${dir79==='up'?'多':'空'}（现价 ${live} ${dir79==='up'?'站在':'跌破'}当日均价 ${n79.vwap}，相差 ${_w79} 点），与本卡总纲「${BIAS.side}」方向相反——两者口径不同、都对：总纲票箱含收盘数据票（多周期共振/动量过滤吃的是前日收盘，滞后实时），日内看的是当下盘面。处置参照「顺·观望」口诀：更可能是回调/反弹而非转势，降仓+严格短线止损+勿扛单，若日内方向持续走强收复锚向，总纲下帧有望翻面。</span></td></tr>`);
+        }
+      }
+    }catch(e){}
+  })();
+  /* n81-A: 动量票翻面条件预告——动量过滤吃前日收盘（×2核心票，收盘口径盘中不翻面），总纲因此盘中「僵」在昨日方向；
+     但今日收盘一落地，明日动量票即刻按「今收vs昨收」重算。把翻面线提前亮出来：偏空总纲在什么价位收盘会翻多/弃权/维持，
+     用户盯今日收盘价即可，不再需要心算动量票口径。翻面线用 ceil/floor 保证「≥上线必≥+0.5%、≤下线必≤−0.5%」不误报 */
+  (function(){
+    try{
+      if(BP&&BP.on&&!BP.momSrc&&BP.prevChg!=null&&isFinite(BP.prevChg)&&Math.abs(BP.prevChg)>=0.5){
+        const _td=bjStr(bj());
+        const _past=(S.bars.d||[]).filter(b=>bjStr(new Date(b.t))<_td);
+        const _prev=_past[_past.length-1];
+        if(_prev&&_prev.c){
+          const yc=Math.round(_prev.c), hiLine=Math.ceil(_prev.c*1.005), loLine=Math.floor(_prev.c*0.995);
+          const flipTxt=BP.dir==='空'
+            ?'≥ <b style="color:var(--ok)">'+hiLine+'</b> → 明日×2动量票由空转多；'+(loLine+1)+'–'+(hiLine-1)+' → 明日单日动量弃权（×2票消失，3日累计≥1.5%才×1补位）；≤ <b style="color:var(--risk)">'+loLine+'</b> → 维持×2偏空'
+            :'≤ <b style="color:var(--risk)">'+loLine+'</b> → 明日×2动量票由多转空；'+(loLine+1)+'–'+(hiLine-1)+' → 明日单日动量弃权（×2票消失）；≥ <b style="color:var(--ok)">'+hiLine+'</b> → 维持×2偏多';
+          rows.push(`<tr><td colspan="2" style="background:rgba(120,120,140,.07);border:1px dashed var(--line);border-radius:6px;padding:6px 10px"><b style="color:var(--warn)">🔄 翻面预告（n81）</b>　<span style="color:var(--txt);font-size:12px">动量过滤当前为${BP.dir}向×2权重（前日 ${BP.prevChg>=0?'+':''}${BP.prevChg.toFixed(2)}% 顺势日·收盘口径，盘中不翻面）。昨收 <b>${yc}</b>，明日票向由今日收盘一锤定音：${flipTxt}。盯今日收盘价即可，无须盘中猜总纲何时翻面。</span></td></tr>`);
         }
       }
     }catch(e){}
@@ -4799,6 +4826,22 @@ function bindUI(){
           :((ratio>=0.9)?{k:'趋势日',c:'ok',tip:'顺开盘方向操作，回踩开盘区间边界或当日均价再进'}
           :{k:'中性',c:'gold',tip:'方向待选择，等开盘区间任一边被放量突破再动手'});
       } else if(bjHM()<935){ out.state={k:'开盘区间统计中',c:'faint',tip:'09:30 后自动判别震荡/趋势'}; }
+    }
+    /* n81-B: 震荡日破位升级——开盘30分判出的「震荡日」不是全天终身制：盘中若放量离开开盘区间
+       （近3根5m均量>当日均量×1.5 且 离区间>0.15×ATR14），状态升级「震荡→转趋势(↑/↓)」，打法随之切换；
+       缩量缩回区间内则降级回震荡口径（假突破）。两道阈值都留缓冲，防单根噪声触发 */
+    if(out.state&&out.state.k==='震荡日'&&out.orHi!=null&&L&&L.atr&&m5t.length){
+      const vDay=m5t.reduce((s,b)=>s+(b.v||0),0)/m5t.length;
+      const n3=m5t.slice(-3), v3=n3.reduce((s,b)=>s+(b.v||0),0)/Math.max(1,n3.length);
+      const px=(S.live&&S.live.isToday&&S.live.price!=null)?S.live.price:(n3.length?n3[n3.length-1].c:null);
+      if(vDay>0&&v3>vDay*1.5&&px!=null){
+        const dev=px>out.orHi?(px-out.orHi):(px<out.orLo?(out.orLo-px):0);
+        if(dev>L.atr*0.15){
+          const up=px>out.orHi;
+          out.state={k:'震荡→转趋势'+(up?'(↑)':'(↓)'),c:up?'ok':'risk',
+            tip:'开盘30分原判震荡，但近3根5m均量已达当日均量'+(v3/vDay).toFixed(1)+'倍、价格离开开盘区间 '+Math.round(dev)+' 点（>0.15×ATR='+Math.round(L.atr*0.15)+'）——放量离开区间=震荡口径作废，打法切为顺突破方向；回踩区间'+(up?'上沿 '+out.orHi:'下沿 '+out.orLo)+'不破视为突破延续，缩量缩回区间内则视为假突破、恢复震荡口径'};
+        }
+      }
     }
     return out;
   }
