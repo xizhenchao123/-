@@ -7,6 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://stock2.finance.sina.com.cn; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
 <title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分）；n56: 仓单快照（基差助手块内增仓单行：DCE厂库标准仓单日更WRSNAP，零仓单/注册/注销状态+临近交割月供给压力预警提示，只读不进打分） -->
 <!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
+<!-- n85: 产业对照卡（只读参考层）——会后产业清单结构化归档：中长线偏空前提/转多必要条件/关键点位（JD2701例·强压力3278套保密集区·不猜底·不赌极端基差）/风险预警4条/策略适配4场景/风控纪律4条，信心指数7/10来源标注；静态details默认收起、零JS零localStorage，不参与打分/评级/翻面线/判定对账任何自动判定；配套B项：每晚复盘人工过一遍预警条款（C项量化探针=远月OI序列+基差，排在现货打分之后） -->
 <!-- n84: 判定对账卡——每日收盘自动重算三项机械判定（动量票延续/翻面线兑现/开盘30分状态标签）并与实际行情核销，LS键auditLog保留120条，与sigCard分工（那边对赌评级/方向信号快照，本卡核销机械判定兑现与否）；附n84分状态回测注记：宽开盘日(区间宽≥0.45×ATR)追破位期望-6.1点/笔(57样本,10/13合约负)不追突破、震荡日区间反转正期望集中2/13合约不稳健不采纳、θ=0.45维持 -->
 <!-- n17: 策略卡数据截至徽标+交易日陈旧红条；历史策略存档卡静态横幅+末档日期；修复存档/复制误读空壳 strategyBody（改读 stratBody） -->
 <!-- n82: 全Tab逐项审查死码清理——删 pushbadge 空壳徽标（n46废弃永不显示）/recapCard内 strategyBody 死DOM（n17改读stratBody后无读写）/startOpenCTP 空函数+调用点（n43停用）/S.mf 废弃状态（n77改自动源后零引用）；epTrigger等4键复核为活功能保留 -->
@@ -1463,6 +1464,23 @@ window.__TRAE_PUSH_INLINE__={
     <div class="card tr" id="auditCard" style="display:none">
       <h3>📋 判定对账 · 三项自动核销 <span class="tag" id="auditTag">0 条</span></h3>
       <div id="auditBody"></div>
+    </div>
+
+    <!-- n85: 产业对照卡（只读参考层：会后产业清单结构化归档；静态内容、零JS零localStorage，不参与任何自动判定，纯展示） -->
+    <div class="card tr" id="indCard">
+      <h3>🏭 产业对照 · 会后清单 <span class="tag">只读参考层</span></h3>
+      <details style="margin-top:4px">
+        <summary style="cursor:pointer;font-size:11px;color:var(--sup)">▸ 展开清单（默认收起 · 来源：产业会议现场分享，2026-11-20 归档）</summary>
+        <div style="font-size:11px;line-height:1.9;margin-top:8px">
+          <b style="color:var(--gold)">① 中长线默认偏空前提（无突发因素时成立）</b><br>· 普通鲜蛋产能过剩、行业价格内卷，远月合约上方长期有产能压制<br>· 长周期延养推广 → 淘汰节奏延后、供给韧性增强 → 下跌周期拉长、底部磨底更久<br>
+          <b style="color:var(--sup)">② 转偏多的必要条件（满足≥1项才考虑布局多单）</b><br>· 区域性疫病（支原体/新病毒）引发集中淘鸡、存栏快速去化<br>· 延养大面积失败（蛋壳质量崩盘、死淘飙升）→ 可交割合格蛋供给收缩<br>· 现货持续去库存 + 周度淘鸡量连续超预期上升<br>
+          <b style="color:var(--gold)">③ 关键点位参考（以 JD2701 为例，可类推其他合约）</b><br>· 强压力位 3278 元/半吨附近（产业套保密集区）：接近该价位可作空单入场/多单止盈的参考区间<br>· 底部无明确锚点：内卷下普通蛋价底部可能低于历史周期，不提前猜底<br>· 基差：头部企业用期权优化后极端基差修复加快，不赌极端基差长期维持<br>
+          <b style="color:var(--sup)">④ 风险预警信号（出现即调整仓位/观点）</b><br>· 主产区频繁引种后爆发新疫病/支原体大面积扩散 → 供给收缩，空单减仓<br>· 集中延养后出现批量淘汰 → 供给拐点临近，警惕空头踩踏<br>· 远月持仓异常放大 + 期权波动率飙升 → 产业套保加码，追多谨慎<br>· 品牌蛋溢价持续扩大 → 普通流通蛋承压加剧，偏空<br>
+          <b style="color:var(--gold)">⑤ 策略适配表（转引自原清单）</b><br>· 高位震荡、无明确趋势：高位备兑卖看涨（有现货背景）/ 区间高空低平<br>· 确认存栏去化、拐点出现：顺势做多，优先布局旺季合约<br>· 产能过剩+延养推广期：反弹高空为主，不抄底、不扛单<br>· 基差异常偏离：不长期赌基差回归，优先跟随产业套保方向<br>
+          <b style="color:var(--sup)">⑥ 交易风控纪律</b><br>· 无明确存栏去化信号前，不重仓抄底远月合约<br>· 产业压力位开空单必须设止损，防范突发疫病/资金逼空<br>· 本清单为中长期产业逻辑，不直接用于日内短线；日内以周度库存、淘鸡、现货价为核心依据<br>· 期权套保严控保证金占用比例，预留展期/对冲资金<br>
+          <div style="margin-top:8px;padding:7px 9px;border:1px dashed var(--faint);border-radius:8px;font-size:10px;color:var(--faint);line-height:1.7">来源：产业会议现场分享（信心指数 7/10，未经全行业数据交叉验证），2026-11-20 结构化归档。本卡为<b>只读参考层：不参与打分/评级/翻面线/判定对账等任何自动判定</b>；③-⑤中策略与点位表述均转引自原清单原文，仅作交易辅助归档，不构成投资建议。</div>
+        </div>
+      </details>
     </div>
 
     <!-- n10: 交易日志（人工录入每笔交易 + 自动统计胜率/盈亏比/期望值 + 规则化 AI 错误复盘；纯展示层模块，不参与打分/评级） -->
