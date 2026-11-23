@@ -8,6 +8,7 @@
 <title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分）；n56: 仓单快照（基差助手块内增仓单行：DCE厂库标准仓单日更WRSNAP，零仓单/注册/注销状态+临近交割月供给压力预警提示，只读不进打分） -->
 <!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
 <!-- n87: 对账卡口径注记——三项判定全部页面自算（当日5m+已收日线独立重算），与TDX等外部源互证时的数字差异（如开盘区间r值0.49 vs 0.60）属bar集与ATR细节口径差，不改判定方向，机械判定一律以页面自算为准 -->
+<!-- n88: 合约切换自动化（用户拍板「主力自动锁定版」）——①修复东财快照返回包 qt 层导致 fetchEMTick/fetchDominance 静默失效（秒级价/主力对比/一键换月按钮复活）②下拉列表自动枚举挂牌合约（持仓排序、★主力标注、15分钟缓存）③启动自动跟随主力（OI最大者；点选具体合约转手动并记住，可切回自动）④主力易主提示条+一键切换（盘中不静默跳合约）⑤手动输入框保留兜底 -->
 <!-- n86: 对账卡呈现歧义修复——11-20中性日无✓被误读为漏计：状态列ok==null显式加「·不判」后缀、汇总chip动态追加「·中性N」计数（ok!=null才计入状态兑现分母为n84设计口径，中性日无兑现概念） -->
 <!-- n85: 产业对照卡（只读参考层）——会后产业清单结构化归档：中长线偏空前提/转多必要条件/关键点位（JD2701例·强压力3278套保密集区·不猜底·不赌极端基差）/风险预警4条/策略适配4场景/风控纪律4条，信心指数7/10来源标注；静态details默认收起、零JS零localStorage，不参与打分/评级/翻面线/判定对账任何自动判定；配套B项：每晚复盘人工过一遍预警条款（C项量化探针=远月OI序列+基差，排在现货打分之后） -->
 <!-- n84: 判定对账卡——每日收盘自动重算三项机械判定（动量票延续/翻面线兑现/开盘30分状态标签）并与实际行情核销，LS键auditLog保留120条，与sigCard分工（那边对赌评级/方向信号快照，本卡核销机械判定兑现与否）；附n84分状态回测注记：宽开盘日(区间宽≥0.45×ATR)追破位期望-6.1点/笔(57样本,10/13合约负)不追突破、震荡日区间反转正期望集中2/13合约不稳健不采纳、θ=0.45维持 -->
@@ -40,6 +41,7 @@ header{position:sticky;top:0;z-index:50;background:rgba(11,14,20,.94);backdrop-f
 .logo{font-weight:700;font-size:15px;letter-spacing:.5px;white-space:nowrap}
 .logo small{color:var(--faint);font-weight:400;margin-left:6px;font-size:11px}
 #contract{width:86px;background:var(--card2);border:1px solid var(--line);color:var(--gold);border-radius:6px;padding:4px 6px;font-size:13px;text-transform:uppercase;font-weight:600}
+#contractSel{max-width:176px;background:var(--card2);border:1px solid var(--line);color:var(--gold);border-radius:6px;padding:4px 3px;font-size:12px;font-weight:600;color-scheme:dark}
 .badge{font-size:11px;padding:3px 8px;border-radius:99px;border:1px solid;font-weight:600;white-space:nowrap}
 .badge.live{color:var(--ok);border-color:rgba(63,185,132,.4);background:rgba(63,185,132,.08)}
 .badge.close{color:var(--dim);border-color:rgba(131,145,168,.35);background:rgba(131,145,168,.06)}
@@ -1264,7 +1266,8 @@ window.__TRAE_PUSH_INLINE__={
 <header>
   <div class="hrow">
     <div class="logo">🥚 鸡蛋半量化研判系统<small>傅海棠供需 + 势位态 + 威科夫鹰眼</small></div>
-    <input id="contract" value="JD2612" maxlength="8" title="k3-6 合约切换：输入代码（如 JD2605 / JD0）后回车，自动重载全部数据；历史日期切换为预留功能">
+    <select id="contractSel" title="n88 合约下拉：自动枚举挂牌合约（★=当前主力，按到期月排序）；「自动跟随主力」= 每次打开落在当前主力，点选具体合约即手动模式并记住选择"></select>
+    <input id="contract" value="JD2701" maxlength="8" title="k3-6 合约切换：输入代码（如 JD2605 / JD0）后回车，自动重载全部数据；历史日期切换为预留功能">
     <span id="modebadge" class="badge close">收盘复盘模式</span>
     <div class="pricebox">
       <span><span id="dot"></span><span id="bigprice" class="num">--</span></span>
@@ -1278,6 +1281,7 @@ window.__TRAE_PUSH_INLINE__={
 <div id="chips"></div>
 <div class="errbox" id="errbox"></div>
 <div class="errbox" id="stalebox" style="display:none;background:rgba(230,162,61,.10);border-color:rgba(230,162,61,.45);color:#f0c896"></div>
+<div class="errbox" id="mainbar" style="display:none;background:rgba(230,162,61,.10);border-color:rgba(230,162,61,.45);color:#f0c896"></div>
 
 <!-- n27: 方向总纲置顶横幅：多/空信号票箱汇总（复用biasSummary口径，renderStrategy同帧更新） -->
 <div class="card" id="biasBanner" style="display:none;margin:10px 12px 0">
@@ -1632,7 +1636,7 @@ const LS = {
 
 /* ---------------- 状态 ---------------- */
 const S = {
-  contract: LS.get('contract','JD2612'),
+  contract: LS.get('contract','JD2701'),   /* n88: 默认值随当前主力更新（仅新设备生效，老设备走 localStorage + n48过期兜底 + n88自动跟随） */
   tf:'m5',
   bars:{ m5:[], h1:[], d:[] },
   m1:[],               // 1分钟K线（420根≈一个交易日，供微观资金脉冲/诱多诱空识别）
@@ -1656,6 +1660,24 @@ if(!LS.get('mig2612','')&&S.contract==='JD2611'){S.contract='JD2612';LS.set('con
 /* n48: 启动兜底——localStorage 残留的过期合约（年月早于当前月）自动回退
    n49b: 回退目标改为动态次月合约 nextMonthContract()（写死 JD2612 会在其交割后死循环回退过期合约） */
 if(expiredContract(S.contract)){ const _nx=nextMonthContract(S.contract)||'JD2612'; S.contract=_nx; LS.set('contract',_nx); }
+/* n88: 主力自动锁定——启动异步探全合约：auto 模式（默认）直接落在 OI 最大合约；manual 模式留在用户选择、主力易主出提示条。探完刷新下拉。 */
+S.cmap=null;
+try{ const _cc=LS.get('cmapCache',null); if(_cc&&_cc.list&&_cc.list.length&&Date.now()-_cc.t<15*60*1000) S.cmap=_cc; }catch(e){}
+setTimeout(async()=>{   /* n88b: 延迟一拍再探——EM_STATIC 是 const 且定义在本块之后，立即执行会在 probeOneC 同步链上 TDZ 报错（被 catch 吞成全空列表） */
+  try{
+    const mp=await probeContractMap(false);
+    renderContractSel();
+    const main=mainOf(mp.list); if(!main) return;
+    const cur=mp.list.find(x=>x.code===S.contract)||null;
+    if(LS.get('contractMode','auto')==='auto'){
+      if(main.code!==S.contract&&(!cur||main.oi>cur.oi*1.05)){
+        const _from=S.contract;
+        await applyContract(main.code);
+        showAutoFollowToast(_from,main.code);
+      }
+    }else if(main.code!==S.contract){ mainBarRecheck(); }
+  }catch(e){ console.warn('[n88] 启动主力探测失败',e); }
+},0);
 
 /* =====================================================================
  *  工具函数
@@ -1734,11 +1756,13 @@ async function fetchM1(){
    缺口：实时价来自新浪1m尾bar（每分钟才生成一次），秒级跳价缺失；全链路单源（新浪），断流即全线停摆。
    方案：futsseapi 秒级快照（GitHub Pages 环境实测 CORS 可达）优先供价；
          push2his K线备源在新浪断流/陈旧时接管（fields2 序：日期,开,收,高,低,量,持仓）。 */
+/* n88: 东财快照返回结构变更——实测(2026-11-23)数据包在顶层 qt 对象里（无头/UA/Referer/Origin 四种请求头一致），旧代码直接读顶层 j.p 已静默失效（秒级价退化新浪分钟级、主力对比行永远"待快照"、⚡一键换月按钮永不出现）。统一解包入口。 */
+function emQt(j){ return (j&&j.qt)?j.qt:j; }
 async function fetchEMTick(){
   try{
     const r=await fetch('https://futsseapi.eastmoney.com/static/114_'+S.contract.toLowerCase()+'_qt',{cache:'no-store'});
     if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
+    const j=emQt(await r.json());
     if(j&&j.p>0){
       S.emTick={price:+j.p, oi:+(j.ccl||0), vol:+(j.vol||0), t:(+j.utime||0)*1000, js:+(j.jysj||0)};
       /* n42: 东财静态快照自带官方涨跌停字段 zt/dt（实测 jd2612: zt=3445 dt=3055），openctp 不可达时兜底显示 */
@@ -1765,14 +1789,105 @@ function expiredContract(v){
   const now=bj(), cy=now.getFullYear()%100, cm=now.getMonth()+1;
   return yy<cy || (yy===cy&&mm<cm);
 }
+/* ---------------- n88: 合约枚举 + 下拉自动生成 + 主力自动锁定 ----------------
+   实测(2026-11-23)：futsseapi 静态快照对未挂牌合约返回空 qt、已挂牌含 p/vol/ccl/zdf——
+   新挂牌自动出现、交割后数据消失自动出局，天然实现「过期自动删、新合约自动加」。 */
+const EM_STATIC='https://futsseapi.eastmoney.com/static/114_';
+function emQtCodes(){   /* 滚动窗口：当前月-3 ~ +14，约18个候选 */
+  const now=bj(), out=[]; let yy=now.getFullYear()%100, mm=now.getMonth()+1;
+  for(let k=-3;k<=14;k++){
+    let m2=mm+k, y2=yy;
+    while(m2<1){ m2+=12; y2--; } while(m2>12){ m2-=12; y2++; }
+    out.push('JD'+String(y2).padStart(2,'0')+String(m2).padStart(2,'0'));
+  }
+  return out;
+}
+async function probeOneC(code){
+  try{
+    const r=await fetch(EM_STATIC+code.toLowerCase()+'_qt',{cache:'no-store'});
+    if(!r.ok) return null;
+    const j=emQt(await r.json());
+    if(!j||!(+j.p>0)||!(+j.ccl>0)) return null;
+    return { code, p:+j.p, vol:+(j.vol||0), oi:+(j.ccl||0), zdf:+(j.zdf||0) };
+  }catch(e){ return null; }
+}
+async function probeContractMap(force){
+  if(!force&&S.cmap&&Date.now()-S.cmap.t<15*60*1000) return S.cmap;
+  const rs=await Promise.all(emQtCodes().map(probeOneC));
+  const list=rs.filter(Boolean).sort((a,b)=>a.code<b.code?-1:1);
+  S.cmap={ list, t:Date.now() };
+  try{ LS.set('cmapCache',S.cmap); }catch(e){}
+  return S.cmap;
+}
+function mainOf(list){ return (list&&list.length)?list.reduce((a,b)=>b.oi>a.oi?b:a):null; }
+function renderContractSel(){
+  const sel=$('contractSel'); if(!sel) return;
+  if(!S.cmap||!S.cmap.list||!S.cmap.list.length){ sel.innerHTML='<option value="auto">自动跟随主力</option>'; return; }
+  const main=mainOf(S.cmap.list), mode=LS.get('contractMode','auto'), cur=S.contract;
+  let html='<option value="auto"'+(mode==='auto'?' selected':'')+'>自动跟随主力'+(main?'：'+main.code:'')+'</option>';
+  for(const c of S.cmap.list){
+    const isM=main&&c.code===main.code;
+    const tag=isM?' ★主力':(c.oi>=30000?' 次主':'');
+    html+='<option value="'+c.code+'"'+(mode==='manual'&&c.code===cur?' selected':'')+'>'+c.code+(tag?' '+tag:'')+' '+(c.oi/10000).toFixed(c.oi>=10000?1:2)+'万仓</option>';
+  }
+  sel.innerHTML=html;
+}
+function showMainBar(msg){
+  const el=$('mainbar'); if(!el) return;
+  el.dataset.auto='';
+  el.innerHTML=msg; el.style.display='block';
+  const g=$('mainbarGo'); if(g) g.onclick=async()=>{ el.style.display='none'; await applyContract(g.dataset.to,'mainbar'); };
+  const n=$('mainbarNo'); if(n) n.onclick=()=>{ el.style.display='none'; };
+}
+function showAutoFollowToast(from,to){
+  const el=$('mainbar'); if(!el) return;
+  el.dataset.auto='1';
+  el.innerHTML='↪ 已自动跟随主力：'+from+' → '+to+'（下拉点选具体合约可转手动；切「自动跟随主力」恢复跟随）';
+  el.style.display='block';
+  setTimeout(()=>{ if(el.dataset.auto==='1'){ el.style.display='none'; el.dataset.auto=''; } }, 8000);
+}
+function mainBarRecheck(){
+  const main=mainOf(S.cmap&&S.cmap.list); if(!main) return;
+  if(main.code===S.contract){ const el=$('mainbar'); if(el&&el.dataset.auto!=='1') el.style.display='none'; return; }
+  const cur=(S.cmap.list.find(x=>x.code===S.contract))||null;
+  const mode=LS.get('contractMode','auto');
+  showMainBar('<b>⚠ 主力已易主</b>：'+main.code+' 持仓 '+(main.oi/10000).toFixed(1)+'万'+(cur?'，当前 '+S.contract+' 仅 '+(cur.oi/10000).toFixed(1)+'万':'')+'。换月期量仓读数会被旧主力口径污染，建议切换。 '
+    +'<button id="mainbarGo" data-to="'+main.code+'" style="background:none;border:1px solid var(--gold);color:var(--gold);font-weight:700;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer">一键切换 → '+main.code+'</button> '
+    +'<button id="mainbarNo" style="background:none;border:1px solid var(--line);color:var(--faint);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer">暂不</button>'
+    +(mode==='auto'?'<div style="font-size:10px;color:var(--faint);margin-top:2px">自动跟随模式：下次打开页面直接落在 '+main.code+'；盘中不静默跳合约，由你确认。</div>':''));
+}
 async function fetchDominance(){
   /* n83: 休市停发——换月徽标是盘中监控用途，收盘后停止轮询（S.dom 缓存10分钟过期后徽标自然消隐），全天请求量约省2/3 */
   if(S.mode!=='live') return;
+  /* n88: 轻量主力复查（10分钟一次）：只探缓存列表 OI 前3 + 当前合约，易主则刷新下拉与提示条；auto 模式盘中不静默跳合约，由提示条一键确认 */
+  if(!S.cmapTick||Date.now()-S.cmapTick>10*60*1000){
+    S.cmapTick=Date.now();
+    (async()=>{
+      try{
+        const list=(S.cmap&&S.cmap.list)||[];
+        const codes=list.length
+          ?[...new Set([...list.slice().sort((a,b)=>b.oi-a.oi).slice(0,3).map(x=>x.code), S.contract])]
+          :emQtCodes();
+        const rs=await Promise.all(codes.map(probeOneC));
+        const found=rs.filter(Boolean);
+        if(found.length){
+          if(!S.cmap||!S.cmap.list.length){
+            S.cmap={ list:found.slice().sort((a,b)=>a.code<b.code?-1:1), t:Date.now() };
+          }else{
+            for(const f of found){ const it=S.cmap.list.find(x=>x.code===f.code); if(it){ it.oi=f.oi; it.vol=f.vol; it.p=f.p; } else S.cmap.list.push(f); }
+            S.cmap.list.sort((a,b)=>a.code<b.code?-1:1); S.cmap.t=Date.now();
+          }
+          try{ LS.set('cmapCache',S.cmap); }catch(e){}
+          renderContractSel(); mainBarRecheck();
+        }
+      }catch(e){ /* 静默 */ }
+    })();
+  }
   try{
     const nx=nextMonthContract(S.contract); if(!nx) return;
     const r=await fetch('https://futsseapi.eastmoney.com/static/114_'+nx.toLowerCase()+'_qt',{cache:'no-store'});
     if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
+    const j=emQt(await r.json());
     if(j&&j.p!==undefined){
       S.dom={ next:nx, vol:+(j.vol||0), oi:+(j.ccl||0), t:Date.now() };
     }
@@ -1819,6 +1934,21 @@ async function rolloverToNext(){
       console.log('[n51b] 换月完成 '+oldC+'→'+nx+'，趋势锚方向一致（'+(oldDir==='up'?'↑':'↓')+'），延续不重置');
     }
   }catch(e){}
+}
+/* n88: 统一切换入口——输入框/下拉/主力自动跟随/提示条按钮共用。不写 rollLog（台账封存仍走 ⚡一键换月四件套），趋势锚随新合约数据自然重算 */
+async function applyContract(v){
+  if(!/^[A-Z]{1,2}\d{4}$/.test(v)||expiredContract(v)) return false;
+  if(v===S.contract){ renderContractSel(); return true; }
+  const oldC=S.contract;
+  S.contract=v; LS.set('contract',v);
+  S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null; S.dom=null;
+  S.emTick=null; S.emLimit=null;   /* 清旧合约残留tick与停板价（n64f修复#9 同款） */
+  $('contract').value=v;
+  fetchRankAuto(); scheduleRank();   /* n73 同款：换合约立即重抓排行 */
+  renderContractSel();
+  await fullCycle();
+  console.log('[n88] 合约切换 '+oldC+' → '+v);
+  return true;
 }
 async function emKline(klt,lmt){
   const url='https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=114.'+S.contract.toLowerCase()
@@ -4770,10 +4900,25 @@ function bindUI(){
     /* n48: 已交割旧合约（年月早于当前月）拒绝加载
        n49b: alert 提示改为动态次月合约（原来写死当前年12月，交割后提示会指向另一个过期合约） */
     if(expiredContract(v)){ const _nx=nextMonthContract(v)||''; alert(v+' 已过期交割，请切换到 '+(_nx||'更新的月份')+' 或之后的月份合约'); $('contract').value=S.contract; return; }
-    S.contract=v; LS.set('contract',v);
-    S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null;
-    fetchRankAuto(); scheduleRank();   /* n73: 换合约立即重抓排行（从 L5400 分散监听合并至此，与重载同一入口） */
-    await fullCycle();
+    /* n88: 手动输入=手动模式（记住选择），统一走 applyContract 入口（清态/排行重抓/fullCycle/下拉刷新） */
+    LS.set('contractMode','manual');
+    await applyContract(v);
+  });
+  /* n88: 下拉点选——选「自动跟随主力」回 auto 模式并立即落到当前主力；选具体合约转手动模式 */
+  $('contractSel').addEventListener('change',async()=>{
+    const v=$('contractSel').value;
+    if(v==='auto'){
+      LS.set('contractMode','auto');
+      try{
+        const mp=await probeContractMap(false);
+        const main=mainOf(mp.list);
+        if(main&&main.code!==S.contract) await applyContract(main.code);
+        else renderContractSel();
+      }catch(e){ renderContractSel(); }
+      return;
+    }
+    LS.set('contractMode','manual');
+    await applyContract(v);
   });
   const spotChange=()=>{
     S.spot.today=$('spotToday').value; S.spot.yest=$('spotYest').value;
