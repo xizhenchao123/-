@@ -9,6 +9,7 @@
 <!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
 <!-- n87: 对账卡口径注记——三项判定全部页面自算（当日5m+已收日线独立重算），与TDX等外部源互证时的数字差异（如开盘区间r值0.49 vs 0.60）属bar集与ATR细节口径差，不改判定方向，机械判定一律以页面自算为准 -->
 <!-- n88c: n88 收口修复——①applyContract 排队锁（防 fullCycle busy-return 造成「合约已切数据未载」串位）+ 拒绝时回滚下拉/输入框显示 ②主力易主提示条「暂不」会话内不再重复弹 ③S.contract 启动格式消毒+innerHTML esc ④probeOneC OI≥100手过滤已交割沉淀仓 -->
+<!-- n92: 数值一致性专项（2026-11-24 外部评审二轮渲染实测核对，P0四条）：①R值分母统一为展示止损距离（原口径复算1.15≠页面1.19，信誉级）②背离预警限定当日+带时间戳（validBreaks近50根跨日窗口曾被渲染成当日事实）③多空分界线取值改昨结算优先（原误取当日结算价，页现双口径）④1.2R加1.15~1.25贴线缓冲带（结论不因一跳翻转） -->
 <!-- n91: ①现货票缺数据 N/A+分母归一化（四票变三票，按75满分归一化百分制，替代保底12虚增）②journal每日自动导出提醒（复用n54a _bkExport，每日首次打开提醒一次，bkRemind 记当日日期）（2026-11-24 评审P1两项采纳） -->
 <!-- n90: ①假突破否决阈值 ×1→≥2（2026-11-24 评审采纳：震荡日单次假突破属常态，×1即否决会系统性建议观望；单次降级为异动观察级提示[原anomalyE已有]，同一方向≥2次或合计≥3次才触发否决）②一票否决/连亏锁仓/D级时不再生成候选入场/止损/目标具体价位（红线：不视为交易机会就不给可执行参数，仅保留多/空R值方向参考；评级A-C时照常输出） -->
 <!-- n89: ①合约代际锁 S.gen——applyContract/rolloverToNext 清旧数据后 gen+1，fetchAllKlines/fetchEMTick/fetchDominance/emRescueKlines/fetchCustomKlines 五处在途写回前校验代际，旧合约晚到响应整包丢弃（修复：切换后选择器已是新合约、面板数字仍是旧合约的竞态串位）；rolloverToNext 补 n88c 排队锁+busy.switch 包裹。②看门狗横幅四态 reconcile（切换灰>休市灰>全失效红>备线补齐琥珀>无）：红条只在K线+实时价全失效时出现；新浪停更但东财秒级价正常降级为琥珀条、备线补齐后自动消失，不再红条常驻；顺带修复休市灰条滞留（原实现灰条样式/文案只写一次不更新） -->
@@ -2961,18 +2962,21 @@ function rrCalc(A){
   const sup=A.sup[0]?A.sup[0].price:null, res=A.res[0]?A.res[0].price:null;
   if(sup==null||res==null||res<=sup){ out.note='支撑压力区间不完整，盈亏比无法评估'; return out; }
   const stopW=Math.max(0.35*atrD,0.2*(res-sup));      /* 止损缓冲：0.35×ATR日（2026-10-13修正：原0.8×ATR≈55点吞掉区间大半空间，致RR天花板≈W/(W+stopW)<1永远不达标） */
-  /* 多头视角：现价接近支撑才有多头盈亏比；空头视角：现价接近压力才有空头盈亏比；破位状态（区间外）直接置0防逆势信号 */
-  const longRR  = (price<res&&price>=sup) ? (res-price)/Math.max(price-sup+stopW*0.5, stopW*0.5) : 0;
-  const shortRR = (price>sup&&price<=res) ? (price-sup)/Math.max(res-price+stopW*0.5, stopW*0.5) : 0;
+  /* n92: R值分母统一为展示止损距离——原分母=现价到对面极值位距离+0.5×止损缓冲，与展示止损（极值位±0.3×ATR 与现价±stopW 取宽者）口径不一，用户按展示三价位复算得1.15R与页面1.19R对不上（2026-11-24 评审核对，信誉级修复） */
+  const stopL=Math.min(sup-0.3*atrD, price-stopW), stopS=Math.max(res+0.3*atrD, price+stopW);
+  /* 多头视角：现价接近支撑才有多头盈亏比；空头视角：现价接近压力才有空头盈亏比；破位状态（区间外）直接置0防逆势信号。分母=现价到展示止损位距离（≥stopW，不会除零） */
+  const longRR  = (price<res&&price>=sup) ? (res-price)/Math.max(price-stopL, stopW*0.5) : 0;
+  const shortRR = (price>sup&&price<=res) ? (price-sup)/Math.max(stopS-price, stopW*0.5) : 0;
   out.longRR=clamp(longRR,0,9); out.shortRR=clamp(shortRR,0,9);
   out.rr=Math.max(out.longRR,out.shortRR);
   const isLong=out.longRR>=out.shortRR;
   out.side=isLong?'多':'空';
   out.entry=price;
-  out.stop =isLong? Math.min(sup-0.3*atrD, price-stopW) : Math.max(res+0.3*atrD, price+stopW);
+  out.stop =isLong? stopL : stopS; /* n92: 与rr分母同源，展示三价位可复算 */
   out.target=isLong? res : sup;
   out.pass=out.rr>=1.2;
-  out.note='按'+(isLong?'多':'空')+'向评估：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.pass?'（≥1.2R达标）':'（<1.2R，位置/空间不划算，不推荐开仓）');
+  out.edge=out.rr>=1.15&&out.rr<1.25; /* n92: 贴线缓冲带（1.2±0.05）——边界区结论不硬翻转，展示层标注贴线/边界（评审采纳：避免同一信号在相邻价位给出相反执行指令） */
+  out.note='按'+(isLong?'多':'空')+'向评估：入场'+price.toFixed(0)+' → 止损'+out.stop.toFixed(0)+' → 目标'+out.target.toFixed(0)+'，盈亏比≈'+out.rr.toFixed(2)+'R'+(out.rr>=1.25?'（≥1.2R达标）':(out.pass?'（≥1.2R达标·贴线）':(out.edge?'（1.15~1.2R 边界区·贴线不达标——价格一跳即翻转，谨慎对待）':'（<1.2R，位置/空间不划算，不推荐开仓）')));
   return out;
 }
 
@@ -3304,7 +3308,7 @@ function buildRecap(){
   const lv2=keyLevels(d, R.c, atr(d,14)||50);
   R.watchRes=lv2.res.slice(0,2).map(x=>x.price);
   R.watchSup=lv2.sup.slice(0,2).map(x=>x.price);
-  R.watchDiv=(R.settle!=null?R.settle:(R.o+R.c)/2); /* 短线多空分界：昨结算优先，无则当日均价 */
+  R.watchDiv=(R.prevSettle!=null?R.prevSettle:(R.o+R.c)/2); /* n92 短线多空分界：昨结算优先，无则当日均价——原误取R.settle（dBar.s=当日结算价），与"昨结算优先"设计本意错位，页面上同现3191(当日结算)与3141(真昨结算)双口径（评审第三节） */
   return R;
 }
 function volZ2(ses,b,i){ /* 会话内量z */
@@ -3793,13 +3797,18 @@ function mfAnalyze(){
   if(A&&out.ready){
     const resTop=A.res&&A.res[0]?A.res[0].price:null;
     const supTop=A.sup&&A.sup[0]?A.sup[0].price:null;
-    /* 向上突破压力位（有效确认）+ 投机净持仓减少 → 警惕诱多 */
-    if(resTop!=null&&d!=null&&d<0&&(A.validBreaks||[]).some(v=>v.level===resTop&&v.confirmed&&(v.dir==null||v.dir==='up'))){
-      out.alerts.push({level:'high',txt:'资金背离预警：价格向上突破压力位 '+resTop.toFixed(0)+'，但投机主力净持仓减少 '+fmtN(Math.abs(d))+' 手——量价上行缺乏资金跟随，警惕诱多，严格复核一票否决条件后再评估。'});
+    /* n92: 背离预警限定当日+带时间戳——validBreaks检测窗口为近50根5m（跨昨日尾盘），历史确认事件曾被渲染成当日事实（评审第二节：3258未触及仍报"突破"）。当日判定=末根m5日期 */
+    const _day=(S.bars&&S.bars.m5&&S.bars.m5.length)?bjStr(new Date(S.bars.m5[S.bars.m5.length-1].t)):null;
+    const _today=v=>_day&&v.t&&bjStr(new Date(v.t))===_day;
+    /* 向上突破压力位（有效确认·当日）+ 投机净持仓减少 → 警惕诱多 */
+    const _bkUp=(A.validBreaks||[]).find(v=>v.level===resTop&&v.confirmed&&_today(v)&&(v.dir==null||v.dir==='up'));
+    if(resTop!=null&&d!=null&&d<0&&_bkUp){
+      out.alerts.push({level:'high',txt:'资金背离预警：今日 '+fmtT(_bkUp.t)+' 放量向上突破压力位 '+resTop.toFixed(0)+'，但投机主力净持仓减少 '+fmtN(Math.abs(d))+' 手——量价上行缺乏资金跟随，警惕诱多，严格复核一票否决条件后再评估。'});
     }
-    /* 向下跌破支撑位（有效确认）+ 投机净持仓增加 → 警惕诱空 */
-    if(supTop!=null&&d!=null&&d>0&&(A.validBreaks||[]).some(v=>v.level===supTop&&v.confirmed&&(v.dir==null||v.dir==='down'))){
-      out.alerts.push({level:'high',txt:'资金背离预警：价格向下跌破支撑位 '+supTop.toFixed(0)+'，但投机主力净持仓增加 '+fmtN(d)+' 手——杀跌缺乏资金跟随，警惕诱空，严格复核一票否决条件后再评估。'});
+    /* 向下跌破支撑位（有效确认·当日）+ 投机净持仓增加 → 警惕诱空 */
+    const _bkDn=(A.validBreaks||[]).find(v=>v.level===supTop&&v.confirmed&&_today(v)&&(v.dir==null||v.dir==='down'));
+    if(supTop!=null&&d!=null&&d>0&&_bkDn){
+      out.alerts.push({level:'high',txt:'资金背离预警：今日 '+fmtT(_bkDn.t)+' 放量向下跌破支撑位 '+supTop.toFixed(0)+'，但投机主力净持仓增加 '+fmtN(d)+' 手——杀跌缺乏资金跟随，警惕诱空，严格复核一票否决条件后再评估。'});
     }
   }
   return out;
@@ -4044,7 +4053,7 @@ function renderRecap(){
    `<div class="recaph">② 关键价位验证</div><div class="lvlwrap"><table class="lvl"><tr><th>价位</th><th>类型</th><th>结果</th></tr>${rc.levelTest.map(l=>`<tr><td><b class="num">${l.p.toFixed(0)}</b></td><td>${l.tag}</td><td style="color:${lvlCls[l.cls]}">${l.res}</td></tr>`).join('')}</table></div>`+
    `<div class="recaph">③ 资金异动 / 假突破事件</div><div class="sec">${rc.events.length?rc.events.map(e=>`${fmtT(e.t)} 放量${e.dir==='up'?'上攻':'下杀'}（z=${e.z.toFixed(1)}${e.dOI?'，仓差'+(e.dOI>0?'+':'')+fmtN(e.dOI)+'手':''}）`).join('；')+'。':'全天无显著放量异动。'}${rc.falseN?`<br><span style="color:var(--risk)">假突破 ${rc.falseN} 次${rc.falseTxt?`（${rc.falseTxt}）`:''}${(rc.falseL||rc.falseS)?`：诱多假突破×${rc.falseL||0}（向上假信号，警惕冲高派发）+ 诱空假突破×${rc.falseS||0}（向下假信号，警惕杀跌洗盘）`:''}（详见风险提示）</span>`:''}</div>`+
    `<div class="recaph">④ 信号有效性</div><div class="sec">${rc.sigEffect.length?rc.sigEffect.map(s=>`${fmtT(s.t)} 放量${s.dir==='up'?'上攻':'下杀'} → <b>${s.verdict}</b>`).join('；')+'。':'当日无待验证信号事件。'}</div>`+
-   `<div class="recaph">⑤ 下一交易日观察</div><div class="sec"><b>短线多空分界线</b>：<b class="num" style="color:var(--gold)">${rc.watchDiv!=null?rc.watchDiv.toFixed(0):'--'}</b>（昨结算${rc.settle==null?'，无数据时用当日均价代替':' '+rc.settle.toFixed(0)}）——明日收盘站上视为短线偏多，收于其下视为短线偏空。<br>上方关注：<b class="num" style="color:var(--res)">${rc.watchRes.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；下方关注：<b class="num" style="color:var(--sup)">${rc.watchSup.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>。<br><b>向上突破压力位需同时满足</b>：①放量（量比明显抬升）②仓差配合（增仓上行更佳）——无量上冲容易假突破，冲高缩量回落的先当诱多对待。<br><b>跌破支撑位代表</b>：多头防线失守，短线结构转坏，原支撑转为新的压力；若跌破时放量增仓，说明主动卖盘坚决，反弹先看修复再看反转。<br>风险点：${(S.A&&S.A.riskFlags.length)?S.A.riskFlags.map(f=>f.tag).join('、'):'常规——注意开盘巨量换手与压力位量能配合情况'}。现货端请持续跟踪主产区报价变化（人工输入区）。</div>`+
+   `<div class="recaph">⑤ 下一交易日观察</div><div class="sec"><b>短线多空分界线</b>：<b class="num" style="color:var(--gold)">${rc.watchDiv!=null?rc.watchDiv.toFixed(0):'--'}</b>（昨结算${rc.prevSettle!=null?' '+rc.prevSettle.toFixed(0):'无数据，用当日均价代替'}${rc.settle!=null?'；当日结算价 '+rc.settle.toFixed(0):''}）——明日收盘站上视为短线偏多，收于其下视为短线偏空。<br>上方关注：<b class="num" style="color:var(--res)">${rc.watchRes.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；下方关注：<b class="num" style="color:var(--sup)">${rc.watchSup.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>。<br><b>向上突破压力位需同时满足</b>：①放量（量比明显抬升）②仓差配合（增仓上行更佳）——无量上冲容易假突破，冲高缩量回落的先当诱多对待。<br><b>跌破支撑位代表</b>：多头防线失守，短线结构转坏，原支撑转为新的压力；若跌破时放量增仓，说明主动卖盘坚决，反弹先看修复再看反转。<br>风险点：${(S.A&&S.A.riskFlags.length)?S.A.riskFlags.map(f=>f.tag).join('、'):'常规——注意开盘巨量换手与压力位量能配合情况'}。现货端请持续跟踪主产区报价变化（人工输入区）。</div>`+
    `<div class="recaph">⑥ 免责声明</div><div class="sec" style="color:var(--faint)">本复盘仅为盘面数据整理与规则化打分输出，不构成任何期货投资建议；期货杠杆交易风险极高，所有交易决策与盈亏由使用者自行承担。</div>`;
   renderStrategy();
 }
@@ -4083,9 +4092,9 @@ function renderStrategyInner(){
   else if(BP.on&&BP.inZone&&BP.cutoff){ side='顺势窗口已关闭'; sideC='var(--warn)'; qualNote='14:15 后停开新仓（日内纪律）：'+BP.dir+'向触发位 '+BP.trig.toFixed(0)+' 仍在跟进区内，仅观察不再跟进'; }
   else if(BP.on&&BP.rtBreak){ side='实时已破'+BP.rtBreak+' · 跟进资格失效'; sideC='var(--risk)'; qualNote='现价已逆'+BP.dir+'向击穿'+BP.rtBreak+'（n60）：昨日前提与实时走势冲突，日内顺势'+BP.dir+'向资格当场失效——观望或改看对面方向，勿按入场区参数接飞刀/追高空；放量收复'+BP.rtBreak.replace(/[^0-9]/g,'')+'则资格恢复再评估'; }   /* n64: 破位后定性卡同步接管，不再输出入场参数 */
   else if(BP.on&&BP.inZone){ const _gapW=(BP.gap!=null&&isFinite(BP.gap)&&Math.abs(BP.gap)>1)?' · <span style="color:var(--risk)">⚠ 跳空'+BP.gap.toFixed(1)+'%情绪极端日·防反转插针</span>':''; const _fbx=BP.firstBarExt==='底'?' · <span style="color:var(--warn)">⚠ 首根极值放量宣泄·勿当全天弱势</span>':(BP.firstBarExt==='顶'?' · <span style="color:var(--warn)">⚠ 首根极值放量抢筹·防方向反噬</span>':''); side='顺势跟进参考 · '+(BP.downgrade?'降级轻仓':'入场区'); sideC=BP.dir==='多'?C.up:C.dn; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日（回测S1口径）：')+BP.dir+'向 入场≈'+BP.entry.toFixed(0)+' / 止损 '+BP.stop.toFixed(0)+'(1.5×ATR) / 目标 '+BP.target.toFixed(0)+'(1.2×ATR 达标即走)'+(BP.breakTxt?' · 突破'+BP.breakTxt:'')+(BP.downgrade?' · ⚠ 前日大阳+今日未高开：轻仓或等回踩':'')+(_gapW||'')+(_fbx||''); }   /* n35: "破位跟进"撞词改"入场区"，降权通道不称"顺势日"；n37-1 跳空警示；n44-1 首根极值警示 */
-  else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'; }
+  else if(R&&R.pass&&(gr==='A'||gr==='B')){ side='适合'+(R.side==='多'?'做多':'做空'); sideC=R.side==='多'?C.up:C.dn; qualNote='总分 '+A.total+'（'+gr+' 级）· 盈亏比 '+R.rr.toFixed(2)+'R 达标'+(R.edge?'（贴线·1.2R附近，价格一跳即翻转）':''); }
   else if(R&&!R.pass&&BP.on){ side='等待突破触发'; sideC='var(--warn)'; qualNote=(BP.momSrc?BP.momSrc+'：':'前日 '+BP.prevChg.toFixed(2)+'% 顺势日：')+'当前区间内盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 不划算，等 '+BP.dir+'向触到 '+BP.trig.toFixed(0)+'（跟进区 ±'+BP.zoneW.toFixed(0)+' 点）再按顺势口径评估'; }
-  else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'; sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R 低于 1.2R 阈值（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
+  else if(R&&!R.pass){ side='不建议开仓 · 盈亏比不足'+(R.edge?'（贴线边界区）':''); sideC='var(--risk)'; qualNote='预估盈亏比 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R'+(R.edge?'（1.15~1.2R 边界区，价格一跳即翻转，谨慎对待）':' 低于 1.2R 阈值')+'（总分 '+A.total+'，'+gr+' 级）：位置/空间不划算，等更好的入场点'; }
   else { side='观望'; sideC='var(--dim)'; qualNote='总分 '+A.total+'（'+gr+' 级）'+(R&&!R.pass?' · 盈亏比未达标':'')+'，未达执行标准'; }
   $('stratTag').textContent=side; $('stratTag').style.color=sideC;   /* n2: 标题区显示行情定性 */
   /* n32: 陈旧态应用——角标+整卡降透明度（不只靠顶部黄条），恢复新鲜后自动还原 */
@@ -4270,7 +4279,7 @@ function renderStrategyInner(){
     rows.push(`<tr><td><b>推荐入场区间</b></td><td>参考入场 <b class="num">${R.entry.toFixed(0)}</b>（现价附近${R.side==='多'?'，回踩支撑不破再确认':'，反抽压力受阻再确认'}）${supP!=null&&resP!=null?`<br><span style="color:var(--faint)">操作区间参照：支撑 <b class="num" style="color:var(--sup)">${supP.toFixed(0)}</b> ~ 压力 <b class="num" style="color:var(--res)">${resP.toFixed(0)}</b></span>`:''}</td></tr>`);
     rows.push(`<tr><td><b>止损价格</b></td><td><b class="num" style="color:var(--risk)">${R.stop.toFixed(0)}</b>　<span style="color:var(--faint)">${R.side==='多'?'支撑下方':'压力上方'}留 0.3×ATR 缓冲（ATR日≈${(A.d.atr||50).toFixed(0)}）</span></td></tr>`);
     rows.push(`<tr><td><b>止盈目标</b></td><td>第一目标 <b class="num" style="color:var(--ok)">${R.target.toFixed(0)}</b>（${R.side==='多'?'压力位':'支撑位'}）；第二目标 <b class="num" style="color:var(--ok)">${t2.toFixed(0)}</b>（等距延伸）</td></tr>`);
-    rows.push(`<tr><td><b>预估盈亏比</b></td><td><b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b>${R.pass?'　<span style="color:var(--ok)">≥1.2R 达标</span>':'　<span style="color:var(--risk)">&lt;1.2R，位置/空间不划算，不推荐开仓</span>'}</td></tr>`);
+    rows.push(`<tr><td><b>预估盈亏比</b></td><td><b class="num">${R.rr!=null?R.rr.toFixed(2):'--'}R</b>${R.pass?(R.edge?'　<span style="color:var(--gold)">≥1.2R 达标（贴线）</span>':'　<span style="color:var(--ok)">≥1.2R 达标</span>'):(R.edge?'　<span style="color:var(--gold)">1.15~1.2R 边界区（贴线，一跳即翻转）</span>':'　<span style="color:var(--risk)">&lt;1.2R，位置/空间不划算，不推荐开仓</span>')}</td></tr>`);
   }else{
     rows.push(`<tr><td><b>交易参数</b></td><td><span style="color:var(--dim)">支撑压力区间不完整，入场/止损/目标暂无法计算。</span></td></tr>`);
   }
@@ -4295,7 +4304,7 @@ function renderStrategyInner(){
   A.veto.forEach(v=>ban.push('⛔ '+v+'（一票否决，硬阻断）'));
   if(S.losses&&S.losses.n>=3) ban.push('⛔ 当日连亏≥3笔：锁仓停新单');
   else if(S.losses&&S.losses.n===2) ban.push('⚠ 当日连亏2笔：下一次开仓仓位减半，再亏1笔即锁仓');
-  if(R&&!R.pass) ban.push('⚠ 盈亏比 &lt;1.2R（当前 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R）：位置/空间不划算，不推荐开仓');
+  if(R&&!R.pass) ban.push('⚠ 盈亏比 '+(R.edge?'处于 1.15~1.2R 边界区（贴线）':'&lt;1.2R')+'（当前 '+(R.rr!=null?R.rr.toFixed(2):'--')+'R）：位置/空间不划算，不推荐开仓');
   if(gr==='C'&&!A.veto.length) ban.push('⚠ 评级未达 B 级（多周期/盈亏比/量仓/基本面未全部满足）：按框架尽量放弃');
   if(!R) ban.push('⚠ 支撑压力区间不完整：无法评估盈亏比，不满足开仓前置条件');
   if(!ban.length) ban.push('当前无额外禁入条件；突破确认前提：①放量 ②仓差配合（无量上冲当诱多对待）');
