@@ -5359,8 +5359,8 @@ function bindUI(){
   let _f9At=0;
   /* n93 P1b: spot18 自动流入打分卡——数据日期==当前交易日才自动填入并触发重算（17:30任务更新后打开页面即生效）；
      日期不符：不填入，仅在基差助手提示行说明数据日期（降级路径：可手动录入或点「一键填入」）；
-     手动已录入且与自动价不同时不覆盖（手动优先），仅提示对照；自动填入值随 F9 刷新幂等更新 */
-  let _f9FillDate=null;
+     自动托管机制（LS f9Fill 记录上次自动填入值）：托管值随每日新数据自动刷新；用户手动改过后
+     （当前值≠托管记录）永久尊重手动值，仅提示对照不覆盖——自动及时性与手动自主权兼顾 */
   function f9AutoFillScore(){
     const F9=_autoSnap&&_autoSnap.f9?_autoSnap.f9:null;
     if(!F9||!(F9.spot>0)) return;
@@ -5369,17 +5369,22 @@ function bindUI(){
       if(tip) tip.textContent='ℹ 现货18区自动源数据日 '+F9.date+'（非今日），未自动填入打分卡；可手动录入或待 17:30 数据更新';
       return;
     }
-    const cur=$('spotToday').value, v=F9.spot.toFixed(2);
-    if(cur&&cur!==v&&_f9FillDate!==F9.date){
+    const v=F9.spot.toFixed(2), pv=F9.prev!=null?F9.prev.toFixed(2):null;
+    const lastAuto=LS.get('f9Fill',null);
+    const cur=$('spotToday').value, yest=$('spotYest').value;
+    const curAuto=lastAuto&&lastAuto.v===cur;   /* 当前值==上次自动填入值 → 仍归自动链托管 */
+    const yestAuto=lastAuto&&lastAuto.p===yest;
+    if(cur&&cur!==v&&!curAuto){
       if(tip) tip.textContent='ℹ 现货18区自动源今日价 '+v+'（'+(F9.src||'F9现货18区均价')+'），与当前录入 '+cur+' 不同——已保留手动值，如需采用自动价请点「一键填入」';
       return;
     }
-    if(cur!==v){
-      $('spotToday').value=v;
-      if(F9.prev!=null&&!$('spotYest').value) $('spotYest').value=F9.prev.toFixed(2);
-      _f9FillDate=F9.date;
+    let touched=false;
+    if(cur!==v){ $('spotToday').value=v; touched=true; }
+    if(pv!=null&&(!yest||(yestAuto&&yest!==pv))){ $('spotYest').value=pv; touched=true; }
+    if(touched){
+      LS.set('f9Fill',{d:F9.date,v:v,p:pv||''});
       spotChange();
-      if(tip) tip.textContent='✔ 已自动填入今日现货价 '+v+'（口径：'+(F9.src||'F9现货18区均价')+'，数据日 '+F9.date+'）并重算';
+      if(tip) tip.textContent='✔ 已自动填入今日现货价 '+v+'（口径：'+(F9.src||'F9现货18区均价')+'，数据日 '+F9.date+'）并重算；托管值每日随自动源刷新，手动改动后不再覆盖';
     }
   }
   async function fetchF9Spot18(){
