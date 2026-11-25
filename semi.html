@@ -26,7 +26,7 @@
 <!-- n22: 盘面残影修复：draw()改全背板清除（容器尺寸漂移后旧布局残留区外与当前布局叠加的bug）；移动端K线卡取消吸顶（不再滑入粘性header下方）+画布固定高430px杜绝尺寸漂移；window resize联动重排 -->
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
-<!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差≥2偏多/偏空、±1略偏、0中性；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
+<!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差取号偏多/偏空、0中性（n94 简化，原±1略偏档并入）；n94: 盘中滞回锁定（当日首次定调即锁，反向净差≥2才翻面，LS biasLock），消除盘中略偏空↔略偏多来回跳；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
 <!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 --><!-- n33: n32审查加固：sigSnapshot空catch补console.warn（写入失败不再静默）+快照价isFinite守卫（NaN/0不入库污染统计） --><!-- n34: 复盘驱动四改：①动量过滤3日累计≥1.5%备用通道（连续小阴小阳单日擦边不再漏单边，×1权重降级）②S1破位跟进态（昨收破近5日低+反抽未收复→降权顺势）③对账卡日振幅对比（有信号日vs纯观望日，检验弃权代价）④横幅中性时明示多空对冲票数；标题去"手机离线版"（实为在线降级混合架构） --><!-- n35: n34审查修文案口径：①票箱降权通道误标"回测核心edge"→按momSrc分叉"扩样假设降级/回测核心edge" ②策略卡"破位跟进"与n23突破跟进撞词改"入场区"+降权通道qualNote不再称"顺势日（回测S1口径）"（等待触发分支同修） ③弃权文案cum3缺失改"3日累计数据不足"（不再断言未达标） --><!-- n36: renderStrategy 包 try/catch，崩溃时错误写入顶部横幅现场可见（早盘横幅+行情定性同时缺失定位用） -->
 <style>
 :root{
@@ -3112,7 +3112,25 @@ function biasSummary(A,BP){
     else { out.short+=w; out.votes.push(['动量过滤',(BP.momSrc||('前日'+BP.prevChg.toFixed(2)+'%顺势日'))+(BP.momSrc?'（扩样假设降级，×'+w+'权重）':'（回测核心edge，×'+w+'权重）')]); }
   } else if(BP&&BP.why&&BP.why.length){ out.votes.push(['动量过滤','单日+3日累计动量均无方向edge，弃权']); }
   const net=out.long-out.short;
-  out.side= net>=2?'偏多':(net<=-2?'偏空':(net===1?'略偏多':(net===-1?'略偏空':'中性震荡')));
+  /* n94: 「今日」定调稳定化（用户反馈：盘中「略偏空↔略偏多」来回跳造成困扰，要求直接给今日大概方向）——
+     ①档位简化：偏多/偏空/中性震荡三档直答（原±1略偏档并入，强弱细节仍由票数标签+票箱明细披露）；
+     ②盘中滞回锁定：9:00-15:00（含午休）当日首次有效定调即锁定（LS biasLock={d,side}），
+       盘中只有反向净差≥2 才翻面；弱反向或对冲维持定调（票箱读数与n80口径差提示照常实时）；
+       15:00后/次日直接用现算终值并重新定调。 */
+  const rawSide= net>0?'偏多':(net<0?'偏空':'中性震荡');
+  const _td94=bjStr(bj()), _hm94=bjDateHM(bj());
+  let side=rawSide, locked=false;
+  if(_hm94>=900&&_hm94<=1500){
+    let _lk=LS.get('biasLock',null);
+    if(!_lk||_lk.d!==_td94) _lk={d:_td94,side:null};
+    const _ld=_lk.side==='偏多'?1:(_lk.side==='偏空'?-1:0);
+    const _rd=net>0?1:(net<0?-1:0);
+    if(_ld!==0){
+      if(_rd===-_ld&&Math.abs(net)>=2){ _lk.side=rawSide; LS.set('biasLock',_lk); }   /* n94: 反向强证据才翻面 */
+      else if(_rd!==_ld){ side=_lk.side; locked=true; }   /* n94: 弱反向或对冲：维持今日定调 */
+    } else if(rawSide!=='中性震荡'){ _lk.side=rawSide; LS.set('biasLock',_lk); }   /* n94: 当日首次定调即锁定 */
+  }
+  out.side=side; out.rawSide=rawSide; out.net=net; out.locked=locked;
   return out;
 }
 
@@ -4105,7 +4123,7 @@ function renderStrategyInner(){
   { const _sbe=$('staleBadge'); if(_sbe) _sbe.style.display=nonLive?'':'none';
     el.style.opacity=nonLive?'0.55':''; }
   const rows=[];
-  /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差≥2偏多/偏空 */
+  /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差取号→偏多/偏空/中性震荡（n94 三档+盘中锁定） */
   const BIAS=biasSummary(A,BP);
   /* n47: 大周期趋势锚（开盘锁定，盘中不翻）+ 与日内方向的一致性判定 */
   const TA=trendAnchor();
@@ -4151,7 +4169,7 @@ function renderStrategyInner(){
   if(TA){
     rows.push(`<tr><td><b>🧭 大周期锚</b></td><td><b style="color:${taCls};font-size:13px">${taTxt}</b>　<span style="color:var(--faint);font-size:11px">${esc(TA.why[0])}；MA5斜率 ${TA.maSlope>0?'+':''}${TA.maSlope.toFixed(1)}。开盘锁定，盘中不翻——为下方日内票提供趋势语境。</span></td></tr>`);
   }
-  /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差≥2偏多/偏空 */
+  /* n25 方向总纲：四票汇总（趋势/量仓/供需各1票，动量过滤2票），净差取号→偏多/偏空/中性震荡（n94 三档+盘中锁定） */
   const bCls=BIAS.side.indexOf('偏多')>=0?C.up:(BIAS.side.indexOf('偏空')>=0?C.dn:'var(--dim)');
   if(alignHtml) rows.push(alignHtml);   /* n47: 顺/逆势一致性提示紧跟总纲 */
   /* n59: 决策口诀图例——锚×票箱×日内四象限速查（纯展示，不参与计算） */
@@ -4163,7 +4181,8 @@ function renderStrategyInner(){
 <tr><td style="padding:2px 4px;color:var(--risk)">锚与票箱反向（逆·警惕）</td><td style="padding:2px 4px">不碰，或大幅降仓+严格短线止损，勿扛单</td></tr>
 <tr><td style="padding:2px 4px;color:var(--dim)">都中性 / 混乱（横·区间）</td><td style="padding:2px 4px">空仓也是仓位，按区间上下沿高抛低吸或观望</td></tr>
 </table></td></tr>`);
-  rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
+  const _lk94=BIAS.locked?`<span style="color:var(--faint);font-size:11px">〔n94 定调锁定：现票箱读数${BIAS.rawSide}（净差${BIAS.net>0?'+':''}${BIAS.net}），反向净差≥2才翻面〕</span>　`:'';
+  rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　${_lk94}<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
   /* n80: 日内实时盘面与总纲相反的透明提示——总纲票箱含收盘口径票（多周期/动量过滤吃前日收盘数据，滞后实时），
      日内实时（现价 vs 当日均价VWAP）与总纲相反时如实亮出来，两个口径都对，给处置预案而非静默矛盾 */
   (function(){
@@ -4438,8 +4457,8 @@ function sigSnapshot(A){
       else if(R&&R.pass&&(gr==='A'||gr==='B')){ dir=R.side; src='盈亏比达标'; }
     }
     let bd=null;
-    if(BIAS.side==='偏多'||BIAS.side==='略偏多') bd='多';
-    else if(BIAS.side==='偏空'||BIAS.side==='略偏空') bd='空';
+    if(BIAS.side==='偏多') bd='多';   /* n94: 档位简化后仅三档，略偏档已并入 */
+    else if(BIAS.side==='偏空') bd='空';
     const key=(dir||'-')+'|'+(src||'-')+'|'+(bd||'-')+'|'+gr+'|'+(A.veto.length?'V':'-');
     const now=Date.now();
     const px=+S.live.price.toFixed(0);
