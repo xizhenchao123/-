@@ -26,7 +26,7 @@
 <!-- n22: 盘面残影修复：draw()改全背板清除（容器尺寸漂移后旧布局残留区外与当前布局叠加的bug）；移动端K线卡取消吸顶（不再滑入粘性header下方）+画布固定高430px杜绝尺寸漂移；window resize联动重排 -->
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
-<!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差取号偏多/偏空、0中性（n94 简化，原±1略偏档并入）；n94: 盘中滞回锁定（当日首次定调即锁，LS biasLock），消除盘中略偏空↔略偏多来回跳；n94b: 放宽为反向净差≥1且持续≥15分钟才翻面（防僵化+去抖）；不新增计算指标只做加总；存档镜像qual带【今日X】前缀 -->
+<!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差取号偏多/偏空、0中性（n94 简化，原±1略偏档并入）；n94: 盘中滞回锁定（当日首次定调即锁，LS biasLock），消除盘中略偏空↔略偏多来回跳；n94b: 放宽为反向净差≥1且持续≥15分钟才翻面（防僵化+去抖）；不新增计算指标只做加总；存档镜像qual带【今日X】前缀；n94c: 量仓票三修（A横盘区间位置闸门防缓跌误读吸筹/B行为窗口仅今日bar/C对冲15分钟解锁） -->
 <!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 --><!-- n33: n32审查加固：sigSnapshot空catch补console.warn（写入失败不再静默）+快照价isFinite守卫（NaN/0不入库污染统计） --><!-- n34: 复盘驱动四改：①动量过滤3日累计≥1.5%备用通道（连续小阴小阳单日擦边不再漏单边，×1权重降级）②S1破位跟进态（昨收破近5日低+反抽未收复→降权顺势）③对账卡日振幅对比（有信号日vs纯观望日，检验弃权代价）④横幅中性时明示多空对冲票数；标题去"手机离线版"（实为在线降级混合架构） --><!-- n35: n34审查修文案口径：①票箱降权通道误标"回测核心edge"→按momSrc分叉"扩样假设降级/回测核心edge" ②策略卡"破位跟进"与n23突破跟进撞词改"入场区"+降权通道qualNote不再称"顺势日（回测S1口径）"（等待触发分支同修） ③弃权文案cum3缺失改"3日累计数据不足"（不再断言未达标） --><!-- n36: renderStrategy 包 try/catch，崩溃时错误写入顶部横幅现场可见（早盘横幅+行情定性同时缺失定位用） -->
 <style>
 :root{
@@ -2493,16 +2493,32 @@ function wyckoff(m5, live, fb){
   const oiDeltaPct = live.oiDelta!=null && live.prevOI ? live.oiDelta/live.prevOI*100 : null;
   let oiState='持仓平稳';
   if(oiDeltaPct!=null){ if(oiDeltaPct>1.5) oiState='快速增仓'; else if(oiDeltaPct<-1.5) oiState='快速减仓'; }
-  /* 四类资金行为（规则估算） */
-  const lastC=m5[n-1].c, refC=m5[Math.max(0,n-31)].c;
-  const drift=(lastC-refC)/Math.max(1,a5*6);
+  /* 四类资金行为（规则估算）。n94c 修复量仓票两处误判源：
+     A 横盘闸门加区间位置校验——近31根今日窗口内价格贴上/下沿（≥70%或≤30%）时不再判横盘，直接按方向分支
+       （修复增仓缓跌被|drift|<0.5误吞成「吸筹」的威科夫语义反转：11-26上午高开3196阴跌至3153、仓增1.36万手，却因窗口内净跌不足阈值读成「横盘+增仓=吸筹倾向」投偏多票）；
+     B 行为窗口改「仅今日bar」——跨日窗口在开盘段被昨日尾盘bar污染（昨日减仓拉升尾喂今日偏多票），今日<8根时量仓票弃权（开盘积累中） */
+  const _tdw=bjStr(bj());
+  const tds=m5.filter(b=>bjStr(new Date(b.t))===_tdw);
   let behavior='--', behNote='';
-  if(Math.abs(drift)<0.5 && intraOI>0){ behavior='吸筹倾向'; behNote='横盘+持仓增加'; }
-  else if(Math.abs(drift)<0.5 && intraOI<0){ behavior='派发倾向'; behNote='横盘+持仓减少'; }
-  else if(drift>0 && intraOI>0){ behavior='拉升行为'; behNote='价涨+增仓'; }
-  else if(drift>0 && intraOI<0){ behavior='空头回补'; behNote='价涨+减仓'; }
-  else if(drift<0 && intraOI>0){ behavior='砸盘行为'; behNote='价跌+增仓'; }
-  else if(drift<0 && intraOI<0){ behavior='多头离场'; behNote='价跌+减仓'; }
+  if(tds.length<8){ behavior='--'; behNote='开盘积累中（今日不足8根）'; }
+  else{
+    const bseg=tds.slice(-31);
+    const lastC=bseg[bseg.length-1].c, refC=bseg[0].c;
+    const drift=(lastC-refC)/Math.max(1,a5*6);
+    const wHi=Math.max.apply(null,bseg.map(b=>b.h)), wLo=Math.min.apply(null,bseg.map(b=>b.l));
+    const pos=(lastC-wLo)/Math.max(1,wHi-wLo);
+    const oisT=tds.slice(-13).map(b=>b.oi).filter(x=>x>0);
+    const inOI=oisT.length>=2?oisT[oisT.length-1]-oisT[0]:intraOI;
+    const dir=pos>=0.7?'up':(pos<=0.3?'down':(Math.abs(drift)<0.5?null:(drift>0?'up':'down')));
+    if(dir===null&&inOI>30){ behavior='吸筹倾向'; behNote='横盘+持仓增加（区间位置'+Math.round(pos*100)+'%）'; }
+    else if(dir===null&&inOI<-30){ behavior='派发倾向'; behNote='横盘+持仓减少（区间位置'+Math.round(pos*100)+'%）'; }
+    else if(dir===null){ behavior='横盘整理'; behNote='横盘+持仓平稳'; }
+    else if(dir==='up'&&inOI>0){ behavior='拉升行为'; behNote='价涨+增仓'; }
+    else if(dir==='up'&&inOI<0){ behavior='空头回补'; behNote='价涨+减仓'; }
+    else if(dir==='down'&&inOI>0){ behavior='砸盘行为'; behNote='价跌+增仓（区间位置'+Math.round(pos*100)+'%）'; }
+    else if(dir==='down'&&inOI<0){ behavior='多头离场'; behNote='价跌+减仓'; }
+    else { behavior='横盘整理'; behNote='方向未走出+持仓平稳'; }
+  }
   return {supplyDemand,events:events.slice(-8),effortNoResult,effortBar,realDrive,noResN,fbCountNear,oiState,intraOI,oiDeltaPct,behavior,behNote,actBuyV,actSellV,actRatio,activeSide,washFlag,washN,washNote};
 }
 
@@ -3115,7 +3131,7 @@ function biasSummary(A,BP){
   /* n94: 「今日」定调稳定化（用户反馈：盘中「略偏空↔略偏多」来回跳造成困扰，要求直接给今日大概方向）——
      ①档位简化：偏多/偏空/中性震荡三档直答（原±1略偏档并入，强弱细节仍由票数标签+票箱明细披露）；
      ②盘中滞回锁定：9:00-15:00（含午休）当日首次有效定调即锁定（LS biasLock={d,side}），
-       反向净差≥1且持续≥15分钟才翻面（n94b 放宽+去抖）；对冲维持定调（票箱读数与n80口径差提示照常实时）；
+       反向净差≥1且持续≥15分钟才翻面（n94b 放宽+去抖）；对冲（净差0）持续15分钟解锁为中性震荡（n94c，不再焊死旧定调；计时期间仍显示锁定定调，票箱读数与n80口径差提示照常实时）；
        15:00后/次日直接用现算终值并重新定调。 */
   const rawSide= net>0?'偏多':(net<0?'偏空':'中性震荡');
   const _td94=bjStr(bj()), _hm94=bjDateHM(bj());
@@ -3133,9 +3149,17 @@ function biasSummary(A,BP){
         if(_lk.cand!==_opp){ _lk.cand=_opp; _lk.ts=_now; LS.set('biasLock',_lk); }
         else if(_now-(_lk.ts||0)>=15*60*1000){ side=rawSide; _lk.side=rawSide; _lk.cand=null; LS.set('biasLock',_lk); }
         else { side=_lk.side; locked=true; }   /* n94b: 反向证据未满15分钟：维持定调并继续计时 */
+      } else if(_rd===0){
+        /* n94c: 对冲解锁——锁定后票箱转中性（对冲）持续≥15分钟 → 显示回中性震荡，不再焊死旧定调
+           （11-26教训：早盘错误定调锁死后，票箱转对冲仍全天显示旧方向；对冲=票箱证据已不再支持原定调）。
+           复用 cand 通道存 'N'；计时期间仍显示锁定定调（locked=true） */
+        const _now=Date.now();
+        if(_lk.cand!=='N'){ _lk.cand='N'; _lk.ts=_now; LS.set('biasLock',_lk); }
+        else if(_now-(_lk.ts||0)>=15*60*1000){ side='中性震荡'; _lk.side=null; _lk.cand=null; LS.set('biasLock',_lk); }
+        else { side=_lk.side; locked=true; }
       } else {
-        if(_lk.cand){ _lk.cand=null; LS.set('biasLock',_lk); }   /* n94b: 反向证据消失或对冲：去抖计时作废 */
-        if(_rd!==_ld){ side=_lk.side; locked=true; }   /* n94: 对冲（净差0）维持今日定调 */
+        if(_lk.cand){ _lk.cand=null; LS.set('biasLock',_lk); }   /* n94b: 反向证据消失（回到同向）：去抖计时作废 */
+        if(_rd!==_ld){ side=_lk.side; locked=true; }   /* n94: 同向读数维持锁定显示 */
       }
     } else if(rawSide!=='中性震荡'){ _lk.side=rawSide; _lk.cand=null; LS.set('biasLock',_lk); }   /* n94: 当日首次定调即锁定 */
   }
@@ -3688,7 +3712,7 @@ function renderPanels(){
   $('wytag').textContent=wy.behavior;
   const sdCls=wy.supplyDemand==='需求占优'?'demand':(wy.supplyDemand==='供应占优'?'supply':'neutral');
   $('wyBody').innerHTML=
-   `<span class="pill ${sdCls}">${wy.supplyDemand}</span> <span class="pill oi">${wy.oiState}${L.oiDelta!=null?'（全日仓差 '+((L.oiDelta>0?'+':'')+fmtN(L.oiDelta))+'手）':''}</span> <span class="pill ${wy.behavior.includes('砸')||wy.behavior.includes('派')?'supply':'neutral'}">${wy.behavior}${wy.behNote?'（近12根5m口径：'+wy.behNote+'）':''}</span>`+
+   `<span class="pill ${sdCls}">${wy.supplyDemand}</span> <span class="pill oi">${wy.oiState}${L.oiDelta!=null?'（全日仓差 '+((L.oiDelta>0?'+':'')+fmtN(L.oiDelta))+'手）':''}</span> <span class="pill ${wy.behavior.includes('砸')||wy.behavior.includes('派')?'supply':'neutral'}">${wy.behavior}${wy.behNote?'（今日bar口径：'+wy.behNote+'）':''}</span>`+
    (wy.effortNoResult?`<br><span class="pill wide">⚠ 努力与结果背离：巨量滞涨，力量衰竭</span>`:'')+
    `<br><span class="pill ${wy.activeSide==='主动买盘'?'demand':(wy.activeSide==='主动卖盘'?'supply':(wy.activeSide==='主动盘缺位'?'supply':'neutral'))}">主动盘（近30根）：${wy.activeSide} ${Math.round((wy.actRatio||0)*100)}%</span>`+
    (wy.washFlag?`<br><span class="pill wide supply">⚠ 对倒假放量×${wy.washN}${wy.washNote?'：'+wy.washNote:''}——总量大而主动盘缺位</span>`:'')+
@@ -4190,7 +4214,7 @@ function renderStrategyInner(){
 <tr><td style="padding:2px 4px;color:var(--risk)">锚与票箱反向（逆·警惕）</td><td style="padding:2px 4px">不碰，或大幅降仓+严格短线止损，勿扛单</td></tr>
 <tr><td style="padding:2px 4px;color:var(--dim)">都中性 / 混乱（横·区间）</td><td style="padding:2px 4px">空仓也是仓位，按区间上下沿高抛低吸或观望</td></tr>
 </table></td></tr>`);
-  const _lk94=BIAS.locked?`<span style="color:var(--faint);font-size:11px">〔n94 定调锁定：现票箱读数${BIAS.rawSide}（净差${BIAS.net>0?'+':''}${BIAS.net}），反向净差≥1持续15分钟才翻面〕</span>　`:'';
+  const _lk94=BIAS.locked?`<span style="color:var(--faint);font-size:11px">〔n94 定调锁定：现票箱读数${BIAS.rawSide}（净差${BIAS.net>0?'+':''}${BIAS.net}），反向或对冲持续15分钟才改判（n94c）〕</span>　`:'';
   rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　${_lk94}<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
   /* n80: 日内实时盘面与总纲相反的透明提示——总纲票箱含收盘口径票（多周期/动量过滤吃前日收盘数据，滞后实时），
      日内实时（现价 vs 当日均价VWAP）与总纲相反时如实亮出来，两个口径都对，给处置预案而非静默矛盾 */
