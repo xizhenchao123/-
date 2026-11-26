@@ -26,7 +26,7 @@
 <!-- n22: 盘面残影修复：draw()改全背板清除（容器尺寸漂移后旧布局残留区外与当前布局叠加的bug）；移动端K线卡取消吸顶（不再滑入粘性header下方）+画布固定高430px杜绝尺寸漂移；window resize联动重排 -->
 <!-- n23: AI策略输出去摆设化：新增日内顺势破位跟进口径（回测S1打法——前日|涨跌|≥0.5%方向过滤+触发位±0.3×ATR跟进区+TP1.2×ATR/SL1.5×ATR+45m时间止损/14:15停新仓/大阳未高开降级），区间等待态改为"等待突破触发"预案；不新增打分计算、不改评级/一票否决 -->
 <!-- n24: 策略卡审查修复：①删空头侧开盘降级（回测大阴+不低开=最优分支+6.23，原逻辑反向误伤）②新增过冲态（价格越过跟进区→"已突破跟进区·不追单"，替代误导性"等待触发"）③盈亏比硬警告条三分流（顺势接管撤红条/等待态黄色衔接/非顺势保留），存档镜像同步五态口径 -->
-<!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差取号偏多/偏空、0中性（n94 简化，原±1略偏档并入）；n94: 盘中滞回锁定（当日首次定调即锁，LS biasLock），消除盘中略偏空↔略偏多来回跳；n94b: 放宽为反向净差≥1且持续≥15分钟才翻面（防僵化+去抖）；不新增计算指标只做加总；存档镜像qual带【今日X】前缀；n94c: 量仓票三修（A横盘区间位置闸门防缓跌误读吸筹/B行为窗口仅今日bar/C对冲15分钟解锁） -->
+<!-- n25: 方向总纲：策略卡顶部新增"今日偏多/偏空/中性"汇总信号——biasSummary透明票箱（多周期共振1票+威科夫量仓1票+现货供需1票+动量方向过滤2票），净差取号偏多/偏空、0中性（n94 简化，原±1略偏档并入）；n94: 盘中滞回锁定（当日首次定调即锁，LS biasLock），消除盘中略偏空↔略偏多来回跳；n94b: 放宽为反向净差≥1且持续≥15分钟才翻面（防僵化+去抖）；不新增计算指标只做加总；存档镜像qual带【今日X】前缀；n94c: 量仓票三修（A横盘区间位置闸门防缓跌误读吸筹/B行为窗口仅今日bar/C对冲15分钟解锁）；n95: 开盘一小时暂定总纲——今日前15根5m bar三条件（净漂移≥±1.0×ATR5+累计仓差≥0.5%OI+贴沿≥70%/≤30%）凑齐→「暂定X·量仓先行·待确认」，仅正式定调前的中性段显示、不参与锁定、增仓组合才给方向（§178建议1） -->
 <!-- n27: 方向总纲置顶横幅：多/空信号汇总卡提到页面最顶部（main外，移动端全Tab常显），复用biasSummary同一票箱对象与策略卡同帧更新（零口径差），无数据时自动隐藏；量化参考非预测非指令 --><!-- n28: 修复n27横幅只写内容不显示的bug（有数据分支补bb.style.display=''） --><!-- n29: P0推送包陈旧判定降级浏览器取数+分析口径红条；P1残缺行情chip守卫+非当日不算涨跌幅；P2鸡蛋时段切分inSession --><!-- n30: 修复备源日线d=0——toBars补t直读通道+oi字段名兼容（normalizeRaw→toBars契约断裂） --><!-- n31: 修复wyckoff对倒假放量z跨作用域ReferenceError（新鲜数据触发后analyze整体异常，S.A恒null） --><!-- n32: ①信号对账：系统信号自动快照(状态变化才存+30分钟检查点)+当日收盘/+45分钟双时点对赌+分组命中率/期望统计卡(纯本机localStorage) ②stalebox拆双时间戳(日线截至X/5分钟截至Y) ③陈旧态评级卡整组降透明度+「非实时」角标 --><!-- n33: n32审查加固：sigSnapshot空catch补console.warn（写入失败不再静默）+快照价isFinite守卫（NaN/0不入库污染统计） --><!-- n34: 复盘驱动四改：①动量过滤3日累计≥1.5%备用通道（连续小阴小阳单日擦边不再漏单边，×1权重降级）②S1破位跟进态（昨收破近5日低+反抽未收复→降权顺势）③对账卡日振幅对比（有信号日vs纯观望日，检验弃权代价）④横幅中性时明示多空对冲票数；标题去"手机离线版"（实为在线降级混合架构） --><!-- n35: n34审查修文案口径：①票箱降权通道误标"回测核心edge"→按momSrc分叉"扩样假设降级/回测核心edge" ②策略卡"破位跟进"与n23突破跟进撞词改"入场区"+降权通道qualNote不再称"顺势日（回测S1口径）"（等待触发分支同修） ③弃权文案cum3缺失改"3日累计数据不足"（不再断言未达标） --><!-- n36: renderStrategy 包 try/catch，崩溃时错误写入顶部横幅现场可见（早盘横幅+行情定性同时缺失定位用） -->
 <style>
 :root{
@@ -3163,6 +3163,37 @@ function biasSummary(A,BP){
       }
     } else if(rawSide!=='中性震荡'){ _lk.side=rawSide; _lk.cand=null; LS.set('biasLock',_lk); }   /* n94: 当日首次定调即锁定 */
   }
+  /* n95: 开盘一小时暂定总纲（2026-11-26收盘复盘§178建议，用户拍板上线）——方向总纲前瞻性：
+     首小时三条件（净漂移方向+累计仓差≥0.5%OI+贴区间沿）凑齐时，在正式定调出现前先给「暂定X·量仓先行·待确认」。
+     ①窗口=今日前15根5m bar（固定窗口不重绘）；②仅盘中(9:00-15:00)且未锁定且rawSide中性震荡时显示，正式定调出现后自动让位（n94锁语义不动）；
+     ③暂定票不参与净差/锁定（不等共振、也不干扰共振）；④仅增仓组合给方向（价跌+增仓+贴下沿→暂定偏空/价涨+增仓+贴上沿→暂定偏多，
+     减仓属离场/回补性质不给暂定方向）；⑤失效条件=反向三条件成立、正式定调出现、跨日窗口重置；⑥分钟OI缺失（EM备源无每bar持仓）时弃权。
+     红线不变：暂定方向=首小时量仓现状描述（谁在主动），非涨跌预测。 */
+  out.prov=null;
+  if(_hm94>=900&&_hm94<=1500&&!locked&&rawSide==='中性震荡'){
+    const _m5s=(S.bars&&S.bars.m5)?S.bars.m5:[];
+    const _tds95=_m5s.filter(b=>bjStr(new Date(b.t))===_td94);
+    if(_tds95.length>=15&&_tds95[0].oi>0&&_tds95[14].oi>0){
+      const _w95=_tds95.slice(0,15);
+      const _idx95=_m5s.indexOf(_w95[0]);
+      const _prev95=(_idx95>0)?_m5s[_idx95-1]:null;
+      const _oiBase=(_prev95&&_prev95.oi>0)?_prev95.oi:_w95[0].oi;
+      const _dOI=_w95[14].oi-_oiBase;
+      const _drift=_w95[14].c-_w95[0].o;
+      const _trA=[];
+      for(let i=Math.max(1,_m5s.length-14);i<_m5s.length;i++){const b=_m5s[i],pb=_m5s[i-1];_trA.push(Math.max(b.h-b.l,Math.abs(b.h-pb.c),Math.abs(b.l-pb.c)));}
+      const _a5=_trA.length?_trA.reduce((s,x)=>s+x,0)/_trA.length:0;
+      const _wHi=Math.max.apply(null,_w95.map(b=>b.h)),_wLo=Math.min.apply(null,_w95.map(b=>b.l));
+      const _pos=_wHi>_wLo?(_w95[14].c-_wLo)/(_wHi-_wLo):0.5;
+      const _oiPct=_oiBase>0?_dOI/_oiBase:0;
+      if(_dOI>=_oiBase*0.005&&_drift<=-_a5&&_pos<=0.3){
+        out.prov={side:'暂定偏空',note:'价跌+增仓+贴下沿（首小时量仓口径）',drift:_drift,dOI:_dOI,oiPct:_oiPct,pos:_pos,a5:_a5};
+      } else if(_dOI>=_oiBase*0.005&&_drift>=_a5&&_pos>=0.7){
+        out.prov={side:'暂定偏多',note:'价涨+增仓+贴上沿（首小时量仓口径）',drift:_drift,dOI:_dOI,oiPct:_oiPct,pos:_pos,a5:_a5};
+      }
+    }
+  }
+  if(out.prov){ side=out.prov.side; }
   out.side=side; out.rawSide=rawSide; out.net=net; out.locked=locked;
   return out;
 }
@@ -4216,6 +4247,11 @@ function renderStrategyInner(){
 </table></td></tr>`);
   const _lk94=BIAS.locked?`<span style="color:var(--faint);font-size:11px">〔n94 定调锁定：现票箱读数${BIAS.rawSide}（净差${BIAS.net>0?'+':''}${BIAS.net}），反向或对冲持续15分钟才改判（n94c）〕</span>　`:'';
   rows.push(`<tr><td><b>🎯 方向总纲</b></td><td><b style="color:${bCls};font-size:13px">今日${BIAS.side}</b>　${_lk94}<span class="tag">多 ${BIAS.long} 票</span><span class="tag">空 ${BIAS.short} 票</span>　<span style="color:var(--faint);font-size:11px">${BIAS.votes.map(v=>'『'+v[0]+'』'+esc(v[1])).join('；')}</span><br><span style="color:var(--faint)">方向倾向=既有信号的透明加总（量化参考，非预测非指令）；能否开仓仍以下方行情定性+一票否决为准。</span></td></tr>`);
+  /* n95: 暂定总纲明细——量仓先行票的证据与失效说明（首小时现状描述，非预测；正式定调出现后自动让位） */
+  if(BIAS.prov){
+    const _p95=BIAS.prov;
+    rows.push(`<tr><td><b>⚡ 暂定总纲（n95）</b></td><td><b style="color:${_p95.side.indexOf('偏多')>=0?C.up:C.dn};font-size:13px">${_p95.side}·量仓先行·待确认</b>　<span style="color:var(--faint);font-size:11px">证据（今日前15根5m bar固定窗口）：净漂移${_p95.drift>0?'+':''}${_p95.drift.toFixed(0)}点（阈值±1.0×ATR5≈±${_p95.a5.toFixed(0)}）｜累计仓差${_p95.dOI>0?'+':''}${_p95.dOI.toFixed(0)}手（${(_p95.oiPct*100).toFixed(1)}%≥0.5%）｜区间位置${Math.round(_p95.pos*100)}%${_p95.pos<=0.3?'（贴下沿）':'（贴上沿）'}。${esc(_p95.note)}——首小时三条件凑齐即提前给方向，不等破位确认；正式定调出现后本票自动让位，不参与锁定。方向=首小时主动方现状描述，非涨跌预测。</span></td></tr>`);
+  }
   /* n80: 日内实时盘面与总纲相反的透明提示——总纲票箱含收盘口径票（多周期/动量过滤吃前日收盘数据，滞后实时），
      日内实时（现价 vs 当日均价VWAP）与总纲相反时如实亮出来，两个口径都对，给处置预案而非静默矛盾 */
   (function(){
