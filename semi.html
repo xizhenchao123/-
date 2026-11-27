@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- n52: CSP meta（GitHub Pages 无法配 HTTP 头）——script 仅本域+新浪JSONP+jsDelivr；connect 限自建源与行情域；img/style/data: 默认放行需覆盖 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://stock2.finance.sina.com.cn; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
+<!-- n52: CSP meta（GitHub Pages 无法配 HTTP 头）——script 仅本域+新浪JSONP+jsDelivr+n97增东财push2his JSONP兜底；connect 限自建源与行情域；img/style/data: 默认放行需覆盖 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://stock2.finance.sina.com.cn https://push2his.eastmoney.com; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
 <title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分）；n56: 仓单快照（基差助手块内增仓单行：DCE厂库标准仓单日更WRSNAP，零仓单/注册/注销状态+临近交割月供给压力预警提示，只读不进打分） -->
 <!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
 <!-- n87: 对账卡口径注记——三项判定全部页面自算（当日5m+已收日线独立重算），与TDX等外部源互证时的数字差异（如开盘区间r值0.49 vs 0.60）属bar集与ATR细节口径差，不改判定方向，机械判定一律以页面自算为准 -->
@@ -14,6 +14,7 @@
 <!-- n91: ①现货票缺数据 N/A+分母归一化（四票变三票，按75满分归一化百分制，替代保底12虚增）②journal每日自动导出提醒（复用n54a _bkExport，每日首次打开提醒一次，bkRemind 记当日日期）（2026-11-24 评审P1两项采纳） -->
 <!-- n90: ①假突破否决阈值 ×1→≥2（2026-11-24 评审采纳：震荡日单次假突破属常态，×1即否决会系统性建议观望；单次降级为异动观察级提示[原anomalyE已有]，同一方向≥2次或合计≥3次才触发否决）②一票否决/连亏锁仓/D级时不再生成候选入场/止损/目标具体价位（红线：不视为交易机会就不给可执行参数，仅保留多/空R值方向参考；评级A-C时照常输出） -->
 <!-- n89: ①合约代际锁 S.gen——applyContract/rolloverToNext 清旧数据后 gen+1，fetchAllKlines/fetchEMTick/fetchDominance/emRescueKlines/fetchCustomKlines 五处在途写回前校验代际，旧合约晚到响应整包丢弃（修复：切换后选择器已是新合约、面板数字仍是旧合约的竞态串位）；rolloverToNext 补 n88c 排队锁+busy.switch 包裹。②看门狗横幅四态 reconcile（切换灰>休市灰>全失效红>备线补齐琥珀>无）：红条只在K线+实时价全失效时出现；新浪停更但东财秒级价正常降级为琥珀条、备线补齐后自动消失，不再红条常驻；顺带修复休市灰条滞留（原实现灰条样式/文案只写一次不更新） -->
+<!-- n97: 切换串位+琥珀横条常驻双修（2026-11-27 用户手机实测）——①emRescueKlines 判定漏洞（refD 取 m5 末根本身日期：m5 全空时 refD=null 三路全 false→救援永久跳过→横条永不消失；m5 整体落后时 refD=旧日期 stale5 恒 false 同样跳过）：基准改今日+tick停上日门槛②emKline 加 cb-JSONP 二级兜底+CSP script-src 放行 push2his③applyContract/rolloverToNext 排队等待 12s→30s（新浪被拦设备 fullCycle 单轮可超12s，点选被拒=下拉已跳而数据仍旧合约的串位窗口）④等待期 pendSwitch 灰条标注目标合约、琥珀横条标注当前加载合约⑤主力易主条「暂不」改 LS 当日持久化 -->
 <!-- n86: 对账卡呈现歧义修复——11-20中性日无✓被误读为漏计：状态列ok==null显式加「·不判」后缀、汇总chip动态追加「·中性N」计数（ok!=null才计入状态兑现分母为n84设计口径，中性日无兑现概念） -->
 <!-- n85: 产业对照卡（只读参考层）——会后产业清单结构化归档：中长线偏空前提/转多必要条件/关键点位（JD2701例·强压力3278套保密集区·不猜底·不赌极端基差）/风险预警4条/策略适配4场景/风控纪律4条，信心指数7/10来源标注；静态details默认收起、零JS零localStorage，不参与打分/评级/翻面线/判定对账任何自动判定；配套B项：每晚复盘人工过一遍预警条款（C项量化探针=远月OI序列+基差，排在现货打分之后） -->
 <!-- n84: 判定对账卡——每日收盘自动重算三项机械判定（动量票延续/翻面线兑现/开盘30分状态标签）并与实际行情核销，LS键auditLog保留120条，与sigCard分工（那边对赌评级/方向信号快照，本卡核销机械判定兑现与否）；附n84分状态回测注记：宽开盘日(区间宽≥0.45×ATR)追破位期望-6.1点/笔(57样本,10/13合约负)不追突破、震荡日区间反转正期望集中2/13合约不稳健不采纳、θ=0.45维持 -->
@@ -1867,7 +1868,7 @@ function showMainBar(msg){
   el.dataset.auto='';
   el.innerHTML=msg; el.style.display='block';
   const g=$('mainbarGo'); if(g) g.onclick=async()=>{ el.style.display='none'; await applyContract(g.dataset.to,'mainbar'); };
-  const n=$('mainbarNo'); if(n) n.onclick=()=>{ const m=mainOf(S.cmap&&S.cmap.list); S.mainbarSnooze=m?m.code:''; el.style.display='none'; };   /* n88c: 记「暂不」的合约，本会话不再重复弹 */
+  const n=$('mainbarNo'); if(n) n.onclick=()=>{ const m=mainOf(S.cmap&&S.cmap.list); S.mainbarSnooze=m?m.code:''; if(m) LS.set('mainbarSnooze',{code:m.code,day:bjStr(bj())}); el.style.display='none'; };   /* n97: 「暂不」改 LS 当日持久化（原仅会话级，刷新即重弹）；次日或换新主力重新提示 */
 }
 function showAutoFollowToast(from,to){
   const el=$('mainbar'); if(!el) return;
@@ -1879,7 +1880,9 @@ function showAutoFollowToast(from,to){
 function mainBarRecheck(){
   const main=mainOf(S.cmap&&S.cmap.list); if(!main) return;
   if(main.code===S.contract){ const el=$('mainbar'); if(el&&el.dataset.auto!=='1') el.style.display='none'; return; }
-  /* n88c: 用户已对同一主力点过「暂不」→ 本会话不再重复弹（换新主力才再弹；刷新页面重置） */
+  /* n97: 「暂不」当日有效（LS 持久化跨刷新）；次日或换新主力重新提示。S.mainbarSnooze 保留为 LS 异常时的会话级兜底 */
+  const _snz=LS.get('mainbarSnooze',null);
+  if(_snz&&_snz.day===bjStr(bj())&&_snz.code===main.code) return;
   if(S.mainbarSnooze===main.code) return;
   const cur=(S.cmap.list.find(x=>x.code===S.contract))||null;
   const mode=LS.get('contractMode','auto');
@@ -1949,7 +1952,7 @@ async function rolloverToNext(){
   if(!confirm('确认一键换月？\n\n'+oldC+' → '+nx+'\n\n将执行：\n① 切换合约并重载全部K线与分析\n② 旧合约 '+oldC+' 记入台账封存日志\n③ 趋势锚一致性检查（方向一致自动延续）')) return;
   /* n89: n88c 同款排队锁——fullCycle 进行中先等待，防「已清态、fullCycle busy-return 不加载」 */
   let _w=0;
-  while((S.busy.cycle||S.busy.switch)&&_w<80){ await new Promise(r=>setTimeout(r,150)); _w++; }
+  while((S.busy.cycle||S.busy.switch)&&_w<200){ await new Promise(r=>setTimeout(r,150)); _w++; }   /* n97: 等待上限 12s→30s，同 applyContract（新浪被拦设备 fullCycle 单轮可超 12s） */
   if(S.busy.cycle||S.busy.switch){ console.warn('[n89] 一键换月等待加载超时，放弃'); return; }
   const oldAnchor=trendAnchor();
   const oldDir=oldAnchor?oldAnchor.dir:null;
@@ -1982,43 +1985,71 @@ async function applyContract(v){
   if(!/^[A-Z]{1,2}\d{4}$/.test(v)||expiredContract(v)) return false;
   /* n88c: 排队锁——上一轮 fullCycle（busy.cycle）或切换（busy.switch）未完时先等待。
      背景：n73 的 fullCycle 在 busy 时直接 return（防 K线数据竞态串位），若 applyContract 不等
-     就清态/改合约，会出现「合约已切、数据未载」甚至 A/B 两合约数据串位。等待上限 12 秒（80×150ms）。 */
+     就清态/改合约，会出现「合约已切、数据未载」甚至 A/B 两合约数据串位。
+     n97: ①等待上限 12s→30s（200×150ms）——新浪被拦设备 fullCycle 单轮可达 15s+（fetchM1/fetchAllKlines
+     逐级超时+备源救援），12s 窗口内点选新合约会被拒：下拉已跳新合约、面板数据仍是旧合约（串位误读根因）。
+     ②等待期 S.pendSwitch 置位 → 看门狗灰条亮「切换加载中（目标合约）」，UI 不再静默窗口。 */
+  S.pendSwitch=v;
   let _w=0;
-  while((S.busy.cycle||S.busy.switch)&&_w<80){ await new Promise(r=>setTimeout(r,150)); _w++; }
-  if(S.busy.cycle||S.busy.switch){ console.warn('[n88c] 合约切换 '+v+' 等待加载超时，放弃'); return false; }
-  S.busy.switch=true;
   try{
-    if(v===S.contract){ renderContractSel(); return true; }
-    const oldC=S.contract;
-    S.contract=v; LS.set('contract',v);
-    S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null; S.dom=null;
-    S.emTick=null; S.emLimit=null;   /* 清旧合约残留tick与停板价（n64f修复#9 同款） */
-    S.gen=(S.gen||0)+1;   /* n89: 代际+1，旧合约在途异步响应写回一律作废 */
-    $('contract').value=v;
-    fetchRankAuto(); scheduleRank();   /* n73 同款：换合约立即重抓排行 */
-    renderContractSel();
-    await fullCycle();
-    console.log('[n88] 合约切换 '+oldC+' → '+v);
-    return true;
-  }finally{ S.busy.switch=false; }
+    while((S.busy.cycle||S.busy.switch)&&_w<200){ await new Promise(r=>setTimeout(r,150)); _w++; }
+    if(S.busy.cycle||S.busy.switch){ console.warn('[n88c] 合约切换 '+v+' 等待加载超时，放弃'); return false; }
+    S.busy.switch=true;
+    try{
+      if(v===S.contract){ renderContractSel(); return true; }
+      const oldC=S.contract;
+      S.contract=v; LS.set('contract',v);
+      S.bars={m5:[],h1:[],d:[]}; S.m1=[]; S.A=null; S.recap=null; S.dom=null;
+      S.emTick=null; S.emLimit=null;   /* 清旧合约残留tick与停板价（n64f修复#9 同款） */
+      S.gen=(S.gen||0)+1;   /* n89: 代际+1，旧合约在途异步响应写回一律作废 */
+      $('contract').value=v;
+      fetchRankAuto(); scheduleRank();   /* n73 同款：换合约立即重抓排行 */
+      renderContractSel();
+      await fullCycle();
+      console.log('[n88] 合约切换 '+oldC+' → '+v);
+      return true;
+    }finally{ S.busy.switch=false; }
+  }finally{ S.pendSwitch=null; }
+}
+/* n97: push2his cb-JSONP 二级兜底——jd2611.html(1012a) 同款两级通道：部分设备/网络下拉 push2his
+   fetch 被 CORS/拦截，script 注入方式绕过（CSP script-src 已同步放行 push2his）。 */
+function emKlineJsonp(url){
+  return new Promise((resolve,reject)=>{
+    const name='_emk'+(++_sq);
+    const s=document.createElement('script');
+    const to=setTimeout(()=>{ cleanup(); reject(new Error('jsonp timeout')); },9000);
+    function cleanup(){ clearTimeout(to); try{ delete window[name]; }catch(e){ window[name]=undefined; } s.remove(); }
+    window[name]=j=>{ cleanup(); resolve(j); };
+    s.onerror=()=>{ cleanup(); reject(new Error('jsonp error')); };
+    s.src=url+'&cb='+name;
+    document.head.appendChild(s);
+  });
 }
 async function emKline(klt,lmt){
   const url='https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=114.'+S.contract.toLowerCase()
     +'&klt='+klt+'&fqt=0&lmt='+lmt+'&end=20500101&fields1=f1,f2,f3,f4,f5&fields2='+EM_F2;
-  const r=await fetch(url,{cache:'no-store'});
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  const j=await r.json();
+  let j=null;
+  try{
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    j=await r.json();
+  }catch(e){ j=await emKlineJsonp(url); }   /* n97: fetch 失败降级 cb-JSONP，双通道都挂才真正失败 */
   const ks=(j&&j.data&&j.data.klines)||[];
   const raw=ks.map(s=>{const f=s.split(',');return {d:f[0],o:+f[1],c:+f[2],h:+f[3],l:+f[4],v:+f[5],p:+(f[7]||0)};});
   if(!raw.length) throw new Error('empty klines');
   return normalizeRaw(raw);   /* n4 别名通道原生支持 d/o/h/l/c/v/p，复用清洗 */
 }
 async function emRescueKlines(){
-  const refD=S.bars.m5.length?bjStr(new Date(S.bars.m5[S.bars.m5.length-1].t)):null;
+  /* n97 双修：①判定基准改「今日」——原 refD 取 m5 末根本身日期：m5 全空时 refD=null → 三路全判
+     false → 救援永久跳过（顶部琥珀横条常驻不消失的根因）；m5 自身落后（末根=昨日）时 refD=旧日期，
+     stale5 恒 false 同样跳过。②tick 停上日才跳过——非交易日/盘前 futsseapi tick 停在上一交易日，
+     此时拉备源也拿不到今日 bar，直接跳过避免休市日每 60s 空转；tick 未取到不拦（保首开救援）。 */
+  const _today=bjStr(bj());
+  if(S.emTick&&S.emTick.t&&bjStr(new Date(S.emTick.t))!==_today) return;
   const b5=S.bars.m5[S.bars.m5.length-1], bH=S.bars.h1[S.bars.h1.length-1], bD=S.bars.d[S.bars.d.length-1];
-  const stale5=refD?(!b5||bjStr(new Date(b5.t))<refD):false;
-  const staleH=refD?(!bH||bjStr(new Date(bH.t))<refD):false;
-  const staleD=refD?(!bD||bjStr(new Date(bD.t))<refD):false;
+  const stale5=!b5||bjStr(new Date(b5.t))<_today;
+  const staleH=!bH||bjStr(new Date(bH.t))<_today;
+  const staleD=!bD||bjStr(new Date(bD.t))<_today;
   if(!stale5&&!staleH&&!staleD) return;
   const _g=S.gen||0;   /* n89: 代际锁——备源在途时切合约则旧合约K线丢弃 */
   try{
@@ -2084,14 +2115,16 @@ function watchdog(){
     _wd.textContent=txt; _wd.style.cssText=css;
   };
   const _cssWd='position:fixed;left:0;right:0;top:0;z-index:9999;font-size:12px;padding:6px 10px;text-align:center';
-  if(S.busy.switch){
-    _wdSwap('⏳ 合约切换加载中——旧合约数据已清空，新合约行情载入后自动恢复', _cssWd+';background:#3a3f4b;color:#cfd4dc');
+  if(S.busy.switch||S.pendSwitch){
+    /* n97: 等待期（pendSwitch）也亮灰条并标注目标合约——原等待期无任何提示：用户已点新合约、
+       面板仍是旧合约数据，被误读成「选了 2703 显示 2702」的串位 */
+    _wdSwap('⏳ 合约切换加载中'+(S.pendSwitch?'（目标 '+esc(S.pendSwitch)+'）':'')+'——载入完成前面板仍显示原合约数据，完成后自动恢复', _cssWd+';background:#3a3f4b;color:#cfd4dc');
   } else if(_closedDay||_preOpen){
     _wdSwap(_closedDay?'休市中（非交易日）——页面显示为最近交易日收盘数据，属正常，非数据故障':'休市中（开盘前）——页面显示为最近交易日收盘数据，属正常，非数据故障', _cssWd+';background:#3a3f4b;color:#cfd4dc');
   } else if(allDead){
     _wdSwap('⚠⚠ 行情数据全部失效（K线+实时价都拉不到）——当前页面正在使用 2026-10-14 内置种子数据，非今日行情，请勿据此交易！检查网络后刷新', _cssWd+';background:#b3261e;color:#fff');
   } else if(stale){
-    _wdSwap('⚠ 5分钟K线暂时落后于实时价——东财备线补齐中，补齐后本条自动消失（秒级实时价不受影响）', _cssWd+';background:#7a5c00;color:#ffe9a8');
+    _wdSwap('⚠ 5分钟K线暂时落后于实时价（当前加载 '+esc(S.contract)+'）——东财备线补齐中，补齐后本条自动消失（秒级实时价不受影响）', _cssWd+';background:#7a5c00;color:#ffe9a8');   /* n97: 标注当前加载合约，防「下拉选A、数据是B」串位误读 */
   } else if(_wd){ _wd.remove(); _wd=null; }
   n39SrcBadge();
 }
