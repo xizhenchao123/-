@@ -7,6 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://stock2.finance.sina.com.cn https://push2his.eastmoney.com; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
 <title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分）；n56: 仓单快照（基差助手块内增仓单行：DCE厂库标准仓单日更WRSNAP，零仓单/注册/注销状态+临近交割月供给压力预警提示，只读不进打分） -->
 <!-- n100: 走势确认门槛+逆转提醒+O3确认器（2026-11-27晚，§185 n99页面层+§184提案2合并落地）：①计划页新增「走势状态」regime徽标（20日收盘箱体口径，箱体内默认震荡观望不出方向票、沿上方=突破候选须增仓+放量+收盘站稳三条件，换月期oiRatio≥0.5门槛再收紧，静态注「箱体期沿边试探73%两日内收回n=81」）；②顶部红色逆转观察横幅（独立#revbar不复用mainbar防被换月检查压制）——早盘前15根5m主动方 vs 近12根，A级=双侧漂移≥1×ATR5m且反向，B级=现价越过早盘极值或早盘末根与现价分居全天VWAP两侧，仓差性质随附（减仓附§175教训句），文案「⚠️该反转观察：原方向证据失效，方向票降级待确认；是否反转以增仓+方向一致+收盘确认为准」，15:00后自动隐去；③O3同步确认器（§184大考达标26/45=58%）：收盘站上前2日高点+OI3日累计增≥3%（基差未自动校验需人工核对），12-01起启用，LS o3Track观察台账+3日后ret3自动回填，只提示不驱动方向；红线不变：全部为现状描述与流程降级机制，非预测非指令 -->
+<!-- n100b: n53复盘修复（2026-11-27夜）：fitnessTrack 快照写入加 isWeekday 守卫，周末不再污染样本（已有4条周末脏数据保留无害，复盘统计时剔除） -->
 <!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
 <!-- n87: 对账卡口径注记——三项判定全部页面自算（当日5m+已收日线独立重算），与TDX等外部源互证时的数字差异（如开盘区间r值0.49 vs 0.60）属bar集与ATR细节口径差，不改判定方向，机械判定一律以页面自算为准 -->
 <!-- n88c: n88 收口修复——①applyContract 排队锁（防 fullCycle busy-return 造成「合约已切数据未载」串位）+ 拒绝时回滚下拉/输入框显示 ②主力易主提示条「暂不」会话内不再重复弹 ③S.contract 启动格式消毒+innerHTML esc ④probeOneC OI≥100手过滤已交割沉淀仓 -->
@@ -4565,6 +4566,7 @@ function renderStrategyInner(){
       /* n53: 适宜度实效跟踪——当日首算快照入 LS fitnessTrack（去重按日期），供攒样本回看过滤实效 */
       try{
         const today=bjStr(bj());
+        if(!isWeekday()) return;   /* n100b: 周末无行情不记快照——11月样本4/22为周末污染（11-07/08、11-14/15），n53复盘修复 */
         let ft=[]; try{ ft=JSON.parse(LS.get('fitnessTrack','[]'))||[]; }catch(e){ ft=[]; }
         if(!ft.some(r=>r.date===today)){ ft.push({date:today,lvl:lvl,prevChg:pc,cum3:(c3!=null&&isFinite(c3))?c3:null}); LS.set('fitnessTrack',JSON.stringify(ft.slice(-90))); }
       }catch(e){}
