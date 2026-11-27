@@ -6,6 +6,7 @@
 <!-- n52: CSP meta（GitHub Pages 无法配 HTTP 头）——script 仅本域+新浪JSONP+jsDelivr+n97增东财push2his JSONP兜底；connect 限自建源与行情域；img/style/data: 默认放行需覆盖 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' https://stock2.finance.sina.com.cn https://push2his.eastmoney.com; connect-src 'self' https: http:; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'">
 <title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分）；n56: 仓单快照（基差助手块内增仓单行：DCE厂库标准仓单日更WRSNAP，零仓单/注册/注销状态+临近交割月供给压力预警提示，只读不进打分） -->
+<!-- n100: 走势确认门槛+逆转提醒+O3确认器（2026-11-27晚，§185 n99页面层+§184提案2合并落地）：①计划页新增「走势状态」regime徽标（20日收盘箱体口径，箱体内默认震荡观望不出方向票、沿上方=突破候选须增仓+放量+收盘站稳三条件，换月期oiRatio≥0.5门槛再收紧，静态注「箱体期沿边试探73%两日内收回n=81」）；②顶部红色逆转观察横幅（独立#revbar不复用mainbar防被换月检查压制）——早盘前15根5m主动方 vs 近12根，A级=双侧漂移≥1×ATR5m且反向，B级=现价越过早盘极值或早盘末根与现价分居全天VWAP两侧，仓差性质随附（减仓附§175教训句），文案「⚠️该反转观察：原方向证据失效，方向票降级待确认；是否反转以增仓+方向一致+收盘确认为准」，15:00后自动隐去；③O3同步确认器（§184大考达标26/45=58%）：收盘站上前2日高点+OI3日累计增≥3%（基差未自动校验需人工核对），12-01起启用，LS o3Track观察台账+3日后ret3自动回填，只提示不驱动方向；红线不变：全部为现状描述与流程降级机制，非预测非指令 -->
 <!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
 <!-- n87: 对账卡口径注记——三项判定全部页面自算（当日5m+已收日线独立重算），与TDX等外部源互证时的数字差异（如开盘区间r值0.49 vs 0.60）属bar集与ATR细节口径差，不改判定方向，机械判定一律以页面自算为准 -->
 <!-- n88c: n88 收口修复——①applyContract 排队锁（防 fullCycle busy-return 造成「合约已切数据未载」串位）+ 拒绝时回滚下拉/输入框显示 ②主力易主提示条「暂不」会话内不再重复弹 ③S.contract 启动格式消毒+innerHTML esc ④probeOneC OI≥100手过滤已交割沉淀仓 -->
@@ -1288,6 +1289,7 @@ window.__TRAE_PUSH_INLINE__={
 <div class="errbox" id="errbox"></div>
 <div class="errbox" id="stalebox" style="display:none;background:rgba(230,162,61,.10);border-color:rgba(230,162,61,.45);color:#f0c896"></div>
 <div class="errbox" id="mainbar" style="display:none;background:rgba(230,162,61,.10);border-color:rgba(230,162,61,.45);color:#f0c896"></div>
+<div class="errbox" id="revbar" style="display:none;background:rgba(255,82,82,.12);border-color:rgba(255,82,82,.55);color:#ffb4a9"></div>
 
 <!-- n27: 方向总纲置顶横幅：多/空信号票箱汇总（复用biasSummary口径，renderStrategy同帧更新） -->
 <div class="card" id="biasBanner" style="display:none;margin:10px 12px 0">
@@ -1940,6 +1942,137 @@ function dominanceTxt(){
   const color=ratio>=2?'#ff8a80':(ratio>=1.2?'#ffc46b':'#4caf50');
   const note=ratio>=2?' ⚠ 主力实质已切换，建议切合约并走换月四件套':(ratio>=1.2?' · 换月临近，留意':'');
   return {ratio,volRatio,color,note,next:d.next};
+}
+/* ===== n100: 走势确认门槛 + 逆转观察横幅 + O3 同步确认器（2026-11-27晚，§185 n99页面层 + §184提案2合并落地） =====
+   §185 取证：JD2701 全历史箱体期沿边试探81次=73%两日内收回；11月箱体段3次上沿试探0次有效。
+   定位：全部为现状描述与流程降级机制，不构成方向预测或开仓指令（红线不变）。
+   口径与 jd_today.js v6 输出字段（regime/reversalWatch）一致，页面与盘中推送同源互证。 */
+function regimeCalc(){
+  const bars=S.bars.d||[];
+  if(bars.length<22) return null;
+  const _hm=bjHM(), _today=bjStr(bj());
+  const closedToday=isWeekday()&&_hm>=1500;
+  const inComp=bjStr(new Date(bars[bars.length-1].t))===_today&&!closedToday;
+  const closed=inComp?bars.slice(0,-1):bars;
+  if(closed.length<21) return null;
+  const w=closed.slice(-20);
+  const hi=Math.max.apply(null,w.map(b=>+b.c)), lo=Math.min.apply(null,w.map(b=>+b.c));
+  const px=(S.live&&S.live.price!=null&&S.live.isToday)?S.live.price:+closed[closed.length-1].c;
+  const pos20=(hi>lo)?Math.round(100*(px-lo)/(hi-lo)):50;
+  const w5=closed.slice(-5);
+  const streak5=w5.length===5&&w5.every(b=>+b.c<=hi&&+b.c>=lo);
+  const state=px>hi?'上沿上方':(px<lo?'下沿下方':'箱体内');
+  const dom=dominanceTxt();
+  const swap=!!(dom&&dom.ratio>=0.5);
+  let gate;
+  if(state==='箱体内') gate='箱体期·默认震荡观望不出方向票（箱体期沿边试探 73% 两日内收回，n=81）；突破候选须增仓+放量+收盘站稳箱体沿三条件确认';
+  else gate='突破候选·待确认：升级方向票须三条件——①增仓②放量③收盘站稳箱体沿不复回，且方向票与增仓方向一致（减仓驱动一律不成票）';
+  if(swap) gate+='；⚠️换月迁移期（次月/当前OI '+dom.ratio.toFixed(2)+'）量仓失真，门槛再收紧一档';
+  return {state,hi,lo,px,pos20,streak5,gate,swap};
+}
+function o3Check(){
+  const bars=S.bars.d||[];
+  if(bars.length<26) return null;
+  const _hm=bjHM(), _today=bjStr(bj());
+  const closedToday=isWeekday()&&_hm>=1500;
+  const inComp=bjStr(new Date(bars[bars.length-1].t))===_today&&!closedToday;
+  const closed=inComp?bars.slice(0,-1):bars;
+  if(closed.length<25) return null;
+  const n=closed.length, D=closed[n-1], P1=closed[n-2], P2=closed[n-3], P3=closed[n-4];
+  if(!D.oi||!P3.oi) return {noOi:true};
+  const oi3=(D.oi-P3.oi)/P3.oi;
+  const hit=D.c>Math.max(+P1.h,+P2.h)&&oi3>=0.03;
+  return {hit,d:bjStr(new Date(D.t)),c:+D.c,oi3:oi3,hi2:Math.max(+P1.h,+P2.h)};
+}
+function o3Render(){
+  const o=o3Check();
+  if(!o) return '';
+  if(o.noOi) return '<span style="color:var(--faint)">📋 O3 同步确认器：日线OI缺失（东财备线无每bar持仓），无法自动判定；新浪K线恢复后自动工作</span>';
+  if(bjStr(bj())<'2026-12-01') return '';   /* §184 拍板：提案2 跟 12 月首个交易日启用 */
+  const TR=LS.get('o3Track',[]);
+  if(o.hit&&!TR.find(x=>x.d===o.d&&x.sym===S.contract)){
+    TR.push({d:o.d,sym:S.contract,c:o.c,oi3:Math.round(o.oi3*1000)/10,ret3:null});
+    while(TR.length>90) TR.shift();
+    LS.set('o3Track',TR);
+  }
+  /* ret3 自动回填（信号日后第3根收盘）+ 观察中/已满期信号展示（只提示不驱动方向） */
+  const bars=S.bars.d||[];
+  const _hm=bjHM(), _today=bjStr(bj());
+  const closedToday=isWeekday()&&_hm>=1500;
+  const closed=(bjStr(new Date(bars[bars.length-1].t))===_today&&!closedToday)?bars.slice(0,-1):bars;
+  let dirty=false, rows=[];
+  for(const x of TR){
+    const di=closed.findIndex(b=>bjStr(new Date(b.t))===x.d);
+    if(di<0) continue;
+    if(di+3<closed.length){
+      if(x.ret3==null){ x.ret3=Math.round((closed[di+3].c/x.c-1)*10000)/100; dirty=true; }
+      if(di>=closed.length-6) rows.push('<span style="color:'+(x.ret3>0?'var(--ok)':'var(--risk)')+'">'+x.d+' O3确认('+x.c+'，OI3日+'+x.oi3+'%) → 3日 '+(x.ret3>0?'+':'')+x.ret3+'%</span>');
+    } else {
+      rows.push('<span style="color:var(--gold)">'+x.d+' O3 观察中（收盘 '+x.c+'，OI3日+'+x.oi3+'%，3日观察期 '+Math.max(0,di+3-(closed.length-1))+' 日后满）</span>');
+    }
+  }
+  if(dirty) LS.set('o3Track',TR);
+  if(o.hit) rows.unshift('<b style="color:var(--ok)">📋 O3 主动建仓确认（'+o.d+' 收盘 '+o.c+' 站上前2日高点 '+o.hi2+' + OI3日 +'+(Math.round(o.oi3*1000)/10)+'%）</b><span style="color:var(--faint)">——观察名单只提示不驱动方向；基差未自动校验需人工核对；非开仓指令</span>');
+  return rows.length?rows.join(' · '):'';
+}
+function reversalWatchCalc(){
+  const _td=bjStr(bj()), _hm=bjHM();
+  if(!isWeekday()||_hm<900||_hm>1500) return null;
+  const m5=(S.bars&&S.bars.m5)||[];
+  let td=m5.filter(b=>bjStr(new Date(b.t))===_td);
+  if(td.length<15) return null;
+  /* n96 同款 oi 槽回填（EM备线无每bar持仓时的近似兜底；dOI 只用 bar[14].oi 与 oiBase 不受 miss 影响） */
+  const slots=(S.oiSlots&&S.oiSlots.day===_td)?S.oiSlots.m:{};
+  const sk=Object.keys(slots).map(Number).sort((a,b)=>a-b);
+  if(sk.length) td=td.map(b=>{
+    if(b.oi>0) return b;
+    let v=0; for(let k=sk.length-1;k>=0;k--){ if(sk[k]<=b.t){ v=slots[sk[k]]; break; } }
+    if(!v) v=slots[sk[0]];
+    return v>0?Object.assign({},b,{oi:v}):b;
+  });
+  if(td[14].oi<=0) return null;   /* OI 缺失弃权（n95 同款⑥） */
+  const w=td.slice(0,15);
+  const idx=m5.indexOf(w[0]);
+  const prev=idx>0?m5[idx-1]:null;
+  let oiBase=(prev&&prev.oi>0)?prev.oi:0;
+  if(!oiBase){ const oh=(LS.get('oiHist',{})[S.contract])||{}; const dks=Object.keys(oh).filter(d=>d<_td&&oh[d]>0).sort(); if(dks.length) oiBase=oh[dks[dks.length-1]]; }
+  if(!oiBase){ oiBase=w[0].oi; if(oiBase<=0) return null; }
+  const mDrift=+w[14].c-+w[0].o, mdOI=+w[14].oi-oiBase;
+  const trArr=(arr)=>{const r=[];for(let i=1;i<arr.length;i++){const b=arr[i],pb=arr[i-1];r.push(Math.max(b.h-b.l,Math.abs(b.h-pb.c),Math.abs(b.l-pb.c)));}return r;};
+  const trM=trArr(w), a5m=trM.length?trM.reduce((s,x)=>s+x,0)/trM.length:0;
+  const trAll=trArr(m5.slice(-14)), a5now=trAll.length?trAll.reduce((s,x)=>s+x,0)/trAll.length:0;
+  const c12=td.slice(-12);
+  const cDrift=+c12[c12.length-1].c-+c12[0].o;
+  const ci=m5.indexOf(c12[0]);
+  const cPrev=ci>0?m5[ci-1]:null;
+  const cdOI=(cPrev&&cPrev.oi>0)?(+c12[c12.length-1].oi-cPrev.oi):0;
+  const pNow=(S.live&&S.live.price!=null&&S.live.isToday)?S.live.price:+td[td.length-1].c;
+  const svw=(arr)=>{let sv=0,sPV=0;for(const b of arr){if(b.v>0){sv+=b.v;sPV+=b.c*b.v;}}return sv>0?sPV/sv:null;};
+  const vwapAll=svw(td), mVwap=svw(w), wEnd=+w[14].c;
+  const extH=Math.max.apply(null,w.map(b=>+b.h)), extL=Math.min.apply(null,w.map(b=>+b.l));
+  const bull=mDrift>0;
+  let kind=null, why='';
+  if(a5m>0&&a5now>0&&Math.abs(mDrift)>=a5m&&Math.abs(cDrift)>=a5now&&(cDrift>0)!==bull){
+    kind='A级·主动方翻转';
+    why='早盘主动方='+(bull?'多头':'空头')+'主动（首15根漂移 '+(mDrift>0?'+':'')+Math.round(mDrift)+'、仓差 '+(mdOI>0?'+':'')+mdOI+'），近12根反向漂移 '+(cDrift>0?'+':'')+Math.round(cDrift)+'（≥1×ATR5m='+Math.round(a5now)+'）';
+  } else if(bull&&(pNow<extL||(mVwap!=null&&wEnd>=mVwap&&vwapAll!=null&&pNow<vwapAll))){
+    kind='B级·价格结构跌穿';
+    why='早盘多头主动（漂移 '+(mDrift>0?'+':'')+Math.round(mDrift)+'），现价 '+pNow+' '+(pNow<extL?('已跌穿早盘极值 '+extL):('已自早盘末根均线上方跌至全天均价 '+Math.round(vwapAll)+' 下方'));
+  } else if(!bull&&(pNow>extH||(mVwap!=null&&wEnd<=mVwap&&vwapAll!=null&&pNow>vwapAll))){
+    kind='B级·价格结构收复';
+    why='早盘空头主动（漂移 '+(mDrift>0?'+':'')+Math.round(mDrift)+'），现价 '+pNow+' '+(pNow>extH?('已越过早盘极值 '+extH):('已自早盘末根均线下方升至全天均价 '+Math.round(vwapAll)+' 上方'));
+  }
+  if(!kind) return null;
+  const oiNature=cdOI<0?'减仓（修复/离场性质，成色弱——连续减仓修复常是反转前兆，次日增仓+放量确认才算资金进场，勿把减仓修复直接外推为反转）':(cdOI>0?'增仓（与逆转方向一致，成色较足）':'仓差持平（性质待收盘确认）');
+  return {kind,why,oiNature,pNow};
+}
+function renderRevbar(){
+  const el=$('revbar'); if(!el) return;
+  const _hm=bjHM();
+  const r=(!isWeekday()||_hm>1500)?null:reversalWatchCalc();
+  if(!r){ el.style.display='none'; el.dataset.on=''; return; }
+  el.innerHTML='<b>⚠️ 该反转观察（'+r.kind+'）</b>：'+esc(r.why)+'；仓差性质：'+r.oiNature+'。原方向证据失效，方向票降级待确认；是否反转以「增仓+方向一致+收盘确认」为准（午后为逆转高发段，历史全天同向率仅约53%）。仅为主动方现状对比描述，非预测非指令。';
+  el.style.display='block'; el.dataset.on='1';
 }
 /* n51b: 一键换月四件套——OI比≥1.2 预警升级为可点按钮。
    四件套：①切次月合约 ②重载全部K线/分析 ③旧合约台账封存（rollLog 追加迁出记录，台账数据本身按日期天然保留不删） ④趋势锚一致性检查：
@@ -5277,6 +5410,11 @@ function bindUI(){
       ?(' · 今日状态：<b style="color:var(--'+n79.state.c+')">'+n79.state.k+'</b>（开盘30分 '+n79.orLo+'–'+n79.orHi+'，宽度 '+(n79.orHi-n79.orLo)+' vs ATR '+L.atr+'）——'+n79.state.tip)
       :(' · 今日状态：'+n79.state.k+'，'+n79.state.tip); }
     if(st) st.innerHTML='<span style="color:var(--faint)">⚡自动档位（近20日收盘高低点+ATR14='+L.atr+'，数据截至 '+L.date+'） · 档位线 '+LO+' / '+HI+'（支撑带 '+BLO+'）'+distTxt+' · 锚状态：'+anchorTxt+n79Txt+'</span>';
+    /* n100: 走势状态 regime 徽标（§185 n99 页面层）+ O3 同步确认器（§184 提案2）——只提示不驱动方向 */
+    const RG=regimeCalc();
+    if(RG&&st) st.innerHTML+='<br><b style="color:var(--gold)">🧭 走势状态：'+RG.state+'</b>（20日收盘箱体 '+RG.lo+'–'+RG.hi+'，现价位于箱体 '+RG.pos20+'%'+(RG.streak5?'，近5日收盘全在箱体内':'')+'）· 方向票门槛：'+RG.gate;
+    const O3T=o3Render();
+    if(O3T&&st) st.innerHTML+='<br>'+O3T;
     const tiers=[
       {k:'hi',cls:'ok',cond:'收盘 ≥ '+HI,act:'锚翻多恢复——失败判定作废，重计观察期'},
       {k:'mid',cls:'warn',cond:LO+'-'+HI+' 区间',act:'观望建多；重点盯 '+BLO+'-'+LO+' 支撑带受压与 OI 变化：OI 企稳+现货反弹=超跌修复候选；OI 续增+现货续跌=下破风险'},
@@ -5878,6 +6016,9 @@ function bindUI(){
   setInterval(watchdog, 30000);
   fetchDominance();   /* n45/n83: 主力对比监控——休市停发（函数内守卫），盘中60秒轮询（原30秒，仅服务换月徽标） */
   setInterval(fetchDominance, 60000);
+  /* n100: 逆转观察横幅——60秒轮询（盘面级事件，非秒级；15:00后自动隐去，跨日自动重置） */
+  renderRevbar();
+  setInterval(renderRevbar, 60000);
 })();
 </script>
 <!-- n21: 底部Tab分区导航（仅窄屏显示；纯布局层，不动任何数据链路/功能ID） -->
