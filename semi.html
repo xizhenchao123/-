@@ -8,6 +8,7 @@
 <title>鸡蛋半量化研判系统</title><!-- n47: 大周期趋势锚（HH/HL结构+MA5斜率，开盘锁定）+ 顺/逆势日一致性提示；n48: 过期合约拦截；n51a: 横幅"今日适宜度"行（扩样回测：前日|涨跌|≥0.5%顺势积极日 vs 小阴小阳观望日，期望差5-10点/笔）；n51b: 一键换月（OI比≥1.2预警升级为可点按钮：切次月合约+重载数据+旧合约台账封存+趋势锚一致性检查，方向一致延续/不一致提示人工复核）；n52: 安全加固（安全审计后）——veto/patterns外部数据过esc、CSP meta白名单、Chart.js SRI+crossorigin、换月按钮a→button；n53: 适宜度实效跟踪快照（fitnessTrack 90条，回看过滤器实效）；n50: 日内倾向角（策略卡大周期锚行后：锚×日内方向×适宜度三合一罗盘，顺积极/顺轻仓/顺观望/逆警惕/锚等日内/横区间六态）；n54: 可靠性加固——n54a数据备份（历史策略卡内"备份全部数据"按钮，journal/strategies/sigSnaps/fitnessTrack/cases/dailyThree/rollLog/持仓跟踪等全量LS键打包导出JSON防清缓存丢失）、n54b换月监控待快照态醒目化（黄色提示+引导刷新）、n54c案例库次日%缺列不再静默（黄色说明+重试引导）；n55: 基差助手（现货基本面卡新增基差快照块：通达信F9主产区均价每日快照硬编码BASISSNAP，显示现货价/环比/期现基差与贴水升水，随实时价刷新；⚡一键填入今日/昨日现货价并自动重算基差分）；n56: 仓单快照（基差助手块内增仓单行：DCE厂库标准仓单日更WRSNAP，零仓单/注册/注销状态+临近交割月供给压力预警提示，只读不进打分） -->
 <!-- n100: 走势确认门槛+逆转提醒+O3确认器（2026-11-27晚，§185 n99页面层+§184提案2合并落地）：①计划页新增「走势状态」regime徽标（20日收盘箱体口径，箱体内默认震荡观望不出方向票、沿上方=突破候选须增仓+放量+收盘站稳三条件，换月期oiRatio≥0.5门槛再收紧，静态注「箱体期沿边试探73%两日内收回n=81」）；②顶部红色逆转观察横幅（独立#revbar不复用mainbar防被换月检查压制）——早盘前15根5m主动方 vs 近12根，A级=双侧漂移≥1×ATR5m且反向，B级=现价越过早盘极值或早盘末根与现价分居全天VWAP两侧，仓差性质随附（减仓附§175教训句），文案「⚠️该反转观察：原方向证据失效，方向票降级待确认；是否反转以增仓+方向一致+收盘确认为准」，15:00后自动隐去；③O3同步确认器（§184大考达标26/45=58%）：收盘站上前2日高点+OI3日累计增≥3%（基差未自动校验需人工核对），12-01起启用，LS o3Track观察台账+3日后ret3自动回填，只提示不驱动方向；红线不变：全部为现状描述与流程降级机制，非预测非指令 -->
 <!-- n100b: n53复盘修复（2026-11-27夜）：fitnessTrack 快照写入加 isWeekday 守卫，周末不再污染样本（已有4条周末脏数据保留无害，复盘统计时剔除） -->
+<!-- n64f: n64挂账落地（2026-11-27夜）：①尾盘结算脉冲标注（14:30后单根量≥前40根均量3倍→事件流标注收盘价参考性降级）②适宜度实效台账卡（复盘页与信号对账卡相邻，n53复盘结论前端化：三级分层顺延率/平均振幅统计+周末脏数据剔除+样本局限注记，纯本机LS） -->
 <!-- n83: 三项行为精简——①fetchDominance 休市停发+盘中降60s（原30s无缓存休市照发全天≈2880请求，仅服务换月徽标）②每日三问与信号快照解耦：快照为0时sigCard不再整卡隐藏，三问独立常显+待快照提示③删Chart.js 5分钟速览卡（与主K线图数据/功能完全重复，含CDN script/CSP白名单/onTick增量同步/renderChartJS全链路） -->
 <!-- n87: 对账卡口径注记——三项判定全部页面自算（当日5m+已收日线独立重算），与TDX等外部源互证时的数字差异（如开盘区间r值0.49 vs 0.60）属bar集与ATR细节口径差，不改判定方向，机械判定一律以页面自算为准 -->
 <!-- n88c: n88 收口修复——①applyContract 排队锁（防 fullCycle busy-return 造成「合约已切数据未载」串位）+ 拒绝时回滚下拉/输入框显示 ②主力易主提示条「暂不」会话内不再重复弹 ③S.contract 启动格式消毒+innerHTML esc ④probeOneC OI≥100手过滤已交割沉淀仓 -->
@@ -1479,6 +1480,12 @@ window.__TRAE_PUSH_INLINE__={
     <div class="card tr" id="auditCard" style="display:none">
       <h3>📋 判定对账 · 三项自动核销 <span class="tag" id="auditTag">0 条</span></h3>
       <div id="auditBody"></div>
+    </div>
+
+    <!-- n64f: 适宜度实效台账（n53复盘结论前端化，与信号对账卡相邻）：读 fitnessTrack 快照+页面日线回补，三级分层实盘验证，纯本机LS跨设备不同步 -->
+    <div class="card tr" id="fitCard" style="display:none">
+      <h3>🎯 适宜度实效台账 <span class="tag" id="fitTag">0 条</span></h3>
+      <div id="fitBody"></div>
     </div>
 
     <!-- n85: 产业对照卡（只读参考层：会后产业清单结构化归档；静态内容、零JS零localStorage，不参与任何自动判定，纯展示） -->
@@ -3965,6 +3972,12 @@ function renderPanels(){
    `<br>近12根5分钟：上涨bar量 ${fmtN(m5UpV())} / 下跌bar量 ${fmtN(m5DnV())}。`;
   /* 事件流（k2-3 表格化：时间 | 事件类型 | 说明） */
   const evRows=wy.events.map(e=>({t:fmtDT(e.t),ty:e.dir==='up'?'放量上攻':(e.dir==='down'?'放量下杀':'异动'),note:`z=${e.z.toFixed(1)}${e.dOI?`，仓差${e.dOI>0?'+':''}${fmtN(e.dOI)}手`:''}，收于bar内 ${(e.closePos*100).toFixed(0)}% 位置 → ${e.dir==='up'?'需求信号':'供应信号'}`}));
+  /* n64f: 尾盘结算脉冲标注（14:30后单根量≥前40根均量3倍）——结算价机制致尾盘读数失真，收盘价参考性降级（n64挂账落地） */
+  {
+    const _m5=S.bars.m5||[], _td=_m5.length?bjStr(new Date(_m5[_m5.length-1].t)):null;
+    _m5.forEach((b,i)=>{ if(i>=40&&_td&&bjStr(new Date(b.t))===_td){ const d=new Date(b.t); if(d.getHours()*60+d.getMinutes()>=870&&b.v>=3*avgVB(_m5,i)) evRows.push({t:fmtDT(b.t),ty:'结算脉冲',note:'单根量'+fmtN(b.v)+'手≥近40根均量3倍——尾盘结算价机制主导，收盘价参考性降级，日内信号权重以脉冲前为准'}); } });
+    evRows.sort((a,b)=>a.t<b.t?-1:1);
+  }
   $('events').innerHTML = evRows.length
     ? `<div class="lvlwrap"><table class="lvl"><tr><th>时间</th><th>事件类型</th><th>说明</th></tr>${evRows.map(e=>`<tr><td style="white-space:nowrap">${e.t}</td><td><b style="color:${e.ty==='放量上攻'?'var(--up)':(e.ty==='放量下杀'?'var(--dn)':'var(--warn)')}">${e.ty}</b></td><td>${e.note}</td></tr>`).join('')}</table></div>`
     : '<div class="sec">近60根无显著放量异动。</div>';
@@ -4356,7 +4369,41 @@ function renderRecap(){
    `<div class="recaph">④ 信号有效性</div><div class="sec">${rc.sigEffect.length?rc.sigEffect.map(s=>`${fmtT(s.t)} 放量${s.dir==='up'?'上攻':'下杀'} → <b>${s.verdict}</b>`).join('；')+'。':'当日无待验证信号事件。'}</div>`+
    `<div class="recaph">⑤ 下一交易日观察</div><div class="sec"><b>短线多空分界线</b>：<b class="num" style="color:var(--gold)">${rc.watchDiv!=null?rc.watchDiv.toFixed(0):'--'}</b>（昨结算${rc.prevSettle!=null?' '+rc.prevSettle.toFixed(0):'无数据，用当日均价代替'}${rc.settle!=null?'；当日结算价 '+rc.settle.toFixed(0):''}）——明日收盘站上视为短线偏多，收于其下视为短线偏空。<br>上方关注：<b class="num" style="color:var(--res)">${rc.watchRes.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>；下方关注：<b class="num" style="color:var(--sup)">${rc.watchSup.map(x=>x.toFixed(0)).join(' / ')||'--'}</b>。<br><b>向上突破压力位需同时满足</b>：①放量（量比明显抬升）②仓差配合（增仓上行更佳）——无量上冲容易假突破，冲高缩量回落的先当诱多对待。<br><b>跌破支撑位代表</b>：多头防线失守，短线结构转坏，原支撑转为新的压力；若跌破时放量增仓，说明主动卖盘坚决，反弹先看修复再看反转。<br>风险点：${(S.A&&S.A.riskFlags.length)?S.A.riskFlags.map(f=>f.tag).join('、'):'常规——注意开盘巨量换手与压力位量能配合情况'}。现货端请持续跟踪主产区报价变化（人工输入区）。</div>`+
    `<div class="recaph">⑥ 免责声明</div><div class="sec" style="color:var(--faint)">本复盘仅为盘面数据整理与规则化打分输出，不构成任何期货投资建议；期货杠杆交易风险极高，所有交易决策与盈亏由使用者自行承担。</div>`;
+  try{ renderFitCard(); }catch(e){ const _fb=$('fitBody'); if(_fb) _fb.innerHTML='<span style="color:var(--risk)">台账渲染异常：'+esc(String(e&&e.message||e))+'</span>'; $('fitCard').style.display='block'; }
   renderStrategy();
+}
+
+/* n64f: 适宜度实效台账——读 fitnessTrack 快照（兼容单/双序列化）+页面日线回补当日实际，三级分层统计（顺延率/平均振幅），周末脏数据自动剔除（n100b修复前写入的4条），纯本机LS */
+function renderFitCard(){
+  let raw=LS.get('fitnessTrack','[]'); let ft=[];
+  if(typeof raw==='string'){ try{ ft=JSON.parse(raw)||[]; }catch(e){ ft=[]; } } else if(Array.isArray(raw)){ ft=raw; }
+  if(!ft.length){ $('fitCard').style.display='none'; return; }
+  const dl=S.bars.d||[];
+  const dayIx={}; dl.forEach((b,i)=>{ if(b.t) dayIx[bjStr(new Date(b.t))]=i; });
+  const wdOk=d=>{ const wd=new Date(d+'T00:00:00').getDay(); return wd!==0&&wd!==6; };
+  const rows=[];
+  ft.forEach(f=>{
+    if(!f||!f.date||!wdOk(f.date)) return;
+    const i=dayIx[f.date]; if(i==null||i<1) return;
+    const b=dl[i],pb=dl[i-1]; if(!pb.c) return;
+    const ret=(+b.c/+pb.c-1)*100, amp=(+b.h-+b.l)/+pb.c*100;
+    rows.push({date:f.date,lvl:f.lvl||'?',prev:f.prevChg,ret:ret,amp:amp,cont:Math.sign(f.prevChg)!==0&&Math.sign(ret)===Math.sign(f.prevChg)});
+  });
+  if(!rows.length){ $('fitCard').style.display='none'; return; }
+  $('fitTag').textContent=rows.length+' 条有效';
+  const G={}; rows.forEach(r=>{ (G[r.lvl]=G[r.lvl]||[]).push(r); });
+  const avg=a=>a.length? a.reduce((s,x)=>s+x,0)/a.length : 0;
+  const meta={'适宜':'前日|涨跌|≥0.5% → 顺势积极日','降权':'3日累计≥1.5% → 轻仓等确认','观望':'小阴小阳 → 日内轻仓或不做'};
+  const order=['适宜','降权','观望'];
+  let html='<table class="lvl"><tr><th>分级</th><th>n</th><th>顺延率</th><th>平均振幅</th><th>含义</th></tr>';
+  order.forEach(k=>{ const g=G[k]; if(!g) return;
+    html+=`<tr><td><b>${k}</b></td><td class="num">${g.length}</td><td class="num">${Math.round(100*g.filter(r=>r.cont).length/g.length)}%</td><td class="num">${avg(g.map(r=>r.amp)).toFixed(2)}%</td><td style="font-size:10px;color:var(--faint)">${meta[k]||''}</td></tr>`;
+  });
+  Object.keys(G).filter(k=>order.indexOf(k)<0).forEach(k=>{ const g=G[k]; html+=`<tr><td><b>${esc(k)}</b></td><td class="num">${g.length}</td><td class="num">${Math.round(100*g.filter(r=>r.cont).length/g.length)}%</td><td class="num">${avg(g.map(r=>r.amp)).toFixed(2)}%</td><td style="font-size:10px;color:var(--faint)">未定义级</td></tr>`; });
+  html+='</table>';
+  html+=`<div style="margin-top:6px;font-size:10px;color:var(--faint);line-height:1.7">顺延率=当日收盘延续前日方向的天数占比（11月复盘：适宜组67% vs 其他33%，方向延续效应实盘成立；观望组平均振幅最低、无一走出1.2×ATR行情，轻仓不做有效）。周末快照已自动剔除（n100b 前写入的脏数据）。样本局限：单合约单月，统计性弱，继续攒样本中；仅为盘面复盘参考，不构成投资建议。</div>`;
+  $('fitBody').innerHTML=html;
+  $('fitCard').style.display='block';
 }
 
 /* =====================================================================
